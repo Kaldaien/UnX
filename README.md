@@ -1,7 +1,7 @@
 # ***"Untitled" Project X***
-Technical Fixes and Enhancements for ***Final Fantasy X | X-2 HD Remastered***
+Technical Fixes and Enhancements for ***Final Fantasy X | X-2 HD Remaster***
 
-Originally envisioned as a quick-fix solution for a few technical problems in the otherwise excellent PC port of ***Final Fantasy X | X-2 HD Remastered***, this mod aims to customize some of the game's internal working systems such as cutscene skipping, UI and language selection. The "fix" part of the mod should still be very minimal, but there is still room to polish off many aspects of gameplay.
+Originally envisioned as a quick-fix solution for a few technical problems in the otherwise excellent PC port of ***Final Fantasy X | X-2 HD Remaster***, this mod aims to customize some of the game's internal working systems such as cutscene skipping, UI and language selection. The "fix" part of the mod should still be very minimal, but there is still room to polish off many aspects of gameplay.
 
 This mod is derived partially from work done on language selection by the Steam community; refer to `AUTHORS`. _If you find your name in there (Steam username) and would like to be credited differently, please let me know on Steam._
 
