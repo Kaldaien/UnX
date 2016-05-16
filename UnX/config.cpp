@@ -18,18 +18,41 @@
  *   If not, see <http://www.gnu.org/licenses/>.
  *
 **/
+#define _CRT_SECURE_NO_WARNINGS
+
 #include "config.h"
 #include "parameter.h"
 #include "ini.h"
 #include "log.h"
 
+#include <string>
+
 static
   unx::INI::File* 
              dll_ini         = nullptr;
-std::wstring UNX_VER_STR = L"0.0.5";
+std::wstring UNX_VER_STR = L"0.1.0";
 unx_config_s config;
 
+typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)   (bool);
+
+SK_DXGI_EnableFlipMode_pfn SK_DXGI_EnableFlipMode = nullptr;
+
+typedef void (WINAPI *SK_D3D11_SetResourceRoot_pfn) (std::wstring);
+typedef void (WINAPI *SK_D3D11_EnableTexDump_pfn)   (bool);
+typedef void (WINAPI *SK_D3D11_EnableTexInject_pfn) (bool);
+typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)      (std::wstring, uint32_t);
+typedef void (WINAPI *SK_D3D11_RemoveTexHash_pfn)   (uint32_t);
+typedef void (WINAPI *SKX_D3D11_MarkTextures_pfn)   (bool,bool,bool);
+
+SK_D3D11_SetResourceRoot_pfn SK_D3D11_SetResourceRoot = nullptr;
+SK_D3D11_EnableTexDump_pfn SK_D3D11_EnableTexDump     = nullptr;
+SK_D3D11_EnableTexInject_pfn SK_D3D11_EnableTexInject = nullptr;
+SK_D3D11_AddTexHash_pfn SK_D3D11_AddTexHash           = nullptr;
+SK_D3D11_RemoveTexHash_pfn SK_D3D11_RemoveTexHash     = nullptr;
+SKX_D3D11_MarkTextures_pfn SKX_D3D11_MarkTextures     = nullptr;
+
 struct {
+  unx::ParameterBool*    flip_mode;
 } render;
 
 struct {
@@ -48,7 +71,13 @@ struct {
 struct {
 } colors;
 
-struct {
+struct {  
+  unx::ParameterStringW* resource_root;
+  unx::ParameterStringW* gamepad_tex;
+  unx::ParameterStringW* gamepad_hash;
+  unx::ParameterBool*    dump;
+  unx::ParameterBool*    inject;
+  unx::ParameterBool*    mark;
 } textures;
 
 struct {
@@ -78,6 +107,62 @@ struct {
 
 unx::ParameterFactory g_ParameterFactory;
 
+bool
+UNX_SetupLowLevelRender (void)
+{
+  HMODULE hInjector =
+    LoadLibrary (config.system.injector.c_str ());
+
+  SK_DXGI_EnableFlipMode =
+    (SK_DXGI_EnableFlipMode_pfn)
+      GetProcAddress (hInjector, "SK_DXGI_EnableFlipMode");
+
+  if (SK_DXGI_EnableFlipMode != nullptr)
+    return true;
+
+  return false;
+}
+
+bool
+UNX_SetupTexMgmt (void)
+{
+  HMODULE hInjector =
+    LoadLibrary (config.system.injector.c_str ());
+
+  SK_D3D11_SetResourceRoot =
+    (SK_D3D11_SetResourceRoot_pfn)
+      GetProcAddress (hInjector, "SK_D3D11_SetResourceRoot");
+
+  SK_D3D11_EnableTexDump =
+    (SK_D3D11_EnableTexDump_pfn)
+      GetProcAddress (hInjector, "SK_D3D11_EnableTexDump");
+
+  SK_D3D11_EnableTexInject =
+    (SK_D3D11_EnableTexInject_pfn)
+      GetProcAddress (hInjector, "SK_D3D11_EnableTexInject");
+
+  SK_D3D11_AddTexHash =
+    (SK_D3D11_AddTexHash_pfn)
+      GetProcAddress (hInjector, "SK_D3D11_AddTexHash");
+
+  SK_D3D11_RemoveTexHash =
+    (SK_D3D11_RemoveTexHash_pfn)
+      GetProcAddress (hInjector, "SK_D3D11_RemoveTexHash");
+
+  SKX_D3D11_MarkTextures =
+    (SKX_D3D11_MarkTextures_pfn)
+      GetProcAddress (hInjector, "SKX_D3D11_MarkTextures");
+
+  // Ignore SKX_..., these are experimental things and the software
+  //   must work even if SpecialK removes the function.
+  if ( SK_D3D11_SetResourceRoot != nullptr && SK_D3D11_EnableTexDump != nullptr &&
+       SK_D3D11_EnableTexInject != nullptr && SK_D3D11_AddTexHash    != nullptr &&
+       SK_D3D11_RemoveTexHash   != nullptr ) {
+    return true;
+  }
+
+  return false;
+}
 
 bool
 UNX_LoadConfig (std::wstring name) {
@@ -99,6 +184,16 @@ UNX_LoadConfig (std::wstring name) {
     dll_ini,
       L"UnX.Display",
         L"DisableDPIScaling" );
+
+  render.flip_mode =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Allow Flip Mode Rendering")
+      );
+  render.flip_mode->register_to_ini (
+    dll_ini,
+      L"UnX.Render",
+        L"FlipMode" );
 
 
   language.voice =
@@ -223,6 +318,59 @@ UNX_LoadConfig (std::wstring name) {
         L"AliasArrowsToWASD" );
 
 
+  textures.resource_root =
+    static_cast <unx::ParameterStringW *>
+      (g_ParameterFactory.create_parameter <std::wstring> (
+        L"Root of all texture resources; possibly of all evil too...")
+      );
+  textures.resource_root->register_to_ini (
+    dll_ini,
+      L"UnX.Textures",
+        L"ResourceRoot" );
+
+  textures.gamepad_tex =
+    static_cast <unx::ParameterStringW *>
+      (g_ParameterFactory.create_parameter <std::wstring> (
+        L"Gamepad Button Icon Texture")
+      );
+
+  textures.gamepad_tex->register_to_ini (
+    dll_ini,
+      L"UnX.Textures",
+        L"GamepadIcons" );
+
+  textures.gamepad_hash =
+    static_cast <unx::ParameterStringW *>
+      (g_ParameterFactory.create_parameter <std::wstring> (
+        L"Gamepad Button Icon Texture")
+      );
+  textures.gamepad_hash->register_to_ini (
+    dll_ini,
+      L"UnX.Textures",
+        L"GamepadHash" );
+
+  textures.dump =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Dump All Textures")
+    );
+  textures.dump->register_to_ini (
+    dll_ini,
+      L"UnX.Textures",
+        L"Dump" );
+
+  textures.inject =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Inject All Textures in <Res_Root>/inject/<hash>.dds")
+    );
+  textures.inject->register_to_ini (
+    dll_ini,
+      L"UnX.Textures",
+        L"Inject" );
+
+
+
   sys.version =
     static_cast <unx::ParameterStringW *>
       (g_ParameterFactory.create_parameter <std::wstring> (
@@ -289,12 +437,49 @@ UNX_LoadConfig (std::wstring name) {
   if (input.alias_wasd->load ())
     config.input.alias_wasd = input.alias_wasd->get_value ();
 
-
   if (sys.version->load ())
     config.system.version = sys.version->get_value ();
 
   if (sys.injector->load ())
     config.system.injector = sys.injector->get_value ();
+
+
+  if (UNX_SetupLowLevelRender ()) {
+    if (render.flip_mode->load ())
+      config.render.flip_mode = render.flip_mode->get_value ();
+
+    SK_DXGI_EnableFlipMode (config.render.flip_mode);
+  }
+
+  if (UNX_SetupTexMgmt ()) {
+    if (textures.resource_root->load ())
+      config.textures.resource_root = textures.resource_root->get_value ();
+
+    if (textures.gamepad_tex->load ()) {
+      config.textures.gamepad_tex =
+        textures.gamepad_tex->get_value ();
+
+      if (textures.gamepad_hash->load ()) {
+        wscanf (L"0x%x", &config.textures.gamepad_hash);
+      }
+
+      SK_D3D11_AddTexHash ( config.textures.gamepad_tex,
+                              config.textures.gamepad_hash );
+    }
+
+    if (textures.dump->load ())
+      config.textures.dump =
+        textures.dump->get_value ();
+
+    if (textures.inject->load ())
+      config.textures.inject =
+        textures.inject->get_value ();
+
+    SK_D3D11_SetResourceRoot (config.textures.resource_root);
+    SK_D3D11_EnableTexDump   (config.textures.dump);
+    SK_D3D11_EnableTexInject (config.textures.inject);
+  }
+
 
   if (empty)
     return false;

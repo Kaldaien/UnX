@@ -28,11 +28,12 @@ extern std::wstring UNX_VER_STR;
 
 struct unx_config_s
 {
-  struct {  
+  struct {
+    bool    flip_mode           = true;
   } render;
 
   struct {
-    bool    disable_dpi_scaling  = true;
+    bool    disable_dpi_scaling = true;
   } display;
 
   struct {
@@ -45,6 +46,12 @@ struct unx_config_s
   } stutter;
 
   struct {
+    std::wstring resource_root = L"UnX_Res";
+    std::wstring gamepad_tex   = L"pad_icons.dds";
+    uint32_t     gamepad_hash  = 0x6d553cf3;
+    bool         dump          = false;
+    bool         inject        = false;
+    bool         mark          = false;
   } textures;
 
   struct {
@@ -57,9 +64,9 @@ struct unx_config_s
   } trace;
 
   struct {
-    std::wstring voice;
-    std::wstring video;
-    std::wstring sfx;
+    std::wstring voice = L"jp";
+    std::wstring video = L"jp";
+    std::wstring sfx   = L"jp";
   } language;
 
   struct {
@@ -67,7 +74,6 @@ struct unx_config_s
     bool block_left_ctrl = false;
     bool block_windows   = false;
     bool block_all_keys  = false;
-
     bool cursor_mgmt     = true;
     int  cursor_timeout  = 1500;
     bool activate_on_kbd = true;
