@@ -250,7 +250,7 @@ UNX_Scan (const uint8_t* pattern, size_t len, const uint8_t* mask)
     pages += VirtualQuery (end_addr, &mem_info, sizeof mem_info);
 
     end_addr = (uint8_t *)mem_info.BaseAddress + mem_info.RegionSize;
-  }
+  } 
 
   if (end_addr > PAGE_WALK_LIMIT) {
 #if 0

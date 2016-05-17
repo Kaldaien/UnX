@@ -30,26 +30,30 @@
 static
   unx::INI::File* 
              dll_ini         = nullptr;
-std::wstring UNX_VER_STR = L"0.1.0";
+std::wstring UNX_VER_STR = L"0.1.1";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)   (bool);
 
 SK_DXGI_EnableFlipMode_pfn SK_DXGI_EnableFlipMode = nullptr;
 
-typedef void (WINAPI *SK_D3D11_SetResourceRoot_pfn) (std::wstring);
-typedef void (WINAPI *SK_D3D11_EnableTexDump_pfn)   (bool);
-typedef void (WINAPI *SK_D3D11_EnableTexInject_pfn) (bool);
-typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)      (std::wstring, uint32_t);
-typedef void (WINAPI *SK_D3D11_RemoveTexHash_pfn)   (uint32_t);
-typedef void (WINAPI *SKX_D3D11_MarkTextures_pfn)   (bool,bool,bool);
+typedef void (WINAPI *SK_D3D11_SetResourceRoot_pfn)  (std::wstring);
+typedef void (WINAPI *SK_D3D11_EnableTexDump_pfn)    (bool);
+typedef void (WINAPI *SK_D3D11_EnableTexInject_pfn)  (bool);
+typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)       (std::wstring, uint32_t);
+typedef void (WINAPI *SK_D3D11_RemoveTexHash_pfn)    (uint32_t);
 
-SK_D3D11_SetResourceRoot_pfn SK_D3D11_SetResourceRoot = nullptr;
-SK_D3D11_EnableTexDump_pfn SK_D3D11_EnableTexDump     = nullptr;
-SK_D3D11_EnableTexInject_pfn SK_D3D11_EnableTexInject = nullptr;
-SK_D3D11_AddTexHash_pfn SK_D3D11_AddTexHash           = nullptr;
-SK_D3D11_RemoveTexHash_pfn SK_D3D11_RemoveTexHash     = nullptr;
-SKX_D3D11_MarkTextures_pfn SKX_D3D11_MarkTextures     = nullptr;
+typedef void (WINAPI *SKX_D3D11_MarkTextures_pfn)    (bool,bool,bool);
+typedef void (WINAPI *SKX_D3D11_EnableFullscreen_pfn)(bool);
+
+SK_D3D11_SetResourceRoot_pfn   SK_D3D11_SetResourceRoot   = nullptr;
+SK_D3D11_EnableTexDump_pfn     SK_D3D11_EnableTexDump     = nullptr;
+SK_D3D11_EnableTexInject_pfn   SK_D3D11_EnableTexInject   = nullptr;
+SK_D3D11_AddTexHash_pfn        SK_D3D11_AddTexHash        = nullptr;
+SK_D3D11_RemoveTexHash_pfn     SK_D3D11_RemoveTexHash     = nullptr;
+
+SKX_D3D11_MarkTextures_pfn     SKX_D3D11_MarkTextures     = nullptr;
+SKX_D3D11_EnableFullscreen_pfn SKX_D3D11_EnableFullscreen = nullptr;
 
 struct {
   unx::ParameterBool*    flip_mode;
@@ -63,6 +67,7 @@ struct {
 
 struct {
   unx::ParameterBool*    disable_dpi_scaling;
+  unx::ParameterBool*    enable_fullscreen;
 } display;
 
 struct {
@@ -73,8 +78,9 @@ struct {
 
 struct {  
   unx::ParameterStringW* resource_root;
-  unx::ParameterStringW* gamepad_tex;
-  unx::ParameterStringW* gamepad_hash;
+  unx::ParameterStringW* gamepad;
+  unx::ParameterStringW* gamepad_hash_ffx;
+  unx::ParameterStringW* gamepad_hash_ffx2;
   unx::ParameterBool*    dump;
   unx::ParameterBool*    inject;
   unx::ParameterBool*    mark;
@@ -121,6 +127,19 @@ UNX_SetupLowLevelRender (void)
     return true;
 
   return false;
+}
+
+bool
+UNX_SetupWindowMgmt (void)
+{
+  HMODULE hInjector =
+    LoadLibrary (config.system.injector.c_str ());
+
+  SKX_D3D11_EnableFullscreen =
+    (SKX_D3D11_EnableFullscreen_pfn)
+      GetProcAddress (hInjector, "SKX_D3D11_EnableFullscreen");
+
+  return (SKX_D3D11_EnableFullscreen != nullptr);
 }
 
 bool
@@ -184,6 +203,16 @@ UNX_LoadConfig (std::wstring name) {
     dll_ini,
       L"UnX.Display",
         L"DisableDPIScaling" );
+
+  display.enable_fullscreen =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Enable Fullscreen Mode [Alt+Enter]")
+      );
+  display.enable_fullscreen->register_to_ini (
+    dll_ini,
+      L"UnX.Display",
+        L"EnableFullscreen" );
 
   render.flip_mode =
     static_cast <unx::ParameterBool *>
@@ -328,26 +357,36 @@ UNX_LoadConfig (std::wstring name) {
       L"UnX.Textures",
         L"ResourceRoot" );
 
-  textures.gamepad_tex =
+  textures.gamepad =
     static_cast <unx::ParameterStringW *>
       (g_ParameterFactory.create_parameter <std::wstring> (
-        L"Gamepad Button Icon Texture")
+        L"Gamepad Button Pack")
       );
 
-  textures.gamepad_tex->register_to_ini (
+  textures.gamepad->register_to_ini (
     dll_ini,
       L"UnX.Textures",
-        L"GamepadIcons" );
+        L"Gamepad" );
 
-  textures.gamepad_hash =
+  textures.gamepad_hash_ffx =
     static_cast <unx::ParameterStringW *>
       (g_ParameterFactory.create_parameter <std::wstring> (
-        L"Gamepad Button Icon Texture")
+        L"Gamepad Button Icon Texture (FFX)")
       );
-  textures.gamepad_hash->register_to_ini (
+  textures.gamepad_hash_ffx->register_to_ini (
     dll_ini,
       L"UnX.Textures",
-        L"GamepadHash" );
+        L"GamepadHash_FFX" );
+
+  textures.gamepad_hash_ffx2 =
+    static_cast <unx::ParameterStringW *>
+      (g_ParameterFactory.create_parameter <std::wstring> (
+        L"Gamepad Button Icon Texture (FFX-2)")
+      );
+  textures.gamepad_hash_ffx2->register_to_ini (
+    dll_ini,
+      L"UnX.Textures",
+        L"GamepadHash_FFX2" );
 
   textures.dump =
     static_cast <unx::ParameterBool *>
@@ -455,16 +494,83 @@ UNX_LoadConfig (std::wstring name) {
     if (textures.resource_root->load ())
       config.textures.resource_root = textures.resource_root->get_value ();
 
-    if (textures.gamepad_tex->load ()) {
-      config.textures.gamepad_tex =
-        textures.gamepad_tex->get_value ();
+    if ( textures.gamepad->load      () &&
+         textures.gamepad->get_value ().length () )
+    {
+      config.textures.gamepad =
+        textures.gamepad->get_value ();
 
-      if (textures.gamepad_hash->load ()) {
-        wscanf (L"0x%x", &config.textures.gamepad_hash);
+      if (textures.gamepad_hash_ffx->load ()) {
+        wscanf (L"0x%x", &config.textures.pad.icons.ffx);
       }
 
-      SK_D3D11_AddTexHash ( config.textures.gamepad_tex,
-                              config.textures.gamepad_hash );
+      if (textures.gamepad_hash_ffx2->load ()) {
+        wscanf (L"0x%x", &config.textures.pad.icons.ffx2);
+      }
+
+      wchar_t wszPadRoot [MAX_PATH] = { L'\0' };
+      lstrcatW (wszPadRoot, L"gamepads\\");
+      lstrcatW (wszPadRoot, config.textures.gamepad.c_str ());
+      lstrcatW (wszPadRoot, L"\\");
+
+      dll_log.Log (L"[Button Map] Button Pack: %s", wszPadRoot);
+
+      wchar_t wszPadIcons [MAX_PATH] = { L'\0' };
+      lstrcatW (wszPadIcons, wszPadRoot);
+      lstrcatW (wszPadIcons, L"ButtonMap.dds");
+
+      dll_log.Log (L"[Button Map] Button Map:  %s", wszPadIcons);
+
+      SK_D3D11_AddTexHash ( wszPadIcons,
+                              config.textures.pad.icons.ffx );
+
+      SK_D3D11_AddTexHash ( wszPadIcons,
+                              config.textures.pad.icons.ffx2 );
+
+      const wchar_t*
+        wszButtons [16] =
+          {  L"A",     L"B",     L"X",    L"Y",
+             L"LB",    L"RB",
+             L"LT",    L"RT",
+             L"LS",    L"RS",
+             L"UP",    L"RIGHT", L"DOWN", L"LEFT",
+             L"START", L"SELECT"                    };
+
+      for (int i = 0; i < 16; i++) {
+        wchar_t wszPadButton [MAX_PATH] = { L'\0' };
+
+        lstrcatW (wszPadButton, wszPadRoot);
+        lstrcatW (wszPadButton, wszButtons [i]);
+        lstrcatW (wszPadButton, L".dds");
+
+        uint32_t hash =
+          ((uint32_t *)&config.textures.pad.buttons.hashes0) [i];
+
+        dll_log.Log ( L"[Button Map] Button %10s: '%#48s' <0x%8x>",
+                        wszButtons [i],
+                          wszPadButton,
+                            hash );
+
+        SK_D3D11_AddTexHash (
+              wszPadButton,
+                hash
+        );
+
+#if 0
+        hash =
+          ((uint32_t *)&config.textures.pad.buttons.hashes1) [i];
+
+        dll_log.Log ( L"[Button Map] Button %10s: '%#48s' <0x%8x>",
+                        wszButtons [i],
+                          wszPadButton,
+                            hash );
+
+        SK_D3D11_AddTexHash (
+              wszPadButton,
+                hash
+        );
+#endif
+      }
     }
 
     if (textures.dump->load ())
@@ -478,6 +584,15 @@ UNX_LoadConfig (std::wstring name) {
     SK_D3D11_SetResourceRoot (config.textures.resource_root);
     SK_D3D11_EnableTexDump   (config.textures.dump);
     SK_D3D11_EnableTexInject (config.textures.inject);
+  }
+
+  if (UNX_SetupWindowMgmt ()) {
+    if (display.enable_fullscreen->load ()) {
+      config.display.enable_fullscreen =
+        display.enable_fullscreen->get_value ();
+    }
+
+    SKX_D3D11_EnableFullscreen (config.display.enable_fullscreen);
   }
 
 

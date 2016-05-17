@@ -189,7 +189,8 @@ DetourWindowProc ( _In_  HWND   hWnd,
                             uMsg == WM_SYSKEYDOWN ||
                             uMsg == WM_SYSKEYUP );
 
-    if (activation_event)
+    // If timeout is 0, just hide the thing indefinitely
+    if (activation_event && config.input.cursor_timeout != 0)
       ActivateCursor (true);
 
     else if (uMsg == WM_TIMER && wParam == last_mouse.timer_id) {
