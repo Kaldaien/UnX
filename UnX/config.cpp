@@ -98,6 +98,8 @@ struct {
   unx::ParameterBool*    block_windows;
   unx::ParameterBool*    block_all_keys;
 
+  unx::ParameterBool*    four_finger_salute;
+
   unx::ParameterBool*    manage_cursor;
   unx::ParameterFloat*   cursor_timeout;
   unx::ParameterInt*     gamepad_slot;
@@ -296,6 +298,16 @@ UNX_LoadConfig (std::wstring name) {
       L"UnX.Input",
         L"BlockAllKeys" );
 
+  input.four_finger_salute =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Classic Final Fantasy Four-Finger Salute Reinvisioned")
+      );
+  input.four_finger_salute->register_to_ini (
+    dll_ini,
+      L"UnX.Input",
+        L"FourFingerSalute" );
+
   input.manage_cursor = 
     static_cast <unx::ParameterBool *>
       (g_ParameterFactory.create_parameter <bool> (
@@ -460,6 +472,9 @@ UNX_LoadConfig (std::wstring name) {
   //if (input.block_all_keys->load ())
     //config.input.block_all_keys = input.block_all_keys->get_value ();
 
+  if (input.four_finger_salute->load ())
+    config.input.four_finger_salute = input.four_finger_salute->get_value ();
+
   if (input.manage_cursor->load ())
     config.input.cursor_mgmt = input.manage_cursor->get_value ();
 
@@ -475,6 +490,7 @@ UNX_LoadConfig (std::wstring name) {
 
   if (input.alias_wasd->load ())
     config.input.alias_wasd = input.alias_wasd->get_value ();
+
 
   if (sys.version->load ())
     config.system.version = sys.version->get_value ();
@@ -500,13 +516,11 @@ UNX_LoadConfig (std::wstring name) {
       config.textures.gamepad =
         textures.gamepad->get_value ();
 
-      if (textures.gamepad_hash_ffx->load ()) {
-        wscanf (L"0x%x", &config.textures.pad.icons.ffx);
-      }
+      if (textures.gamepad_hash_ffx->load ())
+        wscanf (L"0x%x", &config.textures.pad.icons.high);
 
-      if (textures.gamepad_hash_ffx2->load ()) {
-        wscanf (L"0x%x", &config.textures.pad.icons.ffx2);
-      }
+      if (textures.gamepad_hash_ffx2->load ())
+        wscanf (L"0x%x", &config.textures.pad.icons.low);
 
       wchar_t wszPadRoot [MAX_PATH] = { L'\0' };
       lstrcatW (wszPadRoot, L"gamepads\\");
@@ -522,13 +536,16 @@ UNX_LoadConfig (std::wstring name) {
       dll_log.Log (L"[Button Map] Button Map:  %s", wszPadIcons);
 
       SK_D3D11_AddTexHash ( wszPadIcons,
-                              config.textures.pad.icons.ffx );
+                              config.textures.pad.icons.high );
 
       SK_D3D11_AddTexHash ( wszPadIcons,
-                              config.textures.pad.icons.ffx2 );
+                              config.textures.pad.icons.low );
+
+      const size_t num_buttons = 16;
+      const size_t pad_lods    = 2;
 
       const wchar_t*
-        wszButtons [16] =
+        wszButtons [num_buttons] =
           {  L"A",     L"B",     L"X",    L"Y",
              L"LB",    L"RB",
              L"LT",    L"RT",
@@ -536,42 +553,49 @@ UNX_LoadConfig (std::wstring name) {
              L"UP",    L"RIGHT", L"DOWN", L"LEFT",
              L"START", L"SELECT"                    };
 
-      for (int i = 0; i < 16; i++) {
+      bool new_button = true;
+
+      for (int i = 0; i < num_buttons * pad_lods; i++)
+      {
+        if (! (i % pad_lods))
+          new_button = true;
+
         wchar_t wszPadButton [MAX_PATH] = { L'\0' };
 
         lstrcatW (wszPadButton, wszPadRoot);
-        lstrcatW (wszPadButton, wszButtons [i]);
+        lstrcatW (wszPadButton, wszButtons [i / pad_lods]);
         lstrcatW (wszPadButton, L".dds");
 
         uint32_t hash =
-          ((uint32_t *)&config.textures.pad.buttons.hashes0) [i];
+          ((uint32_t *)&config.textures.pad.buttons) [i];
 
-        dll_log.Log ( L"[Button Map] Button %10s: '%#48s' <0x%8x>",
-                        wszButtons [i],
-                          wszPadButton,
-                            hash );
+        if (hash != 0x00)
+        {
+          if (new_button) {
+            if (i > 0) {
+              dll_log.LogEx
+                          ( false, L"\n" );
+            }
 
-        SK_D3D11_AddTexHash (
-              wszPadButton,
-                hash
-        );
+            dll_log.LogEx ( true, L"[Button Map] Button %10s: '%#38s' ( %08x :: ",
+                            wszButtons [i / pad_lods],
+                              wszPadButton,
+                                hash );
 
-#if 0
-        hash =
-          ((uint32_t *)&config.textures.pad.buttons.hashes1) [i];
+            new_button = false;
+          } else {
+            dll_log.LogEx ( false, L"%08x )", hash );
+          }
 
-        dll_log.Log ( L"[Button Map] Button %10s: '%#48s' <0x%8x>",
-                        wszButtons [i],
-                          wszPadButton,
-                            hash );
-
-        SK_D3D11_AddTexHash (
-              wszPadButton,
-                hash
-        );
-#endif
+          SK_D3D11_AddTexHash (
+                wszPadButton,
+                  hash
+          );
+        }
       }
     }
+
+    dll_log.LogEx ( false, L"\n" );
 
     if (textures.dump->load ())
       config.textures.dump =
@@ -611,14 +635,15 @@ UNX_SaveConfig (std::wstring name, bool close_config) {
                                       1000.0f );
   input.cursor_timeout->store       ();
 
-  input.gamepad_slot->set_value     (config.input.gamepad_slot);
-  input.gamepad_slot->store         ();
+  //input.gamepad_slot->set_value     (config.input.gamepad_slot);
+  //input.gamepad_slot->store         ();
 
   input.activate_on_kbd->set_value  (config.input.activate_on_kbd);
   input.activate_on_kbd->store      ();
 
 //  input.alias_wasd->set_value       (config.input.alias_wasd);
 //  input.alias_wasd->store           ();
+
 
   sys.version->set_value  (UNX_VER_STR);
   sys.version->store      ();

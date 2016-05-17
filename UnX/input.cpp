@@ -494,7 +494,8 @@ unx::InputManager::Init (void)
             (LPVOID*)&GetAsyncKeyState_Original );
 #endif
 
-  HMODULE hModXInput13 = LoadLibraryW (L"XInput1_3.dll");
+  HMODULE hModXInput13 =
+    LoadLibraryW (L"XInput1_3.dll");
 
   XInputGetState =
     (XInputGetState_pfn)
@@ -610,7 +611,7 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
     // Ugly hack, but a different window might be in the foreground...
     if (dwProc != GetCurrentProcessId ()) {
       //dll_log.Log (L" *** Tried to hook the wrong process!!!");
-      Sleep (5000);
+      Sleep (500);
       continue;
     }
 
@@ -657,40 +658,82 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
   }
 #endif
 
-// No need to hook the mousey right now..
-#if 0
-  while (! (pHooks->mouse = SetWindowsHookEx ( WH_MOUSE,
-                                                  MouseProc,
-                                                    hDLLMod,
-                                                      dwThreadId ))) {
-    _com_error err (HRESULT_FROM_WIN32 (GetLastError ()));
-
-    dll_log.Log ( L"  @ SetWindowsHookEx failed: 0x%04X (%s)",
-                  err.WCode (), err.ErrorMessage () );
-
-    ++hits;
-
-    if (hits >= 5) {
-      dll_log.Log ( L"  * Failed to install mouse hook after %lu tries... "
-        L"bailing out!",
-        hits );
-      return 0;
-    }
-
-    Sleep (1);
-  }
-#endif
-
   dll_log.Log ( L"[   Input  ] * Installed keyboard hook for command console... "
                       L"%lu %s (%lu ms!)",
                 hits,
                   hits > 1 ? L"tries" : L"try",
                     timeGetTime () - dwTime );
 
+  if ((! config.input.four_finger_salute) || (! XInputGetState))
+    return 0;
+
+#define XI_POLL_INTERVAL 500UL
+
+  DWORD  xi_ret       = 0;
+  DWORD  last_xi_poll = timeGetTime () - (XI_POLL_INTERVAL + 1UL);
+
+  BOOL need_release = FALSE;
+
+  INPUT* keys  =
+     new INPUT [2];
+
   while (true) {
-    Sleep (15);
+    if (need_release) {
+      keys [1].type           = INPUT_KEYBOARD;
+      keys [1].ki.wVk         = 0;
+
+      keys [1].ki.wScan       = 0x1;
+      keys [1].ki.dwFlags     = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+      keys [1].ki.time        = 0;
+      keys [1].ki.dwExtraInfo = 0;
+
+      SendInput (1, &keys [1], sizeof INPUT);
+    }
+
+    int slot = config.input.gamepad_slot;
+    if (slot == -1)
+      slot = 0;
+
+    XINPUT_STATE xi_state;
+
+    // This function is actually a performance hazzard when no controllers
+    //   are plugged in, so ... throttle the sucker.
+    if (  xi_ret != ERROR_DEVICE_NOT_CONNECTED ||
+         (last_xi_poll < timeGetTime () - XI_POLL_INTERVAL) ) {
+      xi_ret       = XInputGetState (slot, &xi_state);
+      last_xi_poll = timeGetTime    ();
+
+#define XINPUT_GAMEPAD_START 0x0010
+#define XINPUT_GAMEPAD_BACK  0x0020
+    }
+
+    bool four_finger =
+        xi_state.Gamepad.bLeftTrigger  &&
+        xi_state.Gamepad.bRightTrigger &&
+      ( xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_START |
+                                      XINPUT_GAMEPAD_BACK ) );
+
+    if (four_finger) {
+      keys [0].type           = INPUT_KEYBOARD;
+      keys [0].ki.wVk         = 0;
+
+      keys [0].ki.wScan       = 0x1;
+      keys [0].ki.dwFlags     = KEYEVENTF_SCANCODE;
+      keys [0].ki.time        = 0;
+      keys [0].ki.dwExtraInfo = 0;
+
+      SendInput (1, &keys [0], sizeof INPUT);
+
+      need_release = TRUE;
+      Sleep (10);
+      continue;
+    }
+
+    need_release = FALSE;
+    Sleep (10);
   }
-  //193 - 199
+
+  delete [] keys;
 
   return 0;
 }

@@ -46,67 +46,41 @@ struct unx_config_s
   struct {
   } stutter;
 
-  struct {
+  struct textures_s {
     std::wstring resource_root = L"UnX_Res";
     std::wstring gamepad       = L"PlayStation_Glossy";
 
+    struct pad_hash_set_s {
+      uint32_t high;
+      uint32_t low;
+    };
+
     struct pad_hash_s
     {
-      struct pad_icons_s {
-        uint32_t ffx  = 0x6d553cf3;
-        uint32_t ffx2 = 0xf35a7450;
-      } icons;
+      pad_hash_set_s   icons = { 0x6d553cf3, 0xf35a7450 };
 
       struct pad_buttons_s {
-        struct pad_button_hashes_ffx_s {
-          uint32_t A     = 0x1fa21cd9;
-          uint32_t B     = 0x6599aaea;
-          uint32_t X     = 0xaa50da09;
-          uint32_t Y     = 0xe4b753c4;
+        pad_hash_set_s A     = { 0x1fa21cd9, 0x1c4a8a04 };
+        pad_hash_set_s B     = { 0x6599aaea, 0x45c61cee };
+        pad_hash_set_s X     = { 0xaa50da09, 0x24af22f7 };
+        pad_hash_set_s Y     = { 0xe4b753c4, 0xa91889c2 };
 
-          uint32_t LB    = 0x1248d62f;
-          uint32_t RB    = 0xa9ba5be2;
+        pad_hash_set_s LB    = { 0x1248d62f, 0x4ccc411b };
+        pad_hash_set_s RB    = { 0xa9ba5be2, 0xf5d5c951 };
 
-          uint32_t LT    = 0xaa6eca76;
-          uint32_t RT    = 0xdd8ae038;
+        pad_hash_set_s LT    = { 0xaa6eca76, 0x6bc8a1bd };
+        pad_hash_set_s RT    = { 0xdd8ae038, 0x539c0113 };
 
-          uint32_t LS    = 0xad5a3228;
-          uint32_t RS    = 0x478fe0fd;
+        pad_hash_set_s LS    = { 0xad5a3228, 0x59ec403b };
+        pad_hash_set_s RS    = { 0x478fe0fd, 0xa0da91dd };
 
-          uint32_t UP    = 0x3149bde5;
-          uint32_t RIGHT = 0x95a1cfde;
-          uint32_t DOWN  = 0x7eec7211;
-          uint32_t LEFT  = 0x0d3d11bf;
+        pad_hash_set_s UP    = { 0x3149bde5, 0x21b21c9a };
+        pad_hash_set_s RIGHT = { 0x95a1cfde, 0x8e936a13 };
+        pad_hash_set_s DOWN  = { 0x7eec7211, 0xba866771 };
+        pad_hash_set_s LEFT  = { 0x0d3d11bf, 0x0b8de699 };
 
-          uint32_t START = 0x8c5b52ca;
-          uint32_t BACK  = 0xdf0201f5;
-        } hashes0;
-
-#if 0
-        struct pad_button_hashes_ffx2_s {
-          uint32_t A     = 0x1fa21cd9;
-          uint32_t B     = 0x6599aaea;
-          uint32_t X     = 0xaa50da09;
-          uint32_t Y     = 0xe4b753c4;
-
-          uint32_t LB    = 0x1248d62f;
-          uint32_t RB    = 0xa9ba5be2;
-
-          uint32_t LT    = 0xaa6eca76;
-          uint32_t RT    = 0xdd8ae038;
-
-          uint32_t LS    = 0xad5a3228;
-          uint32_t RS    = 0x478fe0fd;
-
-          uint32_t UP    = 0x3149bde5;
-          uint32_t RIGHT = 0x95a1cfde;
-          uint32_t DOWN  = 0x7eec7211;
-          uint32_t LEFT  = 0x0d3d11bf;
-
-          uint32_t START = 0x8c5b52ca;
-          uint32_t BACK  = 0xdf0201f5;
-        } hashes1;
-#endif
+        pad_hash_set_s START = { 0x8c5b52ca, 0x21ec28b6 };
+        pad_hash_set_s BACK  = { 0xdf0201f5, 0x2a2aedd1 };
       } buttons;
     } pad;
 
@@ -131,15 +105,18 @@ struct unx_config_s
   } language;
 
   struct {
-    bool block_left_alt  = false;
-    bool block_left_ctrl = false;
-    bool block_windows   = false;
-    bool block_all_keys  = false;
-    bool cursor_mgmt     = true;
-    int  cursor_timeout  = 1500;
-    bool activate_on_kbd = true;
-    bool alias_wasd      = true;
-    int  gamepad_slot    = 0;
+    bool block_left_alt     = false;
+    bool block_left_ctrl    = false;
+    bool block_windows      = false;
+    bool block_all_keys     = false;
+
+    bool four_finger_salute = true;
+
+    bool cursor_mgmt        = true;
+    int  cursor_timeout     = 1500;
+    bool activate_on_kbd    = true;
+    bool alias_wasd         = true;
+    int  gamepad_slot       = 0;
   } input;
 
   struct {
