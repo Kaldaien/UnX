@@ -664,7 +664,9 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
                   hits > 1 ? L"tries" : L"try",
                     timeGetTime () - dwTime );
 
-  if ((! config.input.four_finger_salute) || (! XInputGetState))
+  if ( (! (config.input.four_finger_salute ||
+           config.input.special_keys) )    ||
+       (! XInputGetState) )
     return 0;
 
 #define XI_POLL_INTERVAL 500UL
@@ -679,14 +681,6 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 
   while (true) {
     if (need_release) {
-      keys [1].type           = INPUT_KEYBOARD;
-      keys [1].ki.wVk         = 0;
-
-      keys [1].ki.wScan       = 0x1;
-      keys [1].ki.dwFlags     = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
-      keys [1].ki.time        = 0;
-      keys [1].ki.dwExtraInfo = 0;
-
       SendInput (1, &keys [1], sizeof INPUT);
     }
 
@@ -705,31 +699,96 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 
 #define XINPUT_GAMEPAD_START 0x0010
 #define XINPUT_GAMEPAD_BACK  0x0020
+
+#define XINPUT_GAMEPAD_LEFT_SHOULDER  0x0100
+#define XINPUT_GAMEPAD_RIGHT_SHOULDER 0x0200
+
+#define XINPUT_GAMEPAD_A 0x1000
+#define XINPUT_GAMEPAD_B 0x2000
+#define XINPUT_GAMEPAD_X 0x4000
+#define XINPUT_GAMEPAD_Y 0x8000
     }
 
     bool four_finger =
-        xi_state.Gamepad.bLeftTrigger  &&
-        xi_state.Gamepad.bRightTrigger &&
+        config.input.four_finger_salute &&
+        xi_state.Gamepad.bLeftTrigger   &&
+        xi_state.Gamepad.bRightTrigger  &&
       ( xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_START |
                                       XINPUT_GAMEPAD_BACK ) );
 
-    if (four_finger) {
+    bool f1 =
+        config.input.special_keys                                   &&
+        xi_state.Gamepad.bLeftTrigger                               &&
+        xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_BACK )         &&
+        xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_LEFT_SHOULDER);
+
+    bool f2 =
+        config.input.special_keys                                   &&
+        xi_state.Gamepad.bLeftTrigger                               &&
+        xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_BACK )         &&
+        xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_RIGHT_SHOULDER);
+
+    bool f3 =
+        config.input.special_keys                           &&
+        xi_state.Gamepad.bLeftTrigger                       &&
+        xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_BACK ) &&
+        xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_A );
+
+    bool f4 =
+        config.input.special_keys                           &&
+        xi_state.Gamepad.bLeftTrigger                       &&
+        xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_BACK ) &&
+        xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_B );
+
+    bool f5 =
+        config.input.special_keys                           &&
+        xi_state.Gamepad.bLeftTrigger                       &&
+        xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_BACK ) &&
+        xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_X );
+
+    WORD scancode = 0;
+
+    bool hotkey = true;
+
+    if (four_finger)
+      scancode = 0x01;
+    else if (f1)
+      scancode = 0x3b;
+    else if (f2)
+      scancode = 0x3c;
+    else if (f3)
+      scancode = 0x3d;
+    else if (f4)
+      scancode = 0x3e;
+    else if (f5)
+      scancode = 0x3f;
+    else
+      hotkey = false;
+
+    if (hotkey) {
       keys [0].type           = INPUT_KEYBOARD;
       keys [0].ki.wVk         = 0;
 
-      keys [0].ki.wScan       = 0x1;
+      keys [0].ki.wScan       = scancode;
       keys [0].ki.dwFlags     = KEYEVENTF_SCANCODE;
       keys [0].ki.time        = 0;
       keys [0].ki.dwExtraInfo = 0;
 
       SendInput (1, &keys [0], sizeof INPUT);
 
+      keys [1].type           = INPUT_KEYBOARD;
+      keys [1].ki.wVk         = 0;
+
+      keys [1].ki.wScan       = scancode;
+      keys [1].ki.dwFlags     = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+      keys [1].ki.time        = 0;
+      keys [1].ki.dwExtraInfo = 0;
+
       need_release = TRUE;
-      Sleep (10);
-      continue;
+    } else {
+      need_release = FALSE;
     }
 
-    need_release = FALSE;
     Sleep (10);
   }
 

@@ -30,7 +30,7 @@
 static
   unx::INI::File* 
              dll_ini         = nullptr;
-std::wstring UNX_VER_STR = L"0.1.1";
+std::wstring UNX_VER_STR = L"0.1.2";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)   (bool);
@@ -99,6 +99,7 @@ struct {
   unx::ParameterBool*    block_all_keys;
 
   unx::ParameterBool*    four_finger_salute;
+  unx::ParameterBool*    special_keys;
 
   unx::ParameterBool*    manage_cursor;
   unx::ParameterFloat*   cursor_timeout;
@@ -308,6 +309,16 @@ UNX_LoadConfig (std::wstring name) {
       L"UnX.Input",
         L"FourFingerSalute" );
 
+  input.special_keys =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"F1-F5")
+      );
+  input.special_keys->register_to_ini (
+    dll_ini,
+      L"UnX.Input",
+        L"SpecialKeys" );
+
   input.manage_cursor = 
     static_cast <unx::ParameterBool *>
       (g_ParameterFactory.create_parameter <bool> (
@@ -474,6 +485,9 @@ UNX_LoadConfig (std::wstring name) {
 
   if (input.four_finger_salute->load ())
     config.input.four_finger_salute = input.four_finger_salute->get_value ();
+
+  if (input.special_keys->load ())
+    config.input.special_keys = input.special_keys->get_value ();
 
   if (input.manage_cursor->load ())
     config.input.cursor_mgmt = input.manage_cursor->get_value ();
