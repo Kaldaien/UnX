@@ -111,12 +111,10 @@ struct unx_config_s
     bool block_all_keys     = false;
 
     bool four_finger_salute = true;
-    bool special_keys       = true;
 
     bool cursor_mgmt        = true;
     int  cursor_timeout     = 1500;
     bool activate_on_kbd    = true;
-    bool alias_wasd         = true;
     int  gamepad_slot       = 0;
   } input;
 

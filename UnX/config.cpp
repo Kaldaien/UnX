@@ -30,7 +30,7 @@
 static
   unx::INI::File* 
              dll_ini         = nullptr;
-std::wstring UNX_VER_STR = L"0.1.2";
+std::wstring UNX_VER_STR = L"0.2.0";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)   (bool);
@@ -359,16 +359,6 @@ UNX_LoadConfig (std::wstring name) {
       L"UnX.Input",
         L"KeysActivateCursor" );
 
-  input.alias_wasd =
-    static_cast <unx::ParameterBool *>
-      (g_ParameterFactory.create_parameter <bool> (
-        L"Arrow keys alias to WASD")
-      );
-  input.alias_wasd->register_to_ini (
-    dll_ini,
-      L"UnX.Input",
-        L"AliasArrowsToWASD" );
-
 
   textures.resource_root =
     static_cast <unx::ParameterStringW *>
@@ -379,37 +369,6 @@ UNX_LoadConfig (std::wstring name) {
     dll_ini,
       L"UnX.Textures",
         L"ResourceRoot" );
-
-  textures.gamepad =
-    static_cast <unx::ParameterStringW *>
-      (g_ParameterFactory.create_parameter <std::wstring> (
-        L"Gamepad Button Pack")
-      );
-
-  textures.gamepad->register_to_ini (
-    dll_ini,
-      L"UnX.Textures",
-        L"Gamepad" );
-
-  textures.gamepad_hash_ffx =
-    static_cast <unx::ParameterStringW *>
-      (g_ParameterFactory.create_parameter <std::wstring> (
-        L"Gamepad Button Icon Texture (FFX)")
-      );
-  textures.gamepad_hash_ffx->register_to_ini (
-    dll_ini,
-      L"UnX.Textures",
-        L"GamepadHash_FFX" );
-
-  textures.gamepad_hash_ffx2 =
-    static_cast <unx::ParameterStringW *>
-      (g_ParameterFactory.create_parameter <std::wstring> (
-        L"Gamepad Button Icon Texture (FFX-2)")
-      );
-  textures.gamepad_hash_ffx2->register_to_ini (
-    dll_ini,
-      L"UnX.Textures",
-        L"GamepadHash_FFX2" );
 
   textures.dump =
     static_cast <unx::ParameterBool *>
@@ -486,9 +445,6 @@ UNX_LoadConfig (std::wstring name) {
   if (input.four_finger_salute->load ())
     config.input.four_finger_salute = input.four_finger_salute->get_value ();
 
-  if (input.special_keys->load ())
-    config.input.special_keys = input.special_keys->get_value ();
-
   if (input.manage_cursor->load ())
     config.input.cursor_mgmt = input.manage_cursor->get_value ();
 
@@ -501,9 +457,6 @@ UNX_LoadConfig (std::wstring name) {
 
   if (input.activate_on_kbd->load ())
     config.input.activate_on_kbd = input.activate_on_kbd->get_value ();
-
-  if (input.alias_wasd->load ())
-    config.input.alias_wasd = input.alias_wasd->get_value ();
 
 
   if (sys.version->load ())
@@ -523,93 +476,6 @@ UNX_LoadConfig (std::wstring name) {
   if (UNX_SetupTexMgmt ()) {
     if (textures.resource_root->load ())
       config.textures.resource_root = textures.resource_root->get_value ();
-
-    if ( textures.gamepad->load      () &&
-         textures.gamepad->get_value ().length () )
-    {
-      config.textures.gamepad =
-        textures.gamepad->get_value ();
-
-      if (textures.gamepad_hash_ffx->load ())
-        wscanf (L"0x%x", &config.textures.pad.icons.high);
-
-      if (textures.gamepad_hash_ffx2->load ())
-        wscanf (L"0x%x", &config.textures.pad.icons.low);
-
-      wchar_t wszPadRoot [MAX_PATH] = { L'\0' };
-      lstrcatW (wszPadRoot, L"gamepads\\");
-      lstrcatW (wszPadRoot, config.textures.gamepad.c_str ());
-      lstrcatW (wszPadRoot, L"\\");
-
-      dll_log.Log (L"[Button Map] Button Pack: %s", wszPadRoot);
-
-      wchar_t wszPadIcons [MAX_PATH] = { L'\0' };
-      lstrcatW (wszPadIcons, wszPadRoot);
-      lstrcatW (wszPadIcons, L"ButtonMap.dds");
-
-      dll_log.Log (L"[Button Map] Button Map:  %s", wszPadIcons);
-
-      SK_D3D11_AddTexHash ( wszPadIcons,
-                              config.textures.pad.icons.high );
-
-      SK_D3D11_AddTexHash ( wszPadIcons,
-                              config.textures.pad.icons.low );
-
-      const size_t num_buttons = 16;
-      const size_t pad_lods    = 2;
-
-      const wchar_t*
-        wszButtons [num_buttons] =
-          {  L"A",     L"B",     L"X",    L"Y",
-             L"LB",    L"RB",
-             L"LT",    L"RT",
-             L"LS",    L"RS",
-             L"UP",    L"RIGHT", L"DOWN", L"LEFT",
-             L"START", L"SELECT"                    };
-
-      bool new_button = true;
-
-      for (int i = 0; i < num_buttons * pad_lods; i++)
-      {
-        if (! (i % pad_lods))
-          new_button = true;
-
-        wchar_t wszPadButton [MAX_PATH] = { L'\0' };
-
-        lstrcatW (wszPadButton, wszPadRoot);
-        lstrcatW (wszPadButton, wszButtons [i / pad_lods]);
-        lstrcatW (wszPadButton, L".dds");
-
-        uint32_t hash =
-          ((uint32_t *)&config.textures.pad.buttons) [i];
-
-        if (hash != 0x00)
-        {
-          if (new_button) {
-            if (i > 0) {
-              dll_log.LogEx
-                          ( false, L"\n" );
-            }
-
-            dll_log.LogEx ( true, L"[Button Map] Button %10s: '%#38s' ( %08x :: ",
-                            wszButtons [i / pad_lods],
-                              wszPadButton,
-                                hash );
-
-            new_button = false;
-          } else {
-            dll_log.LogEx ( false, L"%08x )", hash );
-          }
-
-          SK_D3D11_AddTexHash (
-                wszPadButton,
-                  hash
-          );
-        }
-      }
-    }
-
-    dll_log.LogEx ( false, L"\n" );
 
     if (textures.dump->load ())
       config.textures.dump =

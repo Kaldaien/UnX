@@ -33,6 +33,51 @@ namespace unx
 {
   namespace InputManager
   {
+    struct gamepad_s {
+      std::wstring tex_set = L"PlayStation_Glossy";
+      bool         legacy  = false;
+
+      struct combo_s {
+        std::wstring unparsed = L"";
+        int          buttons  = 0;
+        int          button0  = 0xffffffff;
+        int          button1  = 0xffffffff;
+        int          button2  = 0xffffffff;
+        bool         lt       = false;
+        bool         rt       = false;
+      } f1, f2, f3, f4, f5;
+
+      struct {
+        int A     = JOY_BUTTON2;
+        int B     = JOY_BUTTON3;
+        int X     = JOY_BUTTON1;
+        int Y     = JOY_BUTTON4;
+        int START = JOY_BUTTON10;
+        int BACK  = JOY_BUTTON9;
+        int LB    = JOY_BUTTON5;
+        int RB    = JOY_BUTTON6;
+        int LT    = JOY_BUTTON7;
+        int RT    = JOY_BUTTON8;
+        int LS    = JOY_BUTTON11;
+        int RS    = JOY_BUTTON12;
+
+        int indexToEnum (int idx) {
+          return 1 << (idx - 1);
+        }
+
+        int enumToIndex (unsigned int enum_val) {
+          int idx = 0;
+
+          while (enum_val > 0) {
+            enum_val >>= 1;
+            idx++;
+          }
+
+          return idx;
+        }
+      } legacy_map;
+    };
+
     void Init     ();
     void Shutdown ();
 
