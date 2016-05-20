@@ -116,6 +116,13 @@ UNX_PatchLanguageFFX (void)
                              "ffx_jp_voice270",
                              "ffx_us_voice270" );
 
+
+  UNX_PatchLanguageRef ( Voice,
+                           7, "/ffx_ps2/ffx/master/new_jppc",
+                              "/ffx_ps2/ffx/master/new_uspc" );
+
+
+
   UNX_PatchLanguageRef ( SoundEffect,
                            0,
                              "SFX/JP/%04d.fev",
@@ -136,6 +143,13 @@ UNX_PatchLanguageFFX (void)
                              1,
                                "Asia/FFX_VideoList.txt",
                                "US/FFX_VideoList.txt" );
+  }
+
+  if (config.language.video == L"jp") {
+    UNX_PatchLanguageRef ( Video,
+                             2,
+                               "/MetaMenu/GameData/PS3Data/Video/JP/timestamp_JP.txt",
+                               "/MetaMenu/GameData/PS3Data/Video/US/timestamp_%s.txt" );
   }
 
   return true;
@@ -189,6 +203,11 @@ UNX_PatchLanguageFFX2 (void)
                              "ffx2_jp_voice06_1",
                              "ffx2_us_voice06_1" );
 
+  UNX_PatchLanguageRef ( Voice,
+                           9, "/ffx_ps2/ffx2/master/new_jppc",
+                              "/ffx_ps2/ffx2/master/new_uspc" );
+
+
   UNX_PatchLanguageRef ( SoundEffect,
                            0,
                              "SFX/JP/%04d.fev",
@@ -204,6 +223,13 @@ UNX_PatchLanguageFFX2 (void)
                              1,
                                "Asia/FFX_VideoList.txt",
                                "US/FFX_VideoList.txt" );
+  }
+
+  if (config.language.video == L"jp") {
+    UNX_PatchLanguageRef ( Video,
+                             2,
+                               "/MetaMenu/GameData/PSVitaData/Video/JP/timestamp_JP.txt",
+                               "/MetaMenu/GameData/PSVitaData/Video/US/timestamp_%s.txt" );
   }
 
   return true;
@@ -242,6 +268,11 @@ UNX_PatchLanguageFFX_Will (void)
                              "ffx_jp_voice270",
                              "ffx_us_voice270" );
 
+  UNX_PatchLanguageRef ( Voice,
+                           6, "/ffx_ps2/ffx/master/new_jppc",
+                              "/ffx_ps2/ffx/master/new_uspc" );
+
+
   UNX_PatchLanguageRef ( SoundEffect,
                            0,
                              "SFX/JP/%04d.fev",
@@ -268,6 +299,13 @@ UNX_PatchLanguageFFX_Will (void)
                            1,
                              "/MetaMenu/GameData/PS3Data/Video/JP/SideStory.webm",
                              "/MetaMenu/GameData/PS3Data/Video/US/SideStory.webm" );
+
+  if (config.language.video == L"jp") {
+    UNX_PatchLanguageRef ( Video,
+                             2,
+                               "/MetaMenu/GameData/PS3Data/Video/JP/timestamp_JP.txt",
+                               "/MetaMenu/GameData/PS3Data/Video/US/timestamp_%s.txt" );
+  }
 
   return true;
 }
@@ -312,3 +350,7 @@ unx::LanguageManager::Shutdown (void)
 {
   return;
 }
+
+
+//mov     ax, word_112D67C
+//retn

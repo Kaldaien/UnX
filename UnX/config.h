@@ -29,6 +29,7 @@ extern std::wstring UNX_VER_STR;
 struct unx_config_s
 {
   struct {
+    bool    bypass_intel        = true;
     bool    flip_mode           = true;
   } render;
 
@@ -99,9 +100,9 @@ struct unx_config_s
   } trace;
 
   struct {
-    std::wstring voice = L"jp";
-    std::wstring video = L"jp";
-    std::wstring sfx   = L"jp";
+    std::wstring voice  = L"jp";
+    std::wstring video  = L"jp";
+    std::wstring sfx    = L"jp";
   } language;
 
   struct {

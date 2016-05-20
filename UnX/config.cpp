@@ -30,12 +30,14 @@
 static
   unx::INI::File* 
              dll_ini         = nullptr;
-std::wstring UNX_VER_STR = L"0.2.0";
+std::wstring UNX_VER_STR = L"0.2.1";
 unx_config_s config;
 
-typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)   (bool);
+typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)     (bool);
+typedef void (WINAPI *SK_DXGI_SetPreferredAdapter_pfn)(int);
 
-SK_DXGI_EnableFlipMode_pfn SK_DXGI_EnableFlipMode = nullptr;
+SK_DXGI_EnableFlipMode_pfn      SK_DXGI_EnableFlipMode      = nullptr;
+SK_DXGI_SetPreferredAdapter_pfn SK_DXGI_SetPreferredAdapter = nullptr;
 
 typedef void (WINAPI *SK_D3D11_SetResourceRoot_pfn)  (std::wstring);
 typedef void (WINAPI *SK_D3D11_EnableTexDump_pfn)    (bool);
@@ -56,6 +58,7 @@ SKX_D3D11_MarkTextures_pfn     SKX_D3D11_MarkTextures     = nullptr;
 SKX_D3D11_EnableFullscreen_pfn SKX_D3D11_EnableFullscreen = nullptr;
 
 struct {
+  unx::ParameterBool*    bypass_intel;
   unx::ParameterBool*    flip_mode;
 } render;
 
@@ -90,6 +93,7 @@ struct {
   unx::ParameterStringW* voice;
   unx::ParameterStringW* sfx;
   unx::ParameterStringW* video;
+  unx::ParameterStringW* timing;
 } language;
 
 struct {
@@ -126,7 +130,12 @@ UNX_SetupLowLevelRender (void)
     (SK_DXGI_EnableFlipMode_pfn)
       GetProcAddress (hInjector, "SK_DXGI_EnableFlipMode");
 
-  if (SK_DXGI_EnableFlipMode != nullptr)
+  SK_DXGI_SetPreferredAdapter =
+    (SK_DXGI_SetPreferredAdapter_pfn)
+      GetProcAddress (hInjector, "SK_DXGI_SetPreferredAdapter");
+
+  if ( SK_DXGI_EnableFlipMode      != nullptr &&
+       SK_DXGI_SetPreferredAdapter != nullptr )
     return true;
 
   return false;
@@ -216,6 +225,16 @@ UNX_LoadConfig (std::wstring name) {
     dll_ini,
       L"UnX.Display",
         L"EnableFullscreen" );
+
+  render.bypass_intel =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Bypass Intel GPUs")
+      );
+  render.bypass_intel->register_to_ini (
+    dll_ini,
+      L"UnX.Render",
+        L"BypassIntel" );
 
   render.flip_mode =
     static_cast <unx::ParameterBool *>
@@ -471,6 +490,15 @@ UNX_LoadConfig (std::wstring name) {
       config.render.flip_mode = render.flip_mode->get_value ();
 
     SK_DXGI_EnableFlipMode (config.render.flip_mode);
+
+    if (render.bypass_intel->load ())
+      config.render.bypass_intel = render.bypass_intel->get_value ();
+
+    // Rather dumb logic that assumes the Intel GPU will be Adapter 0.
+    //
+    //   This isn't dangerous, my DXGI DLL prevents overriding to select
+    //     either Intel or Microsoft adapters.
+    SK_DXGI_SetPreferredAdapter (config.render.bypass_intel ? 1 : 0);
   }
 
   if (UNX_SetupTexMgmt ()) {

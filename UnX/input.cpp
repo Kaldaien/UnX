@@ -45,6 +45,9 @@ extern SK_D3D11_AddTexHash_pfn SK_D3D11_AddTexHash;
 
 unx::InputManager::gamepad_s gamepad;
 
+typedef void (WINAPI *Sleep_pfn)(DWORD dwMilliseconds);
+Sleep_pfn SK_Sleep = nullptr; // Avoid things that MaxDeltaTime does...
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // DirectInput 8
@@ -471,8 +474,29 @@ HookRawInput (void)
 
 
 void
+WINAPI
+SpinOrSleep (DWORD dwMilliseconds)
+{
+  DWORD dwEnd  = timeGetTime () + dwMilliseconds;
+
+  while (timeGetTime () < dwEnd) {
+    YieldProcessor ();
+    Sleep (dwMilliseconds);
+  }
+}
+
+void
 unx::InputManager::Init (void)
 {
+#if 0
+  SK_Sleep =
+    (Sleep_pfn)
+      GetProcAddress ( GetModuleHandle ( config.system.injector.c_str () ),
+                         "Sleep_Detour" );
+#else
+  SK_Sleep = SpinOrSleep;
+#endif
+
   unx::ParameterFactory factory;
   unx::INI::File* pad_cfg = new unx::INI::File (L"UnX_Gamepad.ini");
   pad_cfg->parse ();
@@ -1063,12 +1087,14 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
     // Ugly hack, but a different window might be in the foreground...
     if (dwProc != GetCurrentProcessId ()) {
       //dll_log.Log (L" *** Tried to hook the wrong process!!!");
-      Sleep (500);
+      SK_Sleep (500);
       continue;
     }
 
     break;
   }
+
+  SK_GetCommandProcessor ()->ProcessCommandLine ("TargetFPS 0.0");
 
 #if 0
   // Defer initialization of the Window Message redirection stuff until
@@ -1106,7 +1132,7 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
       return 0;
     }
 
-    Sleep (1);
+    SK_Sleep (1);
   }
 #endif
 
@@ -1264,8 +1290,19 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 
     bool hotkey = true;
 
-    if (four_finger)
+    if (four_finger) {
+      extern LPVOID __UNX_base_img_addr;
+      uint16_t* scenario_flag = (uint16_t *)((uintptr_t)__UNX_base_img_addr + (0x12FB784-0x00401000-0x04));
+      dll_log.Log (L"Scenario Flag: %u", *scenario_flag);
+
+      //typedef int (__fastcall *ffxDebugMenu_pfn)(void);
+      //extern LPVOID __UNX_base_img_addr;
+      //ffxDebugMenu_pfn ffxDebug =
+        //(ffxDebugMenu_pfn)((uint8_t *)(uint8_t *)GetModuleHandle (nullptr) + 0x257BE0);
+      //ffxDebug ();
+
       scancode = 0x01;
+    }
     else if (f1)
       scancode = 0x3b;
     else if (f2)
@@ -1303,7 +1340,7 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
       need_release = FALSE;
     }
 
-    Sleep (10);
+    SK_Sleep (10);
   }
 
   delete [] keys;
