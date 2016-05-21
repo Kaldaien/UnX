@@ -52,13 +52,6 @@ UNX_InstallWindowHook (HWND hWnd)
   unx::window.WndProc_Original =
     (WNDPROC)GetWindowLongPtr (unx::window.hwnd, GWLP_WNDPROC);
 
-  extern LRESULT
-  CALLBACK
-  DetourWindowProc ( _In_  HWND   hWnd,
-                     _In_  UINT   uMsg,
-                     _In_  WPARAM wParam,
-                     _In_  LPARAM lParam );
-
   SetWindowLongPtrW ( unx::window.hwnd,
                      GWLP_WNDPROC,
                        (LONG_PTR)DetourWindowProc );
@@ -79,9 +72,6 @@ DetourWindowProc ( _In_  HWND   hWnd,
 
   unx::window.active = GetForegroundWindow_Original () == unx::window.hwnd ||
                        GetForegroundWindow_Original () == nullptr;
-
-  bool console_visible   =
-    unx::InputManager::Hooker::getInstance ()->isVisible ();
 
   //
   // The window activation state is changing, among other things we can take

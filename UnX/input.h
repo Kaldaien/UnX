@@ -23,12 +23,6 @@
 
 #include "command.h"
 
-typedef SHORT (WINAPI *GetAsyncKeyState_pfn)(
-  _In_ int vKey
-);
-
-extern GetAsyncKeyState_pfn GetAsyncKeyState_Original;
-
 namespace unx
 {
   namespace InputManager
@@ -45,7 +39,7 @@ namespace unx
         int          button2  = 0xffffffff;
         bool         lt       = false;
         bool         rt       = false;
-      } f1, f2, f3, f4, f5;
+      } f1, f2, f3, f4, f5, screenshot;
 
       struct {
         int A     = JOY_BUTTON2;
@@ -83,28 +77,9 @@ namespace unx
 
     class Hooker {
     private:
-      HANDLE                  hMsgPump;
-
-      struct hooks_s {
-        HHOOK                 keyboard;
-        HHOOK                 mouse;
-      } hooks;
+      HANDLE          hMsgPump;
 
       static Hooker*  pInputHook;
-
-      static char             text [4096];
-
-      static BYTE             keys_ [256];
-      static bool             visible;
-
-      static bool             command_issued;
-      static std::string      result_str;
-
-      struct command_history_s {
-        std::vector <std::string> history;
-        size_t                    idx     = -1;
-      } static commands;
-
     protected:
       Hooker (void) { }
 
@@ -117,18 +92,8 @@ namespace unx
         return pInputHook;
       }
 
-      bool isVisible (void) { return visible; }
-
-      void consumeKey (SHORT virtKey) {
-        GetAsyncKeyState_Original (virtKey);
-        keys_ [virtKey & 0xff] = 0x01;
-        SetKeyboardState (keys_);
-      }
-
       void Start (void);
       void End   (void);
-
-      void Draw  (void);
 
       HANDLE GetThread (void) {
         return hMsgPump;
@@ -137,14 +102,6 @@ namespace unx
       static DWORD
         WINAPI
         MessagePump (LPVOID hook_ptr);
-
-      static LRESULT
-        CALLBACK
-        MouseProc (int nCode, WPARAM wParam, LPARAM lParam);
-
-      static LRESULT
-        CALLBACK
-        KeyboardProc (int nCode, WPARAM wParam, LPARAM lParam);
     };
   }
 }

@@ -80,6 +80,16 @@ UNX_PatchLanguageRef (asset_type_t type, int idx, const char* jp, const char* us
     VirtualProtect (dst, strlen ((const char *)dst)+1, PAGE_READWRITE, &dwOld);
     strcpy ((char *)dst, (const char *)src);
     dll_log.LogEx (false, L"%hs\n", dst);
+#if 0
+    extern LPVOID __UNX_base_img_addr;
+
+    if (idx == 4 && type == Voice) {
+      uintptr_t expected = 0x00B4FAE0;
+      __UNX_base_img_addr = (LPVOID)(src-expected);
+    }
+
+    dll_log.Log (L"[ Language ]   >> SRC addr: %ph :: Base addr: %ph, File addr: %ph", src, __UNX_base_img_addr, (uintptr_t)src-(uintptr_t)__UNX_base_img_addr);
+#endif
   }
 }
 
@@ -121,6 +131,21 @@ UNX_PatchLanguageFFX (void)
                            7, "/ffx_ps2/ffx/master/new_jppc",
                               "/ffx_ps2/ffx/master/new_uspc" );
 
+  UNX_PatchLanguageRef ( Voice,
+                           8, "ffx_ps2/ffx/master/new_jppc",
+                              "ffx_ps2/ffx/master/new_uspc" );
+
+  UNX_PatchLanguageRef ( Voice,
+                           9, "/ffx/master/jppc/event/",
+                              "/ffx/master/uspc/event/" );
+
+  UNX_PatchLanguageRef ( Voice,
+                           10, "/ffx/proj/event/motion/jp/",
+                               "/ffx/proj/event/motion/us/" );
+
+  UNX_PatchLanguageRef ( Voice,
+                           11, "/ffx/proj/event/sound/jp/",
+                               "/ffx/proj/event/sound/us/" );
 
 
   UNX_PatchLanguageRef ( SoundEffect,

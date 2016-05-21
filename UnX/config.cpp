@@ -30,7 +30,7 @@
 static
   unx::INI::File* 
              dll_ini         = nullptr;
-std::wstring UNX_VER_STR = L"0.2.1";
+std::wstring UNX_VER_STR = L"0.2.2";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)     (bool);

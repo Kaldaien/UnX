@@ -388,91 +388,6 @@ IsControllerPluggedIn (UINT uJoyID)
 // User32 Input APIs
 //
 ///////////////////////////////////////////////////////////////////////////////
-typedef UINT (WINAPI *GetRawInputData_pfn)(
-  _In_      HRAWINPUT hRawInput,
-  _In_      UINT      uiCommand,
-  _Out_opt_ LPVOID    pData,
-  _Inout_   PUINT     pcbSize,
-  _In_      UINT      cbSizeHeader
-);
-
-GetAsyncKeyState_pfn GetAsyncKeyState_Original = nullptr;
-GetRawInputData_pfn  GetRawInputData_Original  = nullptr;
-
-UINT
-WINAPI
-GetRawInputData_Detour (_In_      HRAWINPUT hRawInput,
-                        _In_      UINT      uiCommand,
-                        _Out_opt_ LPVOID    pData,
-                        _Inout_   PUINT     pcbSize,
-                        _In_      UINT      cbSizeHeader)
-{
-  if (config.input.block_all_keys) {
-    *pcbSize = 0;
-    return 0;
-  }
-
-  int size = GetRawInputData_Original (hRawInput, uiCommand, pData, pcbSize, cbSizeHeader);
-
-  // Block keyboard input to the game while the console is active
-  if (unx::InputManager::Hooker::getInstance ()->isVisible () && uiCommand == RID_INPUT) {
-    *pcbSize = 0;
-    return 0;
-  }
-
-  return size;
-}
-
-SHORT
-WINAPI
-GetAsyncKeyState_Detour (_In_ int vKey)
-{
-#define UNX_ConsumeVKey(vKey) { GetAsyncKeyState_Original(vKey); return 0; }
-
-#if 0
-  // Window is not active, but we are faking it...
-  if ((! unx::window.active) && config.render.allow_background)
-    UNX_ConsumeVKey (vKey);
-#endif
-
-  // Block keyboard input to the game while the console is active
-  if (unx::InputManager::Hooker::getInstance ()->isVisible ()) {
-    UNX_ConsumeVKey (vKey);
-  }
-
-#if 0
-  // Block Left Alt
-  if (vKey == VK_LMENU)
-    if (config.input.block_left_alt)
-      UNX_ConsumeVKey (vKey);
-
-  // Block Left Ctrl
-  if (vKey == VK_LCONTROL)
-    if (config.input.block_left_ctrl)
-      UNX_ConsumeVKey (vKey);
-#endif
-
-  return GetAsyncKeyState_Original (vKey);
-}
-
-void
-HookRawInput (void)
-{
-#if 0
-  // Defer installation of this hook until DirectInput8 is setup
-  if (GetRawInputData_Original == nullptr) {
-    dll_log.LogEx (true, L"[   Input  ] Installing Deferred Hook: \"GetRawInputData (...)\"... ");
-    MH_STATUS status =
-      UNX_CreateDLLHook ( L"user32.dll", "GetRawInputData",
-                          GetRawInputData_Detour,
-                (LPVOID*)&GetRawInputData_Original );
-   dll_log.LogEx (false, L"%hs\n", MH_StatusToString (status));
-  }
-#endif
-}
-
-
-
 void
 WINAPI
 SpinOrSleep (DWORD dwMilliseconds)
@@ -801,6 +716,19 @@ unx::InputManager::Init (void)
     combo_F5->store         ();
   }
 
+  unx::iParameter* combo_SS =
+    factory.create_parameter <std::wstring> (L"Screenshot Buttons");
+  combo_SS->register_to_ini (pad_cfg, L"Gamepad.Steam", L"Screenshot");
+
+  if (combo_SS->load ())
+    gamepad.screenshot.unparsed = combo_SS->get_value_str ();
+  else {
+    gamepad.screenshot.unparsed = L"Select+R3";
+
+    combo_SS->set_value_str (gamepad.screenshot.unparsed);
+    combo_SS->store         ();
+  }
+
   pad_cfg->write (L"UnX_Gamepad.ini");
   delete pad_cfg;
 
@@ -861,7 +789,7 @@ unx::InputManager::Hooker::Start (void)
     CreateThread ( NULL,
                      NULL,
                        Hooker::MessagePump,
-                         &hooks,
+                         nullptr,
                            NULL,
                              NULL );
 }
@@ -870,55 +798,6 @@ void
 unx::InputManager::Hooker::End (void)
 {
   TerminateThread     (hMsgPump, 0);
-  UnhookWindowsHookEx (hooks.keyboard);
-  UnhookWindowsHookEx (hooks.mouse);
-}
-
-std::string console_text;
-std::string mod_text ("");
-
-void
-unx::InputManager::Hooker::Draw (void)
-{
-  typedef BOOL (__stdcall *BMF_DrawExternalOSD_t)(std::string app_name, std::string text);
-
-  static HMODULE               hMod =
-    GetModuleHandle (config.system.injector.c_str ());
-  static BMF_DrawExternalOSD_t BMF_DrawExternalOSD
-    =
-    (BMF_DrawExternalOSD_t)GetProcAddress (hMod, "BMF_DrawExternalOSD");
-
-  std::string output;
-
-  static DWORD last_time = timeGetTime ();
-  static bool  carret    = true;
-
-  if (visible) {
-    output += text;
-
-    // Blink the Carret
-    if (timeGetTime () - last_time > 333) {
-      carret = ! carret;
-
-      last_time = timeGetTime ();
-    }
-
-    if (carret)
-      output += "-";
-
-    // Show Command Results
-    if (command_issued) {
-      output += "\n";
-      output += result_str;
-    }
-  }
-
-  console_text = output;
-
-  output += "\n";
-  output += mod_text;
-
-  BMF_DrawExternalOSD ("UnX", output.c_str ());
 }
 
 #define XINPUT_GAMEPAD_DPAD_UP    0x0001
@@ -1020,39 +899,52 @@ void
 UNX_SetupSpecialButtons (void)
 {
   button_map_state_s state =
-    UNX_ParseButtonCombo (gamepad.f1.unparsed, &gamepad.f1.button0);
+    UNX_ParseButtonCombo ( gamepad.f1.unparsed,
+                             &gamepad.f1.button0 );
 
   gamepad.f1.lt      = state.lt;
   gamepad.f1.rt      = state.rt;
   gamepad.f1.buttons = state.buttons;
 
   state =
-    UNX_ParseButtonCombo (gamepad.f2.unparsed, &gamepad.f2.button0);
+    UNX_ParseButtonCombo ( gamepad.f2.unparsed,
+                             &gamepad.f2.button0 );
 
   gamepad.f2.lt      = state.lt;
   gamepad.f2.rt      = state.rt;
   gamepad.f2.buttons = state.buttons;
 
   state =
-    UNX_ParseButtonCombo (gamepad.f3.unparsed, &gamepad.f3.button0);
+    UNX_ParseButtonCombo ( gamepad.f3.unparsed,
+                             &gamepad.f3.button0 );
 
   gamepad.f3.lt      = state.lt;
   gamepad.f3.rt      = state.rt;
   gamepad.f3.buttons = state.buttons;
 
   state =
-    UNX_ParseButtonCombo (gamepad.f4.unparsed, &gamepad.f4.button0);
+    UNX_ParseButtonCombo ( gamepad.f4.unparsed,
+                             &gamepad.f4.button0 );
 
   gamepad.f4.lt      = state.lt;
   gamepad.f4.rt      = state.rt;
   gamepad.f4.buttons = state.buttons;
 
   state =
-    UNX_ParseButtonCombo (gamepad.f5.unparsed, &gamepad.f5.button0);
+    UNX_ParseButtonCombo ( gamepad.f5.unparsed,
+                             &gamepad.f5.button0 );
 
   gamepad.f5.lt      = state.lt;
   gamepad.f5.rt      = state.rt;
   gamepad.f5.buttons = state.buttons;
+
+  state =
+    UNX_ParseButtonCombo ( gamepad.screenshot.unparsed,
+                             &gamepad.screenshot.button0 );
+
+  gamepad.screenshot.lt      = state.lt;
+  gamepad.screenshot.rt      = state.rt;
+  gamepad.screenshot.buttons = state.buttons;
 }
 
 #include "ini.h"
@@ -1062,90 +954,96 @@ DWORD
 WINAPI
 unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 {
-  //factory.create_parameter (L"")
-
-  hooks_s* pHooks = (hooks_s *)hook_ptr;
-
-  ZeroMemory (text, 4096);
-
-  text [0] = '>';
-
-  extern    HMODULE hDLLMod;
-
   DWORD dwThreadId;
-
-  int hits = 0;
-
-  DWORD dwTime = timeGetTime ();
+  HWND  hWndForeground = 0;
 
   while (true) {
     DWORD dwProc;
 
+    hWndForeground = GetForegroundWindow ();
+
     dwThreadId =
-      GetWindowThreadProcessId (GetForegroundWindow (), &dwProc);
+      GetWindowThreadProcessId (hWndForeground, &dwProc);
 
     // Ugly hack, but a different window might be in the foreground...
     if (dwProc != GetCurrentProcessId ()) {
       //dll_log.Log (L" *** Tried to hook the wrong process!!!");
-      SK_Sleep (500);
+      SK_Sleep (1000);
       continue;
     }
 
-    break;
+    wchar_t wszTitle [64];
+
+    GetWindowText (hWndForeground, wszTitle, 64);
+
+    if (! wcsicmp (wszTitle, L"FINAL FANTASY X"))
+      break;
   }
+
+  typedef uint32_t (__stdcall *SK_GetFramesDrawn_pfn)(void);
+  SK_GetFramesDrawn_pfn SK_GetFramesDrawn =
+    (SK_GetFramesDrawn_pfn)GetProcAddress (
+                               GetModuleHandle (
+                                 config.system.injector.c_str ()
+                               ), "SK_GetFramesDrawn"
+                           );
+
+  while (SK_GetFramesDrawn () < 120)
+    Sleep (1000);
 
   SK_GetCommandProcessor ()->ProcessCommandLine ("TargetFPS 0.0");
 
-#if 0
-  // Defer initialization of the Window Message redirection stuff until
-  //   we have an actual window!
-  eTB_CommandProcessor* pCommandProc = SK_GetCommandProcessor ();
-  pCommandProc->ProcessCommandFormatted ("TargetFPS %f", config.window.foreground_fps);
-#endif
-
-  dll_log.Log ( L"[   Input  ] # Found window in %03.01f seconds, "
-                    L"installing keyboard hook...",
-                  (float)(timeGetTime () - dwTime) / 1000.0f );
-
   extern void UNX_InstallWindowHook (HWND hWnd);
-  UNX_InstallWindowHook (GetForegroundWindow ());
-
-  dwTime = timeGetTime ();
-  hits   = 1;
-
-#if 0
-  while (! (pHooks->keyboard = SetWindowsHookEx ( WH_KEYBOARD,
-                                                    KeyboardProc,
-                                                      hDLLMod,
-                                                        dwThreadId ))) {
-    _com_error err (HRESULT_FROM_WIN32 (GetLastError ()));
-
-    dll_log.Log ( L"[   Input  ] @ SetWindowsHookEx failed: 0x%04X (%s)",
-                  err.WCode (), err.ErrorMessage () );
-
-    ++hits;
-
-    if (hits >= 5) {
-      dll_log.Log ( L"[   Input  ] * Failed to install keyboard hook after %lu tries... "
-        L"bailing out!",
-        hits );
-      return 0;
-    }
-
-    SK_Sleep (1);
-  }
-#endif
-
-  dll_log.Log ( L"[   Input  ] * Installed keyboard hook for command console... "
-                      L"%lu %s (%lu ms!)",
-                hits,
-                  hits > 1 ? L"tries" : L"try",
-                    timeGetTime () - dwTime );
+  UNX_InstallWindowHook (hWndForeground);
 
   if ( ((! XInputGetState) && (! gamepad.legacy)) )
     return 0;
 
   UNX_SetupSpecialButtons ();
+
+
+  struct combo_button_s {
+    combo_button_s (
+        unx::InputManager::gamepad_s::combo_s* combo_
+    ) : combo (combo_) {
+      state      = false;
+      last_state = false;
+    };
+
+
+    bool poll ( DWORD           xi_ret,
+                XINPUT_GAMEPAD& xi_gamepad )
+    {
+      last_state = state;
+
+      state =
+        xi_ret != ERROR_DEVICE_NOT_CONNECTED         &&
+        combo->buttons != 0                          &&
+        ((! combo->lt) || xi_gamepad.bLeftTrigger)   &&
+        ((! combo->rt) || xi_gamepad.bRightTrigger)  &&
+        xi_gamepad.wButtons & combo->button0         &&
+        xi_gamepad.wButtons & combo->button1         &&
+        xi_gamepad.wButtons & combo->button2;
+
+      return state;
+    }
+
+    bool wasJustPressed (void) {
+      return state && (! last_state);
+    }
+
+
+    unx::InputManager::gamepad_s::combo_s*
+         combo;
+
+    bool state;
+    bool last_state;
+  } f1 ( &gamepad.f1 ),
+    f2 ( &gamepad.f2 ),
+    f3 ( &gamepad.f3 ),
+    f4 ( &gamepad.f4 ),
+    f5 ( &gamepad.f5 ),
+    ss ( &gamepad.screenshot );
 
 #define XI_POLL_INTERVAL 500UL
 
@@ -1155,12 +1053,47 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
   BOOL need_release = FALSE;
 
   INPUT* keys  =
-     new INPUT [2];
+     new INPUT [5];
+
+  keys [0].type           = INPUT_KEYBOARD;
+  keys [0].ki.wVk         = 0;
+  keys [0].ki.dwFlags     = KEYEVENTF_SCANCODE;
+  keys [0].ki.time        = 0;
+  keys [0].ki.dwExtraInfo = 0;
+
+  for (int i = 1; i < 5; i++) {
+    keys [i].type           = INPUT_KEYBOARD;
+    keys [i].ki.wVk         = 0;
+    keys [i].ki.dwFlags     = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+    keys [i].ki.time        = 0;
+    keys [i].ki.dwExtraInfo = 0;
+  }
+
+  std::vector <WORD> pressed_scancodes;
 
   while (true) {
-    if (need_release) {
-      SendInput (1, &keys [1], sizeof INPUT);
+    if (GetForegroundWindow () != hWndForeground) {
+      Sleep (1);
+      continue;
     }
+
+    int i = 1;
+
+    std::vector <WORD>::iterator scan =
+      pressed_scancodes.begin ();
+
+    while (scan != pressed_scancodes.end ()) {
+      keys [i++].ki.wScan = *scan;
+      scan = pressed_scancodes.erase (scan);
+
+      if (i > 4) {
+        SendInput (4, &keys [1], sizeof INPUT);
+        i = 1;
+      }
+    }
+
+    if (i > 1)
+      SendInput (i-1, &keys [1], sizeof INPUT);
 
     int slot = config.input.gamepad_slot;
     if (slot == -1)
@@ -1212,9 +1145,9 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_BACK;
 
           if (joy_ex.dwButtons & gamepad.legacy_map.LT)
-            xi_state.Gamepad.bLeftTrigger  = 1;
+            xi_state.Gamepad.bLeftTrigger  = 255;
           if (joy_ex.dwButtons & gamepad.legacy_map.RT)
-            xi_state.Gamepad.bRightTrigger = 1;
+            xi_state.Gamepad.bRightTrigger = 255;
 
           if (joy_ex.dwButtons & gamepad.legacy_map.LB)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_LEFT_SHOULDER;
@@ -1239,106 +1172,113 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
       }
     }
 
+   //
+   // Analog deadzone compensation
+   //
+   if (xi_state.Gamepad.bLeftTrigger < 25)
+     xi_state.Gamepad.bLeftTrigger = 0;
+
+   if (xi_state.Gamepad.bRightTrigger < 25)
+     xi_state.Gamepad.bRightTrigger = 0;
+
+    static bool
+      last_esc = false;
+
     bool four_finger =
-        config.input.four_finger_salute &&
-        xi_state.Gamepad.bLeftTrigger   &&
-        xi_state.Gamepad.bRightTrigger  &&
+        config.input.four_finger_salute      &&
+        xi_ret != ERROR_DEVICE_NOT_CONNECTED &&
+        xi_state.Gamepad.bLeftTrigger        &&
+        xi_state.Gamepad.bRightTrigger       &&
       ( xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_START |
                                       XINPUT_GAMEPAD_BACK ) );
 
-    bool f1 =
-        gamepad.f1.buttons != 0                                &&
-        ((! gamepad.f1.lt) || xi_state.Gamepad.bLeftTrigger)   &&
-        ((! gamepad.f1.rt) || xi_state.Gamepad.bRightTrigger)  &&
-        xi_state.Gamepad.wButtons & gamepad.f1.button0         &&
-        xi_state.Gamepad.wButtons & gamepad.f1.button1         &&
-        xi_state.Gamepad.wButtons & gamepad.f1.button2;
-
-    bool f2 =
-        gamepad.f2.buttons != 0                                &&
-        ((! gamepad.f2.lt) || xi_state.Gamepad.bLeftTrigger)   &&
-        ((! gamepad.f2.rt) || xi_state.Gamepad.bRightTrigger)  &&
-        xi_state.Gamepad.wButtons & gamepad.f2.button0         &&
-        xi_state.Gamepad.wButtons & gamepad.f2.button1         &&
-        xi_state.Gamepad.wButtons & gamepad.f2.button2;
-
-    bool f3 =
-        gamepad.f3.buttons != 0                                &&
-        ((! gamepad.f3.lt) || xi_state.Gamepad.bLeftTrigger)   &&
-        ((! gamepad.f3.rt) || xi_state.Gamepad.bRightTrigger)  &&
-        xi_state.Gamepad.wButtons & gamepad.f3.button0         &&
-        xi_state.Gamepad.wButtons & gamepad.f3.button1         &&
-        xi_state.Gamepad.wButtons & gamepad.f3.button2;
-
-    bool f4 =
-        gamepad.f4.buttons != 0                                &&
-        ((! gamepad.f4.lt) || xi_state.Gamepad.bLeftTrigger)   &&
-        ((! gamepad.f4.rt) || xi_state.Gamepad.bRightTrigger)  &&
-        xi_state.Gamepad.wButtons & gamepad.f4.button0         &&
-        xi_state.Gamepad.wButtons & gamepad.f4.button1         &&
-        xi_state.Gamepad.wButtons & gamepad.f4.button2;
-
-    bool f5 =
-        gamepad.f5.buttons != 0                                &&
-        ((! gamepad.f5.lt) || xi_state.Gamepad.bLeftTrigger)   &&
-        ((! gamepad.f5.rt) || xi_state.Gamepad.bRightTrigger)  &&
-        xi_state.Gamepad.wButtons & gamepad.f5.button0         &&
-        xi_state.Gamepad.wButtons & gamepad.f5.button1         &&
-        xi_state.Gamepad.wButtons & gamepad.f5.button2;
+    f1.poll (xi_ret, xi_state.Gamepad);
+    f2.poll (xi_ret, xi_state.Gamepad);
+    f3.poll (xi_ret, xi_state.Gamepad);
+    f4.poll (xi_ret, xi_state.Gamepad);
+    f5.poll (xi_ret, xi_state.Gamepad);
+    ss.poll (xi_ret, xi_state.Gamepad);
 
     WORD scancode = 0;
 
-    bool hotkey = true;
+#define UNX_SendScancode(x) scancode          = (x);                \
+                            keys [0].ki.wScan = scancode;           \
+                                                                    \
+                            SendInput (1, &keys [0], sizeof INPUT); \
+                                                                    \
+                            pressed_scancodes.push_back (scancode);
 
     if (four_finger) {
-      extern LPVOID __UNX_base_img_addr;
-      uint16_t* scenario_flag = (uint16_t *)((uintptr_t)__UNX_base_img_addr + (0x12FB784-0x00401000-0x04));
-      dll_log.Log (L"Scenario Flag: %u", *scenario_flag);
+#if 0
+      extern void*
+      UNX_Scan (const uint8_t* pattern, size_t len, const uint8_t* mask);
 
-      //typedef int (__fastcall *ffxDebugMenu_pfn)(void);
-      //extern LPVOID __UNX_base_img_addr;
-      //ffxDebugMenu_pfn ffxDebug =
-        //(ffxDebugMenu_pfn)((uint8_t *)(uint8_t *)GetModuleHandle (nullptr) + 0x257BE0);
-      //ffxDebug ();
+      uint8_t inst [] = { 0x68, 0x88, 0x04, 0x00, 0x00,
+                          0xe8, 0x66, 0xe7, 0xf3, 0xff,
+                          0x83, 0xc4, 0x04, 0x85, 0xc0
+      };
+      uint8_t mask [] = { 0xff, 0xff, 0xff, 0xff, 0xff,
+                          0x00, 0x00, 0x00, 0x00, 0x00,
+                          0xff, 0xff, 0xff, 0xff, 0xff
+      };
 
-      scancode = 0x01;
+      typedef void (__fastcall *test_pfn)(void);
+      test_pfn test =
+        (test_pfn)(UNX_Scan (inst, 15, mask));
+
+      uintptr_t expected = 0x6F1D50;
+      uintptr_t offset   = (uintptr_t)test - expected;
+
+      //dll_log.Log (L" Quicksave: %ph", test);
+
+      DWORD quicksave = 0xAE0510 + offset;//0x00648190 + offset;
+
+      //__asm { pushad 
+              //call quicksave
+              //popad };
+
+      //typedef int (__cdecl *quickie_pfn)(void);
+      //quickie_pfn quickie = (quickie_pfn)(0x657BE0/*0x6EFFF0*/ + offset);
+
+      int x = 0;
+      int y = 0;
+      //quickie ()
+#endif
+
+      UNX_SendScancode (0x01);
     }
-    else if (f1)
-      scancode = 0x3b;
-    else if (f2)
-      scancode = 0x3c;
-    else if (f3)
-      scancode = 0x3d;
-    else if (f4)
-      scancode = 0x3e;
-    else if (f5)
-      scancode = 0x3f;
-    else
-      hotkey = false;
 
-    if (hotkey) {
-      keys [0].type           = INPUT_KEYBOARD;
-      keys [0].ki.wVk         = 0;
+    if (f1.state)
+      UNX_SendScancode (0x3b);
 
-      keys [0].ki.wScan       = scancode;
-      keys [0].ki.dwFlags     = KEYEVENTF_SCANCODE;
-      keys [0].ki.time        = 0;
-      keys [0].ki.dwExtraInfo = 0;
+    if (f2.state)
+      UNX_SendScancode (0x3c);
 
-      SendInput (1, &keys [0], sizeof INPUT);
+    if (f3.state)
+      UNX_SendScancode (0x3d);
 
-      keys [1].type           = INPUT_KEYBOARD;
-      keys [1].ki.wVk         = 0;
+    if (f4.state)
+      UNX_SendScancode (0x3e);
 
-      keys [1].ki.wScan       = scancode;
-      keys [1].ki.dwFlags     = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
-      keys [1].ki.time        = 0;
-      keys [1].ki.dwExtraInfo = 0;
+    if (f5.state)
+      UNX_SendScancode (0x3f);
 
-      need_release = TRUE;
-    } else {
-      need_release = FALSE;
+    if (ss.wasJustPressed ()) {
+      typedef bool (__stdcall *SK_SteamAPI_TakeScreenshot_pfn)(void);
+
+      static SK_SteamAPI_TakeScreenshot_pfn
+        SK_SteamAPI_TakeScreenshot =
+          (SK_SteamAPI_TakeScreenshot_pfn)
+            GetProcAddress (
+                     GetModuleHandle ( config.system.injector.c_str () ),
+                       "SK_SteamAPI_TakeScreenshot"
+            );
+
+      if (SK_SteamAPI_TakeScreenshot != nullptr)
+        SK_SteamAPI_TakeScreenshot ();
     }
+
+    last_esc = four_finger;
 
     SK_Sleep (10);
   }
@@ -1348,234 +1288,4 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
   return 0;
 }
 
-LRESULT
-CALLBACK
-unx::InputManager::Hooker::MouseProc (int nCode, WPARAM wParam, LPARAM lParam)
-{
-  MOUSEHOOKSTRUCT* pmh = (MOUSEHOOKSTRUCT *)lParam;
-
-  return CallNextHookEx (Hooker::getInstance ()->hooks.mouse, nCode, wParam, lParam);
-}
-
-LRESULT
-CALLBACK
-unx::InputManager::Hooker::KeyboardProc (int nCode, WPARAM wParam, LPARAM lParam)
-{
-  if (nCode == 0 /*nCode >= 0 && (nCode != HC_NOREMOVE)*/) {
-    BYTE    vkCode   = LOWORD (wParam) & 0xFF;
-    BYTE    scanCode = HIWORD (lParam) & 0x7F;
-    SHORT   repeated = LOWORD (lParam);
-    bool    keyDown  = ! (lParam & 0x80000000);
-
-    if (visible && vkCode == VK_BACK) {
-      if (keyDown) {
-        size_t len = strlen (text);
-                len--;
-
-        if (len < 1)
-          len = 1;
-
-        text [len] = '\0';
-      }
-    }
-
-    // We don't want to distinguish between left and right on these keys, so alias the stuff
-    else if ((vkCode == VK_SHIFT || vkCode == VK_LSHIFT || vkCode == VK_RSHIFT)) {
-      if (keyDown) keys_ [VK_SHIFT] = 0x81; else keys_ [VK_SHIFT] = 0x00;
-    }
-
-    else if ((vkCode == VK_MENU || vkCode == VK_LMENU || vkCode == VK_MENU)) {
-      if (keyDown) keys_ [VK_MENU] = 0x81; else keys_ [VK_MENU] = 0x00;
-    }
-
-    else if ((!repeated) && vkCode == VK_CAPITAL) {
-      if (keyDown) if (keys_ [VK_CAPITAL] == 0x00) keys_ [VK_CAPITAL] = 0x81; else keys_ [VK_CAPITAL] = 0x00;
-    }
-
-    else if ((vkCode == VK_CONTROL || vkCode == VK_LCONTROL || vkCode == VK_RCONTROL)) {
-      if (keyDown) keys_ [VK_CONTROL] = 0x81; else keys_ [VK_CONTROL] = 0x00;
-    }
-
-    else if ((vkCode == VK_UP) || (vkCode == VK_DOWN)) {
-      if (keyDown && visible) {
-        if (vkCode == VK_UP)
-          commands.idx--;
-        else
-          commands.idx++;
-
-        // Clamp the index
-        if (commands.idx < 0)
-          commands.idx = 0;
-        else if (commands.idx >= commands.history.size ())
-          commands.idx = commands.history.size () - 1;
-
-        if (commands.history.size ()) {
-          strcpy (&text [1], commands.history [commands.idx].c_str ());
-          command_issued = false;
-        }
-      }
-    }
-
-    else if (visible && vkCode == VK_RETURN) {
-      if (keyDown && LOWORD (lParam) < 2) {
-        size_t len = strlen (text+1);
-        // Don't process empty or pure whitespace command lines
-        if (len > 0 && strspn (text+1, " ") != len) {
-          eTB_CommandResult result = SK_GetCommandProcessor ()->ProcessCommandLine (text+1);
-
-          if (result.getStatus ()) {
-            // Don't repeat the same command over and over
-            if (commands.history.size () == 0 ||
-                commands.history.back () != &text [1]) {
-              commands.history.push_back (&text [1]);
-            }
-
-            commands.idx = commands.history.size ();
-
-            text [1] = '\0';
-
-            command_issued = true;
-          }
-          else {
-            command_issued = false;
-          }
-
-          result_str = result.getWord   () + std::string (" ")   +
-                       result.getArgs   () + std::string (":  ") +
-                       result.getResult ();
-        }
-      }
-    }
-
-    else if (keyDown) {
-      eTB_CommandProcessor* pCommandProc = SK_GetCommandProcessor ();
-
-      bool new_press = keys_ [vkCode] != 0x81;
-
-      keys_ [vkCode] = 0x81;
-
-      if (keys_ [VK_CONTROL] && keys_ [VK_SHIFT]) {
-        if ( keys_ [VK_TAB]         && 
-               ( vkCode == VK_CONTROL ||
-                 vkCode == VK_SHIFT   ||
-                 vkCode == VK_TAB ) &&
-             new_press ) {
-          visible = ! visible;
-
-          // Avoid duplicating a BMF feature
-          static HMODULE hD3D9 = GetModuleHandle (config.system.injector.c_str ());
-
-          typedef void (__stdcall *BMF_SteamAPI_SetOverlayState_t)(bool);
-          static BMF_SteamAPI_SetOverlayState_t BMF_SteamAPI_SetOverlayState =
-              (BMF_SteamAPI_SetOverlayState_t)
-                GetProcAddress ( hD3D9,
-                                    "BMF_SteamAPI_SetOverlayState" );
-
-          BMF_SteamAPI_SetOverlayState (visible);
-
-          // Prevent the Steam Overlay from being a real pain
-          return -1;
-        }
-
-        if (keys_ [VK_MENU] && vkCode == 'L' && new_press) {
-          pCommandProc->ProcessCommandLine ("Trace.NumFrames 1");
-          pCommandProc->ProcessCommandLine ("Trace.Enable true");
-        }
-
-// Not really that useful, and we want the 'B' key for something else
-#if 0
-        else if (keys_ [VK_MENU] && vkCode == 'B' && new_press) {
-          pCommandProc->ProcessCommandLine ("Render.AllowBG toggle");
-        }
-#endif
-        else if (vkCode == 'H' && new_press) {
-          pCommandProc->ProcessCommandLine ("Render.HighPrecisionSSAO toggle");
-        }
-
-        else if (vkCode == VK_OEM_COMMA && new_press) {
-          pCommandProc->ProcessCommandLine ("Render.MSAA toggle");
-        }
-
-        else if (vkCode == 'Z' && new_press) {
-          pCommandProc->ProcessCommandLine ("Render.TaskTiming toggle");
-        }
-
-        else if (vkCode == 'X' && new_press) {
-          pCommandProc->ProcessCommandLine ("Render.AggressiveOpt toggle");
-        }
-
-        else if (vkCode == '1' && new_press) {
-          pCommandProc->ProcessCommandLine ("Window.ForegroundFPS 60.0");
-        }
-
-        else if (vkCode == '2' && new_press) {
-          pCommandProc->ProcessCommandLine ("Window.ForegroundFPS 30.0");
-        }
-
-        else if (vkCode == '3' && new_press) {
-          pCommandProc->ProcessCommandLine ("Window.ForegroundFPS 0.0");
-        }
-
-        else if (vkCode == VK_OEM_PERIOD && new_press) {
-          pCommandProc->ProcessCommandLine ("Render.FringeRemoval toggle");
-        }
-      }
-
-      // Don't print the tab character, it's pretty useless.
-      if (visible && vkCode != VK_TAB) {
-        char key_str [2];
-        key_str [1] = '\0';
-
-        if (1 == ToAsciiEx ( vkCode,
-                              scanCode,
-                              keys_,
-                            (LPWORD)key_str,
-                              0,
-                              GetKeyboardLayout (0) ) &&
-             isprint (*key_str) ) {
-          strncat (text, key_str, 1);
-          command_issued = false;
-        }
-      }
-    }
-
-    else if ((! keyDown)) {
-      bool new_release = keys_ [vkCode] != 0x00;
-
-      keys_ [vkCode] = 0x00;
-    }
-
-    if (visible) return -1;
-  }
-
-  return CallNextHookEx (Hooker::getInstance ()->hooks.keyboard, nCode, wParam, lParam);
-};
-
-
-void
-UNX_DrawCommandConsole (void)
-{
-  static int draws = 0;
-
-  // Skip the first several frames, so that the console appears below the
-  //  other OSD.
-  if (draws++ > 20) {
-    unx::InputManager::Hooker* pHook =
-      unx::InputManager::Hooker::getInstance ();
-    pHook->Draw ();
-  }
-}
-
-
 unx::InputManager::Hooker* unx::InputManager::Hooker::pInputHook = nullptr;
-
-char                       unx::InputManager::Hooker::text [4096];
-
-BYTE                       unx::InputManager::Hooker::keys_ [256]    = { 0 };
-bool                       unx::InputManager::Hooker::visible        = false;
-
-bool                       unx::InputManager::Hooker::command_issued = false;
-std::string                unx::InputManager::Hooker::result_str;
-
-unx::InputManager::Hooker::command_history_s
-                          unx::InputManager::Hooker::commands;
