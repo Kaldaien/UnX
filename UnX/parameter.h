@@ -103,6 +103,11 @@ public:
   virtual void         set_value     (_T val)           = 0;
   virtual void         set_value_str (std::wstring str) = 0;
 
+  virtual void         store         (_T val)           = 0;
+  virtual void         store_str     (std::wstring str) = 0;
+
+  virtual bool         load          (_T& ref)          = 0;
+
 protected:
   _T                   value;
 };
@@ -113,8 +118,13 @@ public:
   std::wstring get_value_str (void);
   int          get_value     (void);
 
-  void         set_value     (int val);
+  void         set_value     (int          val);
   void         set_value_str (std::wstring str);
+
+  void         store         (int          val);
+  void         store_str     (std::wstring str);
+
+  bool         load          (int& ref);
 
 protected:
   int value;
@@ -126,8 +136,13 @@ public:
   std::wstring get_value_str (void);
   int64_t      get_value     (void);
 
-  void         set_value     (int64_t val);
+  void         set_value     (int64_t      val);
   void         set_value_str (std::wstring str);
+
+  void         store         (int64_t      val);
+  void         store_str     (std::wstring str);
+
+  bool         load          (int64_t&     ref);
 
 protected:
   int64_t value;
@@ -139,8 +154,13 @@ public:
   std::wstring get_value_str (void);
   bool         get_value     (void);
 
-  void         set_value     (bool val);
+  void         set_value     (bool         val);
   void         set_value_str (std::wstring str);
+
+  void         store         (bool         val);
+  void         store_str     (std::wstring str);
+
+  bool         load          (bool&        ref);
 
 protected:
   bool value;
@@ -150,10 +170,15 @@ class ParameterFloat : public Parameter <float>
 {
 public:
   std::wstring get_value_str (void);
-  float        get_value (void);
+  float        get_value     (void);
 
-  void         set_value (float val);
+  void         set_value     (float        val);
   void         set_value_str (std::wstring str);
+
+  void         store         (float        val);
+  void         store_str     (std::wstring str);
+
+  bool         load          (float&       ref);
 
 protected:
   float value;
@@ -167,6 +192,12 @@ public:
 
   void         set_value     (std::wstring str);
   void         set_value_str (std::wstring str);
+
+  void         store         (std::wstring val);
+  void         store_str     (std::wstring str);
+
+  bool         load          (std::wstring& ref);
+
 
 protected:
   std::wstring value;

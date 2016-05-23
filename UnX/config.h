@@ -39,12 +39,18 @@ struct unx_config_s
   } display;
 
   struct {
+    bool    mute_in_background  = false;
+  } audio;
+
+  struct {
   } compatibility;
 
   struct {
+    bool    center              = true;
   } window;
 
   struct {
+    bool    reduce              = false;
   } stutter;
 
   struct textures_s {
@@ -106,6 +112,9 @@ struct unx_config_s
   } language;
 
   struct {
+    bool remap_dinput8      = true;
+    bool ignore_background  = true;
+
     bool block_left_alt     = false;
     bool block_left_ctrl    = false;
     bool block_windows      = false;

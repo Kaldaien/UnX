@@ -27,6 +27,86 @@
 #include "log.h"
 #include "hook.h"
 
+
+//
+// TODO: MOVE me to sound specific file
+//
+#include <Mmdeviceapi.h>
+#include <audiopolicy.h>
+#include <atlbase.h>
+
+ISimpleAudioVolume*
+UNX_GetVolumeControl (void)
+{
+  CComPtr <IMMDeviceEnumerator> pDevEnum;
+  if (FAILED ((pDevEnum.CoCreateInstance (__uuidof (MMDeviceEnumerator)))))
+    return nullptr;
+
+  CComPtr <IMMDevice> pDevice;
+  if ( FAILED (
+         pDevEnum->GetDefaultAudioEndpoint ( eRender,
+                                               eCommunications,
+                                                 &pDevice )
+              )
+     ) return nullptr;
+
+  CComPtr <IAudioSessionManager2> pSessionMgr2;
+  if (FAILED (pDevice->Activate (
+                __uuidof (IAudioSessionManager2),
+                  CLSCTX_ALL,
+                    nullptr,
+                      reinterpret_cast <void **>(&pSessionMgr2)
+             )
+         )
+     ) return nullptr;
+
+  CComPtr <IAudioSessionEnumerator> pSessionEnum;
+  if (FAILED (pSessionMgr2->GetSessionEnumerator (&pSessionEnum)))
+    return nullptr;
+
+  int num_sessions;
+
+  if (FAILED (pSessionEnum->GetCount (&num_sessions)))
+    return nullptr;
+
+  for (int i = 0; i < num_sessions; i++) {
+    CComPtr <IAudioSessionControl> pSessionCtl;
+    if (FAILED (pSessionEnum->GetSession (i, &pSessionCtl)))
+      return nullptr;
+
+    CComPtr <IAudioSessionControl2> pSessionCtl2;
+    if (FAILED (pSessionCtl->QueryInterface (IID_PPV_ARGS (&pSessionCtl2))))
+      return nullptr;
+
+    DWORD dwProcess = 0;
+    if (FAILED (pSessionCtl2->GetProcessId (&dwProcess)))
+      return nullptr;
+
+    if (dwProcess == GetCurrentProcessId ()) {
+      ISimpleAudioVolume* pSimpleAudioVolume;
+
+      if (SUCCEEDED (pSessionCtl->QueryInterface (IID_PPV_ARGS (&pSimpleAudioVolume))))
+        return pSimpleAudioVolume;
+    }
+  }
+
+  return nullptr;
+}
+
+void
+UNX_SetGameMute (bool bMute)
+{
+  ISimpleAudioVolume* pVolume =
+    UNX_GetVolumeControl ();
+
+  if (pVolume != nullptr) {
+    pVolume->SetMute (bMute, nullptr);
+    pVolume->Release ();
+  }
+}
+
+
+
 unx::window_state_s unx::window;
 
 SetWindowLongA_pfn      SetWindowLongA_Original      = nullptr;
@@ -61,6 +141,23 @@ DetourWindowProc ( _In_  HWND   hWnd,
                    _In_  LPARAM lParam )
 {
   bool last_active = unx::window.active;
+
+  // This state is persistent and we do not want Alt+F4 to remember a muted
+  //   state.
+  if (uMsg == WM_DESTROY)
+    UNX_SetGameMute (FALSE);
+
+  // On Window Activation / Deactivation
+  if (uMsg == WM_ACTIVATE) {
+    if (config.audio.mute_in_background) {
+      BOOL bMute = FALSE;
+
+      if (wParam == WA_INACTIVE)
+        bMute = TRUE;
+
+      UNX_SetGameMute (bMute);
+    }
+  }
 
   //
   // The window activation state is changing, among other things we can take

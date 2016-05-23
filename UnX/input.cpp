@@ -43,10 +43,60 @@
 typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)(std::wstring, uint32_t);
 extern SK_D3D11_AddTexHash_pfn SK_D3D11_AddTexHash;
 
-unx::InputManager::gamepad_s gamepad;
+typedef HWND (WINAPI *SK_GetGameWindow_pfn)(void);
+SK_GetGameWindow_pfn SK_GetGameWindow;
 
-typedef void (WINAPI *Sleep_pfn)(DWORD dwMilliseconds);
-Sleep_pfn SK_Sleep = nullptr; // Avoid things that MaxDeltaTime does...
+struct unx_gamepad_s {
+  std::wstring tex_set = L"PlayStation_Glossy";
+  bool         legacy  = false;
+
+  struct combo_s {
+    std::wstring unparsed = L"";
+    int          buttons  = 0;
+    int          button0  = 0xffffffff;
+    int          button1  = 0xffffffff;
+    int          button2  = 0xffffffff;
+    bool         lt       = false;
+    bool         rt       = false;
+  } f1, f2, f3, f4, f5, screenshot;
+
+  struct remap_s {
+    struct buttons_s {
+      int X     = JOY_BUTTON1;
+      int A     = JOY_BUTTON2;
+      int B     = JOY_BUTTON3;
+      int Y     = JOY_BUTTON4;
+      int LB    = JOY_BUTTON5;
+      int RB    = JOY_BUTTON6;
+      int LT    = JOY_BUTTON7;
+      int RT    = JOY_BUTTON8;
+      int BACK  = JOY_BUTTON9;
+      int START = JOY_BUTTON10;
+      int LS    = JOY_BUTTON11;
+      int RS    = JOY_BUTTON12;
+    } buttons;
+
+    // Post-Process the button map above so we do not
+    //   have to constantly perform the operations
+    //     below when polling a controller...
+    int map [12];
+
+    static int indexToEnum (int idx) {
+      return 1 << (idx - 1);
+    }
+
+    static int enumToIndex (unsigned int enum_val) {
+      int idx = 0;
+
+      while (enum_val > 0) {
+        enum_val >>= 1;
+        idx++;
+      }
+
+      return idx;
+    }
+  } remap;
+} gamepad;
 
 extern void UNX_InstallWindowHook (HWND hWnd);
 
@@ -117,7 +167,7 @@ IDirectInputDevice8_SetCooperativeLevel_pfn
                                                                                \
      VirtualProtect (&vftable [_Index], __PTR_SIZE, __PAGE_PRIVS, &dwProtect); \
                                                                                \
-     /*if (_Original == NULL)                                                */\
+     if (_Original == NULL)                                                    \
        _Original = (##_Type)vftable [_Index];                                  \
                                                                                \
      vftable [_Index] = _Override;                                             \
@@ -148,25 +198,36 @@ IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE        This,
                                             DWORD                      cbData,
                                             LPVOID                     lpvData )
 {
-#if 0
-  // For input faking (keyboard)
-  if ((! unx::window.active) && config.render.allow_background && This == _dik.pDev) {
-    memcpy (lpvData, _dik.state, cbData);
-    return S_OK;
-  }
-
-  // For input faking (mouse)
-  if ((! unx::window.active) && config.render.allow_background && This == _dim.pDev) {
-    memcpy (lpvData, &_dim.state, cbData);
-    return S_OK;
-  }
-
   HRESULT hr;
   hr = IDirectInputDevice8_GetDeviceState_Original ( This,
                                                        cbData,
                                                          lpvData );
 
   if (SUCCEEDED (hr)) {
+    if (cbData == sizeof DIJOYSTATE2) {
+      DIJOYSTATE2* out = (DIJOYSTATE2 *)lpvData;
+
+      // Fix Wonky Input Behavior When Window is Not In Foreground
+      if (GetForegroundWindow () != SK_GetGameWindow ()) {
+        memset (out, 0, sizeof DIJOYSTATE2);
+
+        out->rgdwPOV [0] = -1;
+        out->rgdwPOV [1] = -1;
+        out->rgdwPOV [2] = -1;
+        out->rgdwPOV [3] = -1;
+      }
+
+      else {
+        DIJOYSTATE2  in  = *out;
+
+        for (int i = 0; i < 12; i++) {
+          out->rgbButtons [ i ] = 
+            in.rgbButtons [ gamepad.remap.map [ i ] ];
+        }
+      }
+    }
+  }
+#if 0
     if (unx::window.active && This == _dim.pDev) {
 //
 // This is only for mouselook, etc. That stuff works fine without aspect ratio correction.
@@ -193,7 +254,7 @@ IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE        This,
 
   return hr;
 #else
-  return S_OK;
+  return hr;
 #endif
 }
 
@@ -203,10 +264,10 @@ IDirectInputDevice8_SetCooperativeLevel_Detour ( LPDIRECTINPUTDEVICE  This,
                                                  HWND                 hwnd,
                                                  DWORD                dwFlags )
 {
-#if 0
   if (config.input.block_windows)
     dwFlags |= DISCL_NOWINKEY;
 
+#if 0
   if (config.render.allow_background) {
     dwFlags &= ~DISCL_EXCLUSIVE;
     dwFlags &= ~DISCL_BACKGROUND;
@@ -245,18 +306,20 @@ IDirectInput8_CreateDevice_Detour ( IDirectInput8       *This,
                                                           lplpDirectInputDevice,
                                                            pUnkOuter ) );
 
-  if (SUCCEEDED (hr)) {
+  static bool hooked = false;
+
+  if (rguid != GUID_SysMouse && rguid != GUID_SysKeyboard && SUCCEEDED (hr) && (! hooked)) {
 #if 1
+      hooked = true;
+
       void** vftable = *(void***)*lplpDirectInputDevice;
 
-#if 0
       UNX_CreateFuncHook ( L"IDirectInputDevice8::GetDeviceState",
                            vftable [9],
                            IDirectInputDevice8_GetDeviceState_Detour,
-                 (LPVOID*)&IDirectInputDevice8_GetDeviceState_Original );
+                (LPVOID *)&IDirectInputDevice8_GetDeviceState_Original );
 
       UNX_EnableHook (vftable [9]);
-#endif
 
       UNX_CreateFuncHook ( L"IDirectInputDevice8::SetCooperativeLevel",
                            vftable [13],
@@ -278,11 +341,24 @@ IDirectInput8_CreateDevice_Detour ( IDirectInput8       *This,
                             IDirectInputDevice8_SetCooperativeLevel_pfn );
 #endif
 
-    if (rguid == GUID_SysMouse)
-      _dim.pDev = *lplpDirectInputDevice;
-    else if (rguid == GUID_SysKeyboard)
-      _dik.pDev = *lplpDirectInputDevice;
+    //if (rguid == GUID_SysMouse)
+      //_dim.pDev = *lplpDirectInputDevice;
+    //else if (rguid == GUID_SysKeyboard)
+      //_dik.pDev = *lplpDirectInputDevice;
+    //else
+      //return E_NOTIMPL;
   }
+
+#if 0
+  if (SUCCEEDED (hr) && lplpDirectInputDevice != nullptr) {
+    DWORD dwFlag = DISCL_FOREGROUND | DISCL_EXCLUSIVE;
+
+    if (config.input.block_windows)
+      dwFlag |= DISCL_NOWINKEY;
+
+    (*lplpDirectInputDevice)->SetCooperativeLevel (SK_GetGameWindow (), dwFlag);
+  }
+#endif
 
   return hr;
 } 
@@ -361,7 +437,7 @@ typedef DWORD (WINAPI *XInputGetState_pfn)(
   _Out_ XINPUT_STATE *pState
 );
 
-XInputGetState_pfn XInputGetState = nullptr;
+XInputGetState_pfn XInputGetState_Original = nullptr;
 
 bool
 IsControllerPluggedIn (UINT uJoyID)
@@ -372,17 +448,36 @@ IsControllerPluggedIn (UINT uJoyID)
   XINPUT_STATE xstate;
 
   static DWORD last_poll = timeGetTime ();
-  static DWORD dwRet     = XInputGetState (uJoyID, &xstate);
+  static DWORD dwRet     = XInputGetState_Original (uJoyID, &xstate);
 
   // This function is actually a performance hazzard when no controllers
   //   are plugged in, so ... throttle the sucker.
   if (last_poll < timeGetTime () - 500UL)
-    dwRet = XInputGetState (uJoyID, &xstate);
+    dwRet = XInputGetState_Original (uJoyID, &xstate);
 
   if (dwRet == ERROR_DEVICE_NOT_CONNECTED)
     return false;
 
   return true;
+}
+
+DWORD
+WINAPI
+XInputGetState_Detour ( _In_  DWORD         dwUserIndex,
+                        _Out_ XINPUT_STATE *pState )
+{
+  if (! config.input.remap_dinput8)
+    return XInputGetState_Original (dwUserIndex, pState);
+
+  int slot = config.input.gamepad_slot == -1 ?
+               0 : config.input.gamepad_slot;
+
+  DWORD dwRet = XInputGetState_Original (slot, pState);
+
+  if (dwRet == ERROR_NOT_CONNECTED)
+    dwRet = 0;
+
+  return dwRet;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -405,14 +500,10 @@ SpinOrSleep (DWORD dwMilliseconds)
 void
 unx::InputManager::Init (void)
 {
-#if 0
-  SK_Sleep =
-    (Sleep_pfn)
-      GetProcAddress ( GetModuleHandle ( config.system.injector.c_str () ),
-                         "Sleep_Detour" );
-#else
-  SK_Sleep = SpinOrSleep;
-#endif
+  SK_GetGameWindow =
+    (SK_GetGameWindow_pfn)
+      GetProcAddress ( GetModuleHandle (config.system.injector.c_str ()),
+                         "SK_GetGameWindow" );
 
   unx::ParameterFactory factory;
   unx::INI::File* pad_cfg = new unx::INI::File (L"UnX_Gamepad.ini");
@@ -422,13 +513,10 @@ unx::InputManager::Init (void)
     (unx::ParameterStringW *)factory.create_parameter <std::wstring> (L"Texture Set");
   texture_set->register_to_ini (pad_cfg, L"Gamepad.Type", L"TextureSet");
 
-  if (texture_set->load ())
-    gamepad.tex_set = texture_set->get_value ();
-  else {
+  if (! texture_set->load (gamepad.tex_set)) {
     gamepad.tex_set = L"PlayStation_Glossy";
 
-    texture_set->set_value (gamepad.tex_set);
-    texture_set->store     ();
+    texture_set->store (gamepad.tex_set);
   }
 
   if ( texture_set->get_value ().length () )
@@ -481,7 +569,6 @@ unx::InputManager::Init (void)
         new_button = true;
 
       wchar_t wszPadButton [MAX_PATH] = { L'\0' };
-
       lstrcatW (wszPadButton, wszPadRoot);
       lstrcatW (wszPadButton, wszButtons [i / pad_lods]);
       lstrcatW (wszPadButton, L".dds");
@@ -519,220 +606,215 @@ unx::InputManager::Init (void)
 
   unx::ParameterBool* supports_XInput = 
     (unx::ParameterBool *)factory.create_parameter <bool> (L"Disable XInput?");
-  supports_XInput->register_to_ini (pad_cfg, L"Gamepad.Type", L"UseXInput");
+  supports_XInput->register_to_ini (pad_cfg, L"Gamepad.Type", L"UsesXInput");
 
-  if (supports_XInput->load ()) {
+  if (((unx::iParameter *)supports_XInput)->load ()) {
     gamepad.legacy = (! supports_XInput->get_value ());
-
-    if (gamepad.legacy) {
-      unx::ParameterInt* A     = (unx::ParameterInt *)factory.create_parameter <int> (L"A");
-      A->register_to_ini (pad_cfg, L"Gamepad.Legacy", L"XInput_A");
-
-      if (A->load ()) {
-        gamepad.legacy_map.A = (gamepad.legacy_map.indexToEnum (A->get_value ()));
-      } else {
-        A->set_value (gamepad.legacy_map.enumToIndex (gamepad.legacy_map.A));
-        A->store     ();
-      }
-
-      unx::ParameterInt* B     = (unx::ParameterInt *)factory.create_parameter <int> (L"B");
-      B->register_to_ini (pad_cfg, L"Gamepad.Legacy", L"XInput_B");
-
-      if (B->load ()) {
-        gamepad.legacy_map.B = (gamepad.legacy_map.indexToEnum (B->get_value ()));
-      } else {
-        B->set_value (gamepad.legacy_map.enumToIndex (gamepad.legacy_map.B));
-        B->store     ();
-      }
-
-      unx::ParameterInt* X     = (unx::ParameterInt *)factory.create_parameter <int> (L"X");
-      X->register_to_ini (pad_cfg, L"Gamepad.Legacy", L"XInput_X");
-
-      if (X->load ()) {
-        gamepad.legacy_map.X = (gamepad.legacy_map.indexToEnum (X->get_value ()));
-      } else {
-        X->set_value (gamepad.legacy_map.enumToIndex (gamepad.legacy_map.X));
-        X->store     ();
-      }
-
-      unx::ParameterInt* Y     = (unx::ParameterInt *)factory.create_parameter <int> (L"Y");
-      Y->register_to_ini (pad_cfg, L"Gamepad.Legacy", L"XInput_Y");
-
-      if (Y->load ()) {
-        gamepad.legacy_map.Y = (gamepad.legacy_map.indexToEnum (Y->get_value ()));
-      } else {
-        Y->set_value (gamepad.legacy_map.enumToIndex (gamepad.legacy_map.Y));
-        Y->store     ();
-      }
-
-      unx::ParameterInt* START = (unx::ParameterInt *)factory.create_parameter <int> (L"START");
-      START->register_to_ini (pad_cfg, L"Gamepad.Legacy", L"XInput_Start");
-
-      if (START->load ()) {
-        gamepad.legacy_map.START = (gamepad.legacy_map.indexToEnum (START->get_value ()));
-      } else {
-        START->set_value (gamepad.legacy_map.enumToIndex (gamepad.legacy_map.START));
-        START->store     ();
-      }
-
-      unx::ParameterInt* BACK  = (unx::ParameterInt *)factory.create_parameter <int> (L"BACK");
-      BACK->register_to_ini (pad_cfg, L"Gamepad.Legacy", L"XInput_Back");
-
-      if (BACK->load ()) {
-        gamepad.legacy_map.BACK = (gamepad.legacy_map.indexToEnum (BACK->get_value ()));
-      } else {
-        BACK->set_value (gamepad.legacy_map.enumToIndex (gamepad.legacy_map.BACK));
-        BACK->store     ();
-      }
-
-      unx::ParameterInt* LB    = (unx::ParameterInt *)factory.create_parameter <int> (L"LB");
-      LB->register_to_ini (pad_cfg, L"Gamepad.Legacy", L"XInput_LB");
-
-      if (LB->load ()) {
-        gamepad.legacy_map.LB = (gamepad.legacy_map.indexToEnum (LB->get_value ()));
-      } else {
-        LB->set_value (gamepad.legacy_map.enumToIndex (gamepad.legacy_map.LB));
-        LB->store     ();
-      }
-
-      unx::ParameterInt* RB    = (unx::ParameterInt *)factory.create_parameter <int> (L"RB");
-      RB->register_to_ini (pad_cfg, L"Gamepad.Legacy", L"XInput_RB");
-
-      if (RB->load ()) {
-        gamepad.legacy_map.RB = (gamepad.legacy_map.indexToEnum (RB->get_value ()));
-      } else {
-        RB->set_value (gamepad.legacy_map.enumToIndex (gamepad.legacy_map.RB));
-        RB->store     ();
-      }
-
-      unx::ParameterInt* LT    = (unx::ParameterInt *)factory.create_parameter <int> (L"LT");
-      LT->register_to_ini (pad_cfg, L"Gamepad.Legacy", L"XInput_LT");
-
-      if (LT->load ()) {
-        gamepad.legacy_map.LT = (gamepad.legacy_map.indexToEnum (LT->get_value ()));
-      } else {
-        LT->set_value (gamepad.legacy_map.enumToIndex (gamepad.legacy_map.LT));
-        LT->store     ();
-      }
-
-      unx::ParameterInt* RT    = (unx::ParameterInt *)factory.create_parameter <int> (L"RT");
-      RT->register_to_ini (pad_cfg, L"Gamepad.Legacy", L"XInput_RT");
-
-      if (RT->load ()) {
-        gamepad.legacy_map.RT = (gamepad.legacy_map.indexToEnum (RT->get_value ()));
-      } else {
-        RT->set_value (gamepad.legacy_map.enumToIndex (gamepad.legacy_map.RT));
-        RT->store     ();
-      }
-
-      unx::ParameterInt* LS    = (unx::ParameterInt *)factory.create_parameter <int> (L"LS");
-      LS->register_to_ini (pad_cfg, L"Gamepad.Legacy", L"XInput_LS");
-
-      if (LS->load ()) {
-        gamepad.legacy_map.LS = (gamepad.legacy_map.indexToEnum (LS->get_value ()));
-      } else {
-        LS->set_value (gamepad.legacy_map.enumToIndex (gamepad.legacy_map.LS));
-        LS->store     ();
-      }
-
-      unx::ParameterInt* RS    = (unx::ParameterInt *)factory.create_parameter <int> (L"RS");
-      RS->register_to_ini (pad_cfg, L"Gamepad.Legacy", L"XInput_RS");
-
-      if (RS->load ()) {
-        gamepad.legacy_map.RS = (gamepad.legacy_map.indexToEnum (RS->get_value ()));
-      } else {
-        RS->set_value (gamepad.legacy_map.enumToIndex (gamepad.legacy_map.RS));
-        RS->store     ();
-      }
-    }
   } else {
-    supports_XInput->set_value (true);
-    supports_XInput->store     ();
+    supports_XInput->store (true);
   }
 
-  unx::iParameter* combo_ESC =
-    factory.create_parameter <std::wstring> (L"ESC Buttons");
+  //if (gamepad.legacy)
+  {
+    unx::ParameterInt* A     = (unx::ParameterInt *)factory.create_parameter <int> (L"A");
+    A->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_A");
 
-  unx::iParameter* combo_F1 =
-    factory.create_parameter <std::wstring> (L"F1 Buttons");
+    if (((unx::iParameter *)A)->load ()) {
+      gamepad.remap.buttons.A = (gamepad.remap.indexToEnum (A->get_value ()));
+    } else {
+      A->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.A));
+    }
+
+    unx::ParameterInt* B     = (unx::ParameterInt *)factory.create_parameter <int> (L"B");
+    B->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_B");
+
+    if (((unx::iParameter *)B)->load ()) {
+      gamepad.remap.buttons.B = (gamepad.remap.indexToEnum (B->get_value ()));
+    } else {
+      B->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.B));
+    }
+
+    unx::ParameterInt* X     = (unx::ParameterInt *)factory.create_parameter <int> (L"X");
+    X->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_X");
+
+    if (((unx::iParameter *)X)->load ()) {
+      gamepad.remap.buttons.X = (gamepad.remap.indexToEnum (X->get_value ()));
+    } else {
+      X->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.X));
+    }
+
+    unx::ParameterInt* Y     = (unx::ParameterInt *)factory.create_parameter <int> (L"Y");
+    Y->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_Y");
+
+    if (((unx::iParameter *)Y)->load ()) {
+      gamepad.remap.buttons.Y = (gamepad.remap.indexToEnum (Y->get_value ()));
+    } else {
+      Y->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.Y));
+    }
+
+    unx::ParameterInt* START = (unx::ParameterInt *)factory.create_parameter <int> (L"START");
+    START->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_Start");
+
+    if (((unx::iParameter *)START)->load ()) {
+      gamepad.remap.buttons.START = (gamepad.remap.indexToEnum (START->get_value ()));
+    } else {
+      START->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.START));
+    }
+
+    unx::ParameterInt* BACK  = (unx::ParameterInt *)factory.create_parameter <int> (L"BACK");
+    BACK->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_Back");
+
+    if (((unx::iParameter *)BACK)->load ()) {
+      gamepad.remap.buttons.BACK = (gamepad.remap.indexToEnum (BACK->get_value ()));
+    } else {
+      BACK->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.BACK));
+    }
+
+    unx::ParameterInt* LB    = (unx::ParameterInt *)factory.create_parameter <int> (L"LB");
+    LB->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_LB");
+
+    if (((unx::iParameter *)LB)->load ()) {
+      gamepad.remap.buttons.LB = (gamepad.remap.indexToEnum (LB->get_value ()));
+    } else {
+      LB->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.LB));
+    }
+
+    unx::ParameterInt* RB    = (unx::ParameterInt *)factory.create_parameter <int> (L"RB");
+    RB->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_RB");
+
+    if (((unx::iParameter *)RB)->load ()) {
+      gamepad.remap.buttons.RB = (gamepad.remap.indexToEnum (RB->get_value ()));
+    } else {
+      RB->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.RB));
+    }
+
+    unx::ParameterInt* LT    = (unx::ParameterInt *)factory.create_parameter <int> (L"LT");
+    LT->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_LT");
+
+    if (((unx::iParameter *)LT)->load ()) {
+      gamepad.remap.buttons.LT = (gamepad.remap.indexToEnum (LT->get_value ()));
+    } else {
+      LT->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.LT));
+    }
+
+    unx::ParameterInt* RT    = (unx::ParameterInt *)factory.create_parameter <int> (L"RT");
+    RT->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_RT");
+
+    if (((unx::iParameter *)RT)->load ()) {
+      gamepad.remap.buttons.RT = (gamepad.remap.indexToEnum (RT->get_value ()));
+    } else {
+      RT->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.RT));
+    }
+
+    unx::ParameterInt* LS    = (unx::ParameterInt *)factory.create_parameter <int> (L"LS");
+    LS->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_LS");
+
+    if (((unx::iParameter *)LS)->load ()) {
+      gamepad.remap.buttons.LS = (gamepad.remap.indexToEnum (LS->get_value ()));
+    } else {
+      LS->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.LS));
+    }
+
+    unx::ParameterInt* RS    = (unx::ParameterInt *)factory.create_parameter <int> (L"RS");
+    RS->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_RS");
+
+    if (((unx::iParameter *)RS)->load ()) {
+      gamepad.remap.buttons.RS = (gamepad.remap.indexToEnum (RS->get_value ()));
+    } else {
+      RS->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.RS));
+    }
+  }
+
+  unx::ParameterStringW* combo_ESC =
+    (unx::ParameterStringW *)
+      factory.create_parameter <std::wstring> (L"ESC Buttons");
+
+  unx::ParameterStringW* combo_F1 =
+    (unx::ParameterStringW *)
+      factory.create_parameter <std::wstring> (L"F1 Buttons");
   combo_F1->register_to_ini (pad_cfg, L"Gamepad.PC", L"F1");
 
-  if (combo_F1->load ())
-    gamepad.f1.unparsed = combo_F1->get_value_str ();
-  else {
-    gamepad.f1.unparsed = L"Select+Cross";
-
-    combo_F1->set_value_str (gamepad.f1.unparsed);
-    combo_F1->store         ();
+  if (! combo_F1->load (gamepad.f1.unparsed)) {
+    combo_F1->store (
+      (gamepad.f1.unparsed = L"Select+Cross")
+    );
   }
 
-  unx::iParameter* combo_F2 =
-    factory.create_parameter <std::wstring> (L"F2 Buttons");
+  unx::ParameterStringW* combo_F2 =
+    (unx::ParameterStringW *)
+      factory.create_parameter <std::wstring> (L"F2 Buttons");
   combo_F2->register_to_ini (pad_cfg, L"Gamepad.PC", L"F2");
 
-  if (combo_F2->load ())
-    gamepad.f2.unparsed = combo_F2->get_value_str ();
-  else {
-    gamepad.f2.unparsed = L"Select+Circle";
-
-    combo_F2->set_value_str (gamepad.f2.unparsed);
-    combo_F2->store         ();
+  if (! combo_F2->load (gamepad.f2.unparsed)) {
+    combo_F2->store (
+      (gamepad.f1.unparsed = L"Select+Circle")
+    );
   }
 
-  unx::iParameter* combo_F3 =
-    factory.create_parameter <std::wstring> (L"F3 Buttons");
+  unx::ParameterStringW* combo_F3 =
+    (unx::ParameterStringW *)
+      factory.create_parameter <std::wstring> (L"F3 Buttons");
   combo_F3->register_to_ini (pad_cfg, L"Gamepad.PC", L"F3");
 
-  if (combo_F3->load ())
-    gamepad.f3.unparsed = combo_F3->get_value_str ();
-  else {
-    gamepad.f3.unparsed = L"Select+Square";
-
-    combo_F3->set_value_str (gamepad.f3.unparsed);
-    combo_F3->store         ();
+  if (! combo_F3->load (gamepad.f3.unparsed)) {
+    combo_F3->store (
+      (gamepad.f3.unparsed = L"Select+Square")
+    );
   }
 
-  unx::iParameter* combo_F4 =
-    factory.create_parameter <std::wstring> (L"F4 Buttons");
+  unx::ParameterStringW* combo_F4 =
+    (unx::ParameterStringW *)
+      factory.create_parameter <std::wstring> (L"F4 Buttons");
   combo_F4->register_to_ini (pad_cfg, L"Gamepad.PC", L"F4");
 
-  if (combo_F4->load ())
-    gamepad.f4.unparsed = combo_F4->get_value_str ();
-  else {
-    gamepad.f4.unparsed = L"Select+L1";
-
-    combo_F4->set_value_str (gamepad.f4.unparsed);
-    combo_F4->store         ();
+  if (! combo_F4->load (gamepad.f4.unparsed)) {
+    combo_F4->store (
+      (gamepad.f4.unparsed = L"Select+L1")
+    );
   }
 
-  unx::iParameter* combo_F5 =
-    factory.create_parameter <std::wstring> (L"F5 Buttons");
+  unx::ParameterStringW* combo_F5 =
+    (unx::ParameterStringW *)
+      factory.create_parameter <std::wstring> (L"F5 Buttons");
   combo_F5->register_to_ini (pad_cfg, L"Gamepad.PC", L"F5");
 
-  if (combo_F5->load ())
-    gamepad.f5.unparsed = combo_F5->get_value_str ();
-  else {
-    gamepad.f5.unparsed = L"Select+R1";
-
-    combo_F5->set_value_str (gamepad.f5.unparsed);
-    combo_F5->store         ();
+  if (! combo_F5->load (gamepad.f5.unparsed)) {
+    combo_F5->store (
+      (gamepad.f5.unparsed = L"Select+R1")
+    );
   }
 
-  unx::iParameter* combo_SS =
-    factory.create_parameter <std::wstring> (L"Screenshot Buttons");
+  unx::ParameterStringW* combo_SS =
+    (unx::ParameterStringW *)
+      factory.create_parameter <std::wstring> (L"Screenshot Buttons");
   combo_SS->register_to_ini (pad_cfg, L"Gamepad.Steam", L"Screenshot");
 
-  if (combo_SS->load ())
-    gamepad.screenshot.unparsed = combo_SS->get_value_str ();
-  else {
-    gamepad.screenshot.unparsed = L"Select+R3";
-
-    combo_SS->set_value_str (gamepad.screenshot.unparsed);
-    combo_SS->store         ();
+  if (! combo_SS->load (gamepad.screenshot.unparsed)) {
+    combo_SS->store (
+      (gamepad.screenshot.unparsed = L"Select+R3")
+    );
   }
 
   pad_cfg->write (L"UnX_Gamepad.ini");
   delete pad_cfg;
+
+  if (config.input.remap_dinput8) {
+    UNX_CreateDLLHook ( L"dinput8.dll", "DirectInput8Create",
+                        DirectInput8Create_Detour,
+              (LPVOID*)&DirectInput8Create_Original,
+              (LPVOID*)&DirectInput8Create_Hook );
+    UNX_EnableHook    (DirectInput8Create_Hook);
+  }
+
+
+  // Post-Process our Remap Table
+  for (int i = 0; i < 12; i++) {
+    gamepad.remap.map [i] = 
+      gamepad.remap.enumToIndex (
+        ((int *)&gamepad.remap.buttons) [ i ]
+      ) - 1;
+  }
+
 
 #if 0
   //
@@ -761,12 +843,10 @@ unx::InputManager::Init (void)
             (LPVOID*)&GetAsyncKeyState_Original );
 #endif
 
-  HMODULE hModXInput13 =
-    LoadLibraryW (L"XInput1_3.dll");
-
-  XInputGetState =
-    (XInputGetState_pfn)
-      GetProcAddress (hModXInput13, "XInputGetState");
+  UNX_CreateDLLHook ( L"XInput9_1_0.dll",
+                       "XInputGetState",
+                        XInputGetState_Detour,
+             (LPVOID *)&XInputGetState_Original );
 
   unx::InputManager::Hooker* pHook =
     unx::InputManager::Hooker::getInstance ();
@@ -804,15 +884,15 @@ unx::InputManager::Hooker::End (void)
   TerminateThread     (hMsgPump, 0);
 }
 
-#define XINPUT_GAMEPAD_DPAD_UP    0x0001
-#define XINPUT_GAMEPAD_DPAD_DOWN  0x0002
-#define XINPUT_GAMEPAD_DPAD_LEFT  0x0004
-#define XINPUT_GAMEPAD_DPAD_RIGHT 0x0008
+#define XINPUT_GAMEPAD_DPAD_UP        0x0001
+#define XINPUT_GAMEPAD_DPAD_DOWN      0x0002
+#define XINPUT_GAMEPAD_DPAD_LEFT      0x0004
+#define XINPUT_GAMEPAD_DPAD_RIGHT     0x0008
 
-#define XINPUT_GAMEPAD_START       0x0010
-#define XINPUT_GAMEPAD_BACK        0x0020
-#define XINPUT_GAMEPAD_LEFT_THUMB  0x0040
-#define XINPUT_GAMEPAD_RIGHT_THUMB 0x0080
+#define XINPUT_GAMEPAD_START          0x0010
+#define XINPUT_GAMEPAD_BACK           0x0020
+#define XINPUT_GAMEPAD_LEFT_THUMB     0x0040
+#define XINPUT_GAMEPAD_RIGHT_THUMB    0x0080
 
 #define XINPUT_GAMEPAD_LEFT_SHOULDER  0x0100
 #define XINPUT_GAMEPAD_RIGHT_SHOULDER 0x0200
@@ -957,7 +1037,7 @@ UNX_SetupSpecialButtons (void)
 
 struct combo_button_s {
   combo_button_s (
-      unx::InputManager::gamepad_s::combo_s* combo_
+      unx_gamepad_s::combo_s* combo_
   ) : combo (combo_) {
     state      = false;
     last_state = false;
@@ -986,7 +1066,7 @@ struct combo_button_s {
   }
 
 
-  unx::InputManager::gamepad_s::combo_s*
+  unx_gamepad_s::combo_s*
        combo;
 
   bool state;
@@ -997,7 +1077,7 @@ DWORD
 WINAPI
 unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 {
-  if ( ((! XInputGetState) && (! gamepad.legacy)) )
+  if ( ((! XInputGetState_Original) && (! gamepad.legacy)) )
     return 0;
 
   UNX_SetupSpecialButtons ();
@@ -1052,14 +1132,20 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
     if (slot == -1)
       slot = 0;
 
+    // Do Not Handle Input While We Do Not Have Focus
+    if (GetForegroundWindow () != SK_GetGameWindow ()) {
+      Sleep (15);
+      continue;
+    }
+
     XINPUT_STATE xi_state = { 0 };
 
-    if (XInputGetState != nullptr && (! gamepad.legacy)) {
+    if (XInputGetState_Original != nullptr && (! gamepad.legacy)) {
       // This function is actually a performance hazzard when no controllers
       //   are plugged in, so ... throttle the sucker.
       if (  xi_ret == 0 ||
            (last_xi_poll < timeGetTime () - XI_POLL_INTERVAL) ) {
-        xi_ret       = XInputGetState (slot, &xi_state);
+        xi_ret       = XInputGetState_Original (slot, &xi_state);
         last_xi_poll = timeGetTime    ();
 
         if (xi_ret != 0)
@@ -1085,33 +1171,33 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 
           xi_state.Gamepad.wButtons = 0;
 
-          if (joy_ex.dwButtons & gamepad.legacy_map.A)
+          if (joy_ex.dwButtons & gamepad.remap.buttons.A)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_A;
-          if (joy_ex.dwButtons & gamepad.legacy_map.B)
+          if (joy_ex.dwButtons & gamepad.remap.buttons.B)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_B;
-          if (joy_ex.dwButtons & gamepad.legacy_map.X)
+          if (joy_ex.dwButtons & gamepad.remap.buttons.X)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_X;
-          if (joy_ex.dwButtons & gamepad.legacy_map.Y)
+          if (joy_ex.dwButtons & gamepad.remap.buttons.Y)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_Y;
 
-          if (joy_ex.dwButtons & gamepad.legacy_map.START)
+          if (joy_ex.dwButtons & gamepad.remap.buttons.START)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_START;
-          if (joy_ex.dwButtons & gamepad.legacy_map.BACK)
+          if (joy_ex.dwButtons & gamepad.remap.buttons.BACK)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_BACK;
 
-          if (joy_ex.dwButtons & gamepad.legacy_map.LT)
+          if (joy_ex.dwButtons & gamepad.remap.buttons.LT)
             xi_state.Gamepad.bLeftTrigger  = 255;
-          if (joy_ex.dwButtons & gamepad.legacy_map.RT)
+          if (joy_ex.dwButtons & gamepad.remap.buttons.RT)
             xi_state.Gamepad.bRightTrigger = 255;
 
-          if (joy_ex.dwButtons & gamepad.legacy_map.LB)
+          if (joy_ex.dwButtons & gamepad.remap.buttons.LB)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_LEFT_SHOULDER;
-          if (joy_ex.dwButtons & gamepad.legacy_map.RB)
+          if (joy_ex.dwButtons & gamepad.remap.buttons.RB)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_RIGHT_SHOULDER;
 
-          if (joy_ex.dwButtons & gamepad.legacy_map.LS)
+          if (joy_ex.dwButtons & gamepad.remap.buttons.LS)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_LEFT_THUMB;
-          if (joy_ex.dwButtons & gamepad.legacy_map.RS)
+          if (joy_ex.dwButtons & gamepad.remap.buttons.RS)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_RIGHT_THUMB;
 
           if (joy_ex.dwPOV & JOY_POVFORWARD)

@@ -52,6 +52,34 @@ unx::ParameterInt::set_value_str (std::wstring str)
 }
 
 
+void
+unx::ParameterInt::store_str (std::wstring str)
+{
+  set_value_str  (str);
+  iParameter::store ();
+}
+
+void
+unx::ParameterInt::store (int val)
+{
+  set_value      (val);
+  iParameter::store ();
+}
+
+bool
+unx::ParameterInt::load (int& ref)
+{
+  bool bRet = 
+    iParameter::load ();
+
+  if (bRet)
+    ref = get_value ();
+
+  return bRet;
+}
+
+
+
 std::wstring
 unx::ParameterInt64::get_value_str (void)
 {
@@ -79,6 +107,34 @@ unx::ParameterInt64::set_value_str (std::wstring str)
 {
   value = _wtol (str.c_str ());
 }
+
+
+void
+unx::ParameterInt64::store_str (std::wstring str)
+{
+  set_value_str  (str);
+  iParameter::store ();
+}
+
+void
+unx::ParameterInt64::store (int64_t val)
+{
+  set_value      (val);
+  iParameter::store ();
+}
+
+bool
+unx::ParameterInt64::load (int64_t& ref)
+{
+  bool bRet = 
+    iParameter::load ();
+
+  if (bRet)
+    ref = get_value ();
+
+  return bRet;
+}
+
 
 
 std::wstring
@@ -122,6 +178,34 @@ unx::ParameterBool::set_value_str (std::wstring str)
 }
 
 
+void
+unx::ParameterBool::store_str (std::wstring str)
+{
+  set_value_str  (str);
+  iParameter::store ();
+}
+
+void
+unx::ParameterBool::store (bool val)
+{
+  set_value      (val);
+  iParameter::store ();
+}
+
+bool
+unx::ParameterBool::load (bool& ref)
+{
+  bool bRet = 
+    iParameter::load ();
+
+  if (bRet)
+    ref = get_value ();
+
+  return bRet;
+}
+
+
+
 std::wstring
 unx::ParameterFloat::get_value_str (void)
 {
@@ -162,6 +246,34 @@ unx::ParameterFloat::set_value_str (std::wstring str)
 }
 
 
+void
+unx::ParameterFloat::store_str (std::wstring str)
+{
+  set_value_str  (str);
+  iParameter::store ();
+}
+
+void
+unx::ParameterFloat::store (float val)
+{
+  set_value      (val);
+  iParameter::store ();
+}
+
+bool
+unx::ParameterFloat::load (float& ref)
+{
+  bool bRet = 
+    iParameter::load ();
+
+  if (bRet)
+    ref = get_value ();
+
+  return bRet;
+}
+
+
+
 std::wstring
 unx::ParameterStringW::get_value_str (void)
 {
@@ -185,6 +297,33 @@ void
 unx::ParameterStringW::set_value_str (std::wstring str)
 {
   value = str;
+}
+
+
+void
+unx::ParameterStringW::store_str (std::wstring str)
+{
+  set_value_str  (str);
+  iParameter::store ();
+}
+
+void
+unx::ParameterStringW::store (std::wstring val)
+{
+  set_value      (val);
+  iParameter::store ();
+}
+
+bool
+unx::ParameterStringW::load (std::wstring& ref)
+{
+  bool bRet = 
+    iParameter::load ();
+
+  if (bRet)
+    ref = get_value ();
+
+  return bRet;
 }
 
 

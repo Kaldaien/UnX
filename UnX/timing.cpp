@@ -25,6 +25,7 @@
 
 #include <Windows.h>
 
+Sleep_pfn                   SK_Sleep                         = nullptr;
 QueryPerformanceCounter_pfn QueryPerformanceCounter_Original = nullptr;
 
 BOOL
@@ -57,6 +58,23 @@ NtQueryTimerResolution_pfn NtQueryTimerResolution = nullptr;
 NtSetTimerResolution_pfn   NtSetTimerResolution   = nullptr;
 
 void
+WINAPI
+UNX_SE_FixFramerateLimiter (DWORD dwMilliseconds)
+{
+  if (dwMilliseconds == 0) {
+    YieldProcessor ();
+    //return;
+  }
+
+  if (dwMilliseconds == 5)
+    return;
+
+  return SK_Sleep (dwMilliseconds);
+}
+
+#include "command.h"
+
+void
 unx::TimingFix::Init (void)
 {
   if (NtDll == 0) {
@@ -83,7 +101,16 @@ unx::TimingFix::Init (void)
     }
   }
 
-  HMODULE hModKernel32 = LoadLibrary (L"kernel32.dll");//GetModuleHandle (config.system.injector.c_str ());
+  if (config.stutter.reduce) {
+    SK_GetCommandProcessor ()->ProcessCommandFormatted ("MaxDeltaTime 0");
+
+    UNX_CreateDLLHook ( config.system.injector.c_str (),
+                        "Sleep_Detour",
+                        UNX_SE_FixFramerateLimiter,
+             (LPVOID *)&SK_Sleep );
+  }
+
+  HMODULE hModKernel32 = LoadLibrary (L"kernel32.dll");
 
   QueryPerformanceCounter_Original =
     (QueryPerformanceCounter_pfn)

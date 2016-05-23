@@ -34,7 +34,7 @@ static
   unx::INI::File*
              language_ini    = nullptr;
 
-std::wstring UNX_VER_STR = L"0.2.3";
+std::wstring UNX_VER_STR = L"0.3.0";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)     (bool);
@@ -67,9 +67,14 @@ struct {
 } render;
 
 struct {
+  unx::ParameterBool*    mute_in_background;
+} audio;
+
+struct {
 } compatibility;
 
 struct {
+  unx::ParameterBool*    center;
 } window;
 
 struct {
@@ -78,6 +83,7 @@ struct {
 } display;
 
 struct {
+  unx::ParameterBool*    reduce;
 } stutter;
 
 struct {
@@ -101,19 +107,19 @@ struct {
 } language;
 
 struct {
+  unx::ParameterBool*    remap_dinput8;
+  unx::ParameterInt*     gamepad_slot;
+
   unx::ParameterBool*    block_left_alt;
   unx::ParameterBool*    block_left_ctrl;
   unx::ParameterBool*    block_windows;
   unx::ParameterBool*    block_all_keys;
 
   unx::ParameterBool*    four_finger_salute;
-  unx::ParameterBool*    special_keys;
 
   unx::ParameterBool*    manage_cursor;
   unx::ParameterFloat*   cursor_timeout;
-  unx::ParameterInt*     gamepad_slot;
   unx::ParameterBool*    activate_on_kbd;
-  unx::ParameterBool*    alias_wasd;
 } input;
 
 struct {
@@ -254,6 +260,17 @@ UNX_LoadConfig (std::wstring name) {
         L"FlipMode" );
 
 
+  audio.mute_in_background =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Mute When Game Window Is In Background")
+      );
+  audio.mute_in_background->register_to_ini (
+    dll_ini,
+      L"UnX.Audio",
+        L"BackgroundMute" );
+
+
   language.voice =
     static_cast <unx::ParameterStringW *>
       (g_ParameterFactory.create_parameter <std::wstring> (
@@ -284,6 +301,28 @@ UNX_LoadConfig (std::wstring name) {
       L"Language.Master",
         L"Video" );
 
+
+  stutter.reduce =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Prevent Sleep (5) from killing performance")
+      );
+  stutter.reduce->register_to_ini (
+    dll_ini,
+      L"UnX.Stutter",
+        L"Reduce"
+  );
+
+
+  input.remap_dinput8 =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Allow button remapping")
+      );
+  input.remap_dinput8->register_to_ini (
+    dll_ini,
+      L"UnX.Input",
+        L"RemapDirectInput" );
 
   input.block_left_alt =
     static_cast <unx::ParameterBool *>
@@ -334,16 +373,6 @@ UNX_LoadConfig (std::wstring name) {
     dll_ini,
       L"UnX.Input",
         L"FourFingerSalute" );
-
-  input.special_keys =
-    static_cast <unx::ParameterBool *>
-      (g_ParameterFactory.create_parameter <bool> (
-        L"F1-F5")
-      );
-  input.special_keys->register_to_ini (
-    dll_ini,
-      L"UnX.Input",
-        L"SpecialKeys" );
 
   input.manage_cursor = 
     static_cast <unx::ParameterBool *>
@@ -442,13 +471,9 @@ UNX_LoadConfig (std::wstring name) {
   //
   // Load Parameters
   //
-  if (display.disable_dpi_scaling->load ())
-    config.display.disable_dpi_scaling = display.disable_dpi_scaling->get_value ();
+  display.disable_dpi_scaling->load (config.display.disable_dpi_scaling);
 
-
-  if (language.voice->load ())
-    config.language.voice = language.voice->get_value ();
-  else
+  if (! language.voice->load (config.language.voice))
     language.voice->set_value (config.language.voice);
 
   extern wchar_t* UNX_GetExecutableName (void);
@@ -463,19 +488,16 @@ UNX_LoadConfig (std::wstring name) {
         UNX_GetExecutableName (),
           L"Voice" );
 
-  if (voice_override->load ()) {
-    if (voice_override->get_value ().length ()) {
-      config.language.voice = voice_override->get_value ();
-    }
+  std::wstring tmp_str;
+
+  if (voice_override->load (tmp_str)) {
+    if (tmp_str.length ())   config.language.voice = tmp_str;
   } else {
-    voice_override->set_value (L"");
-    voice_override->store     ();
+    voice_override->store (L"");
   }
 
 
-  if (language.sfx->load ())
-    config.language.sfx = language.sfx->get_value ();
-  else
+  if (! language.sfx->load (config.language.sfx))
     language.sfx->set_value (config.language.sfx);
 
 
@@ -489,19 +511,14 @@ UNX_LoadConfig (std::wstring name) {
         UNX_GetExecutableName (),
           L"SoundEffects" );
 
-  if (sfx_override->load ()) {
-    if (sfx_override->get_value ().length ()) {
-      config.language.sfx = sfx_override->get_value ();
-    }
+  if (sfx_override->load (tmp_str)) {
+    if (tmp_str.length ())   config.language.sfx = tmp_str;
   } else {
-    sfx_override->set_value (L"");
-    sfx_override->store     ();
+    sfx_override->store (L"");
   }
 
 
-  if (language.video->load ())
-    config.language.video = language.video->get_value ();
-  else
+  if (! language.video->load (config.language.video))
     language.video->set_value (config.language.video);
 
   unx::ParameterStringW* fmv_override =
@@ -514,60 +531,47 @@ UNX_LoadConfig (std::wstring name) {
         UNX_GetExecutableName (),
           L"Video" );
 
-  if (fmv_override->load ()) {
-    if (fmv_override->get_value ().length ()) {
-      config.language.video = fmv_override->get_value ();
-    }
+  if (fmv_override->load (tmp_str)) {
+    if (tmp_str.length ())   config.language.video = tmp_str;
   } else {
-    fmv_override->set_value (L"");
-    fmv_override->store     ();
+    fmv_override->store (L"");
   }
 
-  //if (input.block_left_alt->load ())
-    //config.input.block_left_alt = input.block_left_alt->get_value ();
 
-  //if (input.block_left_ctrl->load ())
-    //config.input.block_left_ctrl = input.block_left_ctrl->get_value ();
+  audio.mute_in_background->load (config.audio.mute_in_background);
 
-  //if (input.block_windows->load ())
-    //config.input.block_windows = input.block_windows->get_value ();
+  stutter.reduce->load (config.stutter.reduce);
 
-  //if (input.block_all_keys->load ())
-    //config.input.block_all_keys = input.block_all_keys->get_value ();
+  input.remap_dinput8->load (config.input.remap_dinput8);
+  input.gamepad_slot->load  (config.input.gamepad_slot);
 
-  if (input.four_finger_salute->load ())
-    config.input.four_finger_salute = input.four_finger_salute->get_value ();
+  input.block_windows->load (config.input.block_windows);
+  //input.block_left_alt->load  (config.input.block_left_alt);
+  //input.block_left_ctrl->load (config.input.block_left_ctrl);
+  //input.block_all_keys->load  (config.input.block_all_keys);
 
-  if (input.manage_cursor->load ())
-    config.input.cursor_mgmt = input.manage_cursor->get_value ();
+  input.four_finger_salute->load (config.input.four_finger_salute);
 
-  if (input.cursor_timeout->load ())
+  input.manage_cursor->load (config.input.cursor_mgmt);
+
+  float timeout;
+
+  if (input.cursor_timeout->load (timeout))
     config.input.cursor_timeout = 
-      static_cast <int>(input.cursor_timeout->get_value () * 1000UL);
+      static_cast <int>(timeout * 1000UL);
 
-  if (input.gamepad_slot->load ())
-    config.input.gamepad_slot = input.gamepad_slot->get_value ();
-
-  if (input.activate_on_kbd->load ())
-    config.input.activate_on_kbd = input.activate_on_kbd->get_value ();
+  input.activate_on_kbd->load (config.input.activate_on_kbd);
 
 
-
-  if (sys.version->load ())
-    config.system.version = sys.version->get_value ();
-
-  if (sys.injector->load ())
-    config.system.injector = sys.injector->get_value ();
+  sys.version->load  (config.system.version);
+  sys.injector->load (config.system.injector);
 
 
   if (UNX_SetupLowLevelRender ()) {
-    if (render.flip_mode->load ())
-      config.render.flip_mode = render.flip_mode->get_value ();
+    render.bypass_intel->load (config.render.bypass_intel);
+    render.flip_mode->load    (config.render.flip_mode);
 
     SK_DXGI_EnableFlipMode (config.render.flip_mode);
-
-    if (render.bypass_intel->load ())
-      config.render.bypass_intel = render.bypass_intel->get_value ();
 
     // Rather dumb logic that assumes the Intel GPU will be Adapter 0.
     //
@@ -577,16 +581,9 @@ UNX_LoadConfig (std::wstring name) {
   }
 
   if (UNX_SetupTexMgmt ()) {
-    if (textures.resource_root->load ())
-      config.textures.resource_root = textures.resource_root->get_value ();
-
-    if (textures.dump->load ())
-      config.textures.dump =
-        textures.dump->get_value ();
-
-    if (textures.inject->load ())
-      config.textures.inject =
-        textures.inject->get_value ();
+    textures.resource_root->load (config.textures.resource_root);
+    textures.dump->load          (config.textures.dump);
+    textures.inject->load        (config.textures.inject);
 
     SK_D3D11_SetResourceRoot (config.textures.resource_root);
     SK_D3D11_EnableTexDump   (config.textures.dump);
@@ -594,10 +591,7 @@ UNX_LoadConfig (std::wstring name) {
   }
 
   if (UNX_SetupWindowMgmt ()) {
-    if (display.enable_fullscreen->load ()) {
-      config.display.enable_fullscreen =
-        display.enable_fullscreen->get_value ();
-    }
+    display.enable_fullscreen->load (config.display.enable_fullscreen);
 
     SKX_D3D11_EnableFullscreen (config.display.enable_fullscreen);
   }
@@ -611,32 +605,26 @@ UNX_LoadConfig (std::wstring name) {
 
 void
 UNX_SaveConfig (std::wstring name, bool close_config) {
-  input.manage_cursor->set_value    (config.input.cursor_mgmt);
-  input.manage_cursor->store        ();
+  audio.mute_in_background->store   (config.audio.mute_in_background);
 
-  input.cursor_timeout->set_value   ( (float)config.input.cursor_timeout /
+  stutter.reduce->store             (config.stutter.reduce);
+
+  input.remap_dinput8->store        (config.input.remap_dinput8);
+  input.manage_cursor->store        (config.input.cursor_mgmt);
+
+  input.cursor_timeout->store       ( (float)config.input.cursor_timeout /
                                       1000.0f );
-  input.cursor_timeout->store       ();
 
-  //input.gamepad_slot->set_value     (config.input.gamepad_slot);
-  //input.gamepad_slot->store         ();
+//input.gamepad_slot->store         (config.input.gamepad_slot);
+  input.activate_on_kbd->store      (config.input.activate_on_kbd);
+  //input.block_windows->store        (config.input.block_windows);
 
-  input.activate_on_kbd->set_value  (config.input.activate_on_kbd);
-  input.activate_on_kbd->store      ();
+  ((unx::iParameter *)language.sfx)->store   ();
+  ((unx::iParameter *)language.voice)->store ();
+  ((unx::iParameter *)language.video)->store ();
 
-//  input.alias_wasd->set_value       (config.input.alias_wasd);
-//  input.alias_wasd->store           ();
-
-
-  language.sfx->store   ();
-  language.voice->store ();
-  language.video->store ();
-
-  sys.version->set_value  (UNX_VER_STR);
-  sys.version->store      ();
-
-  sys.injector->set_value (config.system.injector);
-  sys.injector->store     ();
+  sys.version->store      (UNX_VER_STR);
+  sys.injector->store     (config.system.injector);
 
   dll_ini->write      (name + L".ini");
   language_ini->write (name + L"_Language.ini");
