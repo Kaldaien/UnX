@@ -48,6 +48,8 @@ unx::InputManager::gamepad_s gamepad;
 typedef void (WINAPI *Sleep_pfn)(DWORD dwMilliseconds);
 Sleep_pfn SK_Sleep = nullptr; // Avoid things that MaxDeltaTime does...
 
+extern void UNX_InstallWindowHook (HWND hWnd);
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // DirectInput 8
@@ -283,7 +285,7 @@ IDirectInput8_CreateDevice_Detour ( IDirectInput8       *This,
   }
 
   return hr;
-}
+} 
 
 HRESULT
 WINAPI
@@ -769,6 +771,8 @@ unx::InputManager::Init (void)
   unx::InputManager::Hooker* pHook =
     unx::InputManager::Hooker::getInstance ();
 
+  UNX_InstallWindowHook (NULL);
+
   pHook->Start ();
 }
 
@@ -891,7 +895,6 @@ UNX_ParseButtonCombo (std::wstring combo, int* out)
 }
 
 #include <mmsystem.h>
-//#include <joystickapi.h>
 
 using namespace unx::InputManager;
 
@@ -950,110 +953,68 @@ UNX_SetupSpecialButtons (void)
 #include "ini.h"
 #include "parameter.h"
 
+#include <queue>
+
+struct combo_button_s {
+  combo_button_s (
+      unx::InputManager::gamepad_s::combo_s* combo_
+  ) : combo (combo_) {
+    state      = false;
+    last_state = false;
+  };
+
+
+  bool poll ( DWORD          xi_ret,
+              XINPUT_GAMEPAD xi_gamepad )
+  {
+    last_state = state;
+
+    state =
+      (xi_ret == 0                                  &&
+       combo->buttons != 0                          &&
+       ((! combo->lt) || xi_gamepad.bLeftTrigger)   &&
+       ((! combo->rt) || xi_gamepad.bRightTrigger)  &&
+       xi_gamepad.wButtons & (WORD)combo->button0   &&
+       xi_gamepad.wButtons & (WORD)combo->button1   &&
+       xi_gamepad.wButtons & (WORD)combo->button2);
+
+    return state;
+  }
+
+  bool wasJustPressed (void) {
+    return state && (! last_state);
+  }
+
+
+  unx::InputManager::gamepad_s::combo_s*
+       combo;
+
+  bool state;
+  bool last_state;
+};
+
 DWORD
 WINAPI
 unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 {
-  DWORD dwThreadId;
-  HWND  hWndForeground = 0;
-
-  while (true) {
-    DWORD dwProc;
-
-    hWndForeground = GetForegroundWindow ();
-
-    dwThreadId =
-      GetWindowThreadProcessId (hWndForeground, &dwProc);
-
-    // Ugly hack, but a different window might be in the foreground...
-    if (dwProc != GetCurrentProcessId ()) {
-      //dll_log.Log (L" *** Tried to hook the wrong process!!!");
-      SK_Sleep (1000);
-      continue;
-    }
-
-    wchar_t wszTitle [64];
-
-    GetWindowText (hWndForeground, wszTitle, 64);
-
-    if (! wcsicmp (wszTitle, L"FINAL FANTASY X"))
-      break;
-  }
-
-  typedef uint32_t (__stdcall *SK_GetFramesDrawn_pfn)(void);
-  SK_GetFramesDrawn_pfn SK_GetFramesDrawn =
-    (SK_GetFramesDrawn_pfn)GetProcAddress (
-                               GetModuleHandle (
-                                 config.system.injector.c_str ()
-                               ), "SK_GetFramesDrawn"
-                           );
-
-  while (SK_GetFramesDrawn () < 120)
-    Sleep (1000);
-
-  SK_GetCommandProcessor ()->ProcessCommandLine ("TargetFPS 0.0");
-
-  extern void UNX_InstallWindowHook (HWND hWnd);
-  UNX_InstallWindowHook (hWndForeground);
-
   if ( ((! XInputGetState) && (! gamepad.legacy)) )
     return 0;
 
   UNX_SetupSpecialButtons ();
 
-
-  struct combo_button_s {
-    combo_button_s (
-        unx::InputManager::gamepad_s::combo_s* combo_
-    ) : combo (combo_) {
-      state      = false;
-      last_state = false;
-    };
-
-
-    bool poll ( DWORD           xi_ret,
-                XINPUT_GAMEPAD& xi_gamepad )
-    {
-      last_state = state;
-
-      state =
-        xi_ret != ERROR_DEVICE_NOT_CONNECTED         &&
-        combo->buttons != 0                          &&
-        ((! combo->lt) || xi_gamepad.bLeftTrigger)   &&
-        ((! combo->rt) || xi_gamepad.bRightTrigger)  &&
-        xi_gamepad.wButtons & combo->button0         &&
-        xi_gamepad.wButtons & combo->button1         &&
-        xi_gamepad.wButtons & combo->button2;
-
-      return state;
-    }
-
-    bool wasJustPressed (void) {
-      return state && (! last_state);
-    }
-
-
-    unx::InputManager::gamepad_s::combo_s*
-         combo;
-
-    bool state;
-    bool last_state;
-  } f1 ( &gamepad.f1 ),
-    f2 ( &gamepad.f2 ),
-    f3 ( &gamepad.f3 ),
-    f4 ( &gamepad.f4 ),
-    f5 ( &gamepad.f5 ),
-    ss ( &gamepad.screenshot );
+  combo_button_s f1 ( &gamepad.f1 );
+  combo_button_s f2 ( &gamepad.f2 );
+  combo_button_s f3 ( &gamepad.f3 );
+  combo_button_s f4 ( &gamepad.f4 );
+  combo_button_s f5 ( &gamepad.f5 );
+  combo_button_s ss ( &gamepad.screenshot );
 
 #define XI_POLL_INTERVAL 500UL
 
-  DWORD  xi_ret       = 0;
-  DWORD  last_xi_poll = timeGetTime () - (XI_POLL_INTERVAL + 1UL);
+  DWORD  xi_ret       = ERROR_DEVICE_NOT_CONNECTED;
+  DWORD  last_xi_poll = timeGetTime ();// - (XI_POLL_INTERVAL + 1UL);
 
-  BOOL need_release = FALSE;
-
-  INPUT* keys  =
-     new INPUT [5];
+  INPUT keys [5];
 
   keys [0].type           = INPUT_KEYBOARD;
   keys [0].ki.wVk         = 0;
@@ -1069,22 +1030,14 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
     keys [i].ki.dwExtraInfo = 0;
   }
 
-  std::vector <WORD> pressed_scancodes;
+  std::queue <WORD> pressed_scancodes;
 
   while (true) {
-    if (GetForegroundWindow () != hWndForeground) {
-      Sleep (1);
-      continue;
-    }
-
     int i = 1;
 
-    std::vector <WORD>::iterator scan =
-      pressed_scancodes.begin ();
-
-    while (scan != pressed_scancodes.end ()) {
-      keys [i++].ki.wScan = *scan;
-      scan = pressed_scancodes.erase (scan);
+    while (pressed_scancodes.size ()) {
+      keys [i++].ki.wScan = pressed_scancodes.back ();
+                            pressed_scancodes.pop  ();
 
       if (i > 4) {
         SendInput (4, &keys [1], sizeof INPUT);
@@ -1099,25 +1052,27 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
     if (slot == -1)
       slot = 0;
 
-    XINPUT_STATE xi_state { 0 };
+    XINPUT_STATE xi_state = { 0 };
 
     if (XInputGetState != nullptr && (! gamepad.legacy)) {
       // This function is actually a performance hazzard when no controllers
       //   are plugged in, so ... throttle the sucker.
-      if (  xi_ret != ERROR_DEVICE_NOT_CONNECTED ||
+      if (  xi_ret == 0 ||
            (last_xi_poll < timeGetTime () - XI_POLL_INTERVAL) ) {
         xi_ret       = XInputGetState (slot, &xi_state);
         last_xi_poll = timeGetTime    ();
+
+        if (xi_ret != 0)
+          xi_state = { 0 };
       }
     } else {
-      if (  xi_ret != ERROR_DEVICE_NOT_CONNECTED ||
+      if (  xi_ret == 0 ||
            (last_xi_poll < timeGetTime () - XI_POLL_INTERVAL) ) {
-        if (! joyGetNumDevs ())
+        if (! joyGetNumDevs ()) {
           xi_ret = ERROR_DEVICE_NOT_CONNECTED;
-        else {
-          xi_ret = 0;//
+        } else {
+          xi_ret = 0;
 
-          //JOYINFO joy;
           JOYINFOEX joy_ex { 0 };
           joy_ex.dwSize  = sizeof JOYINFOEX;
           joy_ex.dwFlags = JOY_RETURNALL      | JOY_RETURNPOVCTS |
@@ -1181,16 +1136,14 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
    if (xi_state.Gamepad.bRightTrigger < 25)
      xi_state.Gamepad.bRightTrigger = 0;
 
-    static bool
-      last_esc = false;
-
-    bool four_finger =
+    bool four_finger = (
         config.input.four_finger_salute      &&
-        xi_ret != ERROR_DEVICE_NOT_CONNECTED &&
+        xi_ret == 0                          &&
         xi_state.Gamepad.bLeftTrigger        &&
         xi_state.Gamepad.bRightTrigger       &&
       ( xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_START |
-                                      XINPUT_GAMEPAD_BACK ) );
+                                      XINPUT_GAMEPAD_BACK ) )
+      );
 
     f1.poll (xi_ret, xi_state.Gamepad);
     f2.poll (xi_ret, xi_state.Gamepad);
@@ -1201,12 +1154,12 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 
     WORD scancode = 0;
 
-#define UNX_SendScancode(x) scancode          = (x);                \
-                            keys [0].ki.wScan = scancode;           \
-                                                                    \
-                            SendInput (1, &keys [0], sizeof INPUT); \
-                                                                    \
-                            pressed_scancodes.push_back (scancode);
+#define UNX_SendScancode(x) { scancode          = (x);                \
+                              keys [0].ki.wScan = scancode;           \
+                                                                      \
+                              SendInput (1, &keys [0], sizeof INPUT); \
+                                                                      \
+                              pressed_scancodes.push (scancode); }
 
     if (four_finger) {
 #if 0
@@ -1278,12 +1231,8 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
         SK_SteamAPI_TakeScreenshot ();
     }
 
-    last_esc = four_finger;
-
-    SK_Sleep (10);
+    Sleep (15);
   }
-
-  delete [] keys;
 
   return 0;
 }

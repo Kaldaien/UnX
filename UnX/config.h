@@ -30,7 +30,7 @@ struct unx_config_s
 {
   struct {
     bool    bypass_intel        = true;
-    bool    flip_mode           = true;
+    bool    flip_mode           = false;
   } render;
 
   struct {
@@ -114,9 +114,9 @@ struct unx_config_s
     bool four_finger_salute = true;
 
     bool cursor_mgmt        = true;
-    int  cursor_timeout     = 1500;
-    bool activate_on_kbd    = true;
-    int  gamepad_slot       = 0;
+    int  cursor_timeout     = 0;
+    bool activate_on_kbd    = false;
+    int  gamepad_slot       = -1;
   } input;
 
   struct {

@@ -126,28 +126,6 @@ UNX_PatchLanguageFFX (void)
                              "ffx_jp_voice270",
                              "ffx_us_voice270" );
 
-
-  UNX_PatchLanguageRef ( Voice,
-                           7, "/ffx_ps2/ffx/master/new_jppc",
-                              "/ffx_ps2/ffx/master/new_uspc" );
-
-  UNX_PatchLanguageRef ( Voice,
-                           8, "ffx_ps2/ffx/master/new_jppc",
-                              "ffx_ps2/ffx/master/new_uspc" );
-
-  UNX_PatchLanguageRef ( Voice,
-                           9, "/ffx/master/jppc/event/",
-                              "/ffx/master/uspc/event/" );
-
-  UNX_PatchLanguageRef ( Voice,
-                           10, "/ffx/proj/event/motion/jp/",
-                               "/ffx/proj/event/motion/us/" );
-
-  UNX_PatchLanguageRef ( Voice,
-                           11, "/ffx/proj/event/sound/jp/",
-                               "/ffx/proj/event/sound/us/" );
-
-
   UNX_PatchLanguageRef ( SoundEffect,
                            0,
                              "SFX/JP/%04d.fev",
@@ -228,11 +206,6 @@ UNX_PatchLanguageFFX2 (void)
                              "ffx2_jp_voice06_1",
                              "ffx2_us_voice06_1" );
 
-  UNX_PatchLanguageRef ( Voice,
-                           9, "/ffx_ps2/ffx2/master/new_jppc",
-                              "/ffx_ps2/ffx2/master/new_uspc" );
-
-
   UNX_PatchLanguageRef ( SoundEffect,
                            0,
                              "SFX/JP/%04d.fev",
@@ -293,11 +266,6 @@ UNX_PatchLanguageFFX_Will (void)
                              "ffx_jp_voice270",
                              "ffx_us_voice270" );
 
-  UNX_PatchLanguageRef ( Voice,
-                           6, "/ffx_ps2/ffx/master/new_jppc",
-                              "/ffx_ps2/ffx/master/new_uspc" );
-
-
   UNX_PatchLanguageRef ( SoundEffect,
                            0,
                              "SFX/JP/%04d.fev",
@@ -335,12 +303,14 @@ UNX_PatchLanguageFFX_Will (void)
   return true;
 }
 
-//typedef __cdecl
-bool
-UNX_PatchLanguage (void)
+wchar_t*
+UNX_GetExecutableName (void)
 {
+  static wchar_t*
+    pwszExec = nullptr;
+
+  wchar_t wszProcessName [MAX_PATH] = { 0 };
   DWORD   dwProcessSize = MAX_PATH;
-  wchar_t wszProcessName [MAX_PATH];
 
   HANDLE hProc = GetCurrentProcess ();
 
@@ -351,6 +321,16 @@ UNX_PatchLanguage (void)
   while (  pwszShortName      >  wszProcessName &&
     *(pwszShortName - 1) != L'\\')
     --pwszShortName;
+
+  pwszExec = wcsdup (pwszShortName);
+  return pwszExec;
+}
+
+//typedef __cdecl
+bool
+UNX_PatchLanguage (void)
+{
+  wchar_t* pwszShortName = UNX_GetExecutableName ();
 
   if (! lstrcmpiW (pwszShortName, L"ffx.exe"))
     return UNX_PatchLanguageFFX ();

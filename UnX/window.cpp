@@ -44,20 +44,14 @@ bool windowed = false;
 #include <dwmapi.h>
 #pragma comment (lib, "dwmapi.lib")
 
-void
-UNX_InstallWindowHook (HWND hWnd)
-{
-  unx::window.hwnd             = hWnd;
+typedef LRESULT (CALLBACK *DetourWindowProc_pfn)( _In_  HWND   hWnd,
+                   _In_  UINT   uMsg,
+                   _In_  WPARAM wParam,
+                   _In_  LPARAM lParam
+);
 
-  unx::window.WndProc_Original =
-    (WNDPROC)GetWindowLongPtr (unx::window.hwnd, GWLP_WNDPROC);
+DetourWindowProc_pfn DetourWindowProc_Original = nullptr;
 
-  SetWindowLongPtrW ( unx::window.hwnd,
-                     GWLP_WNDPROC,
-                       (LONG_PTR)DetourWindowProc );
-
-  DwmEnableMMCSS (TRUE);
-}
 
 LRESULT
 CALLBACK
@@ -67,11 +61,6 @@ DetourWindowProc ( _In_  HWND   hWnd,
                    _In_  LPARAM lParam )
 {
   bool last_active = unx::window.active;
-
-#define GetForegroundWindow_Original GetForegroundWindow
-
-  unx::window.active = GetForegroundWindow_Original () == unx::window.hwnd ||
-                       GetForegroundWindow_Original () == nullptr;
 
   //
   // The window activation state is changing, among other things we can take
@@ -192,7 +181,22 @@ DetourWindowProc ( _In_  HWND   hWnd,
     }
   }
 
-  return CallWindowProc (unx::window.WndProc_Original, hWnd, uMsg, wParam, lParam);
+  return DetourWindowProc_Original (hWnd, uMsg, wParam, lParam);
+}
+
+void
+UNX_InstallWindowHook (HWND hWnd)
+{
+  unx::window.hwnd = hWnd;
+
+  if (hWnd == 0) {
+    UNX_CreateDLLHook ( config.system.injector.c_str (),
+                        "SK_DetourWindowProc",
+                         DetourWindowProc,
+              (LPVOID *)&DetourWindowProc_Original );
+
+    //DwmEnableMMCSS (TRUE);
+  }
 }
 
 

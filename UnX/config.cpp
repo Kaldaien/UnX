@@ -30,7 +30,11 @@
 static
   unx::INI::File* 
              dll_ini         = nullptr;
-std::wstring UNX_VER_STR = L"0.2.2";
+static
+  unx::INI::File*
+             language_ini    = nullptr;
+
+std::wstring UNX_VER_STR = L"0.2.3";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)     (bool);
@@ -203,6 +207,9 @@ UNX_LoadConfig (std::wstring name) {
 
   bool empty = dll_ini->get_sections ().empty ();
 
+  std::wstring language_file = name + L"_Language.ini";
+  language_ini = new unx::INI::File ((wchar_t *)language_file.c_str ());
+
   //
   // Create Parameters
   //
@@ -253,8 +260,8 @@ UNX_LoadConfig (std::wstring name) {
         L"Voiceover Language")
       );
   language.voice->register_to_ini (
-    dll_ini,
-      L"UnX.Language",
+    language_ini,
+      L"Language.Master",
         L"Voice" );
 
   language.sfx =
@@ -263,8 +270,8 @@ UNX_LoadConfig (std::wstring name) {
         L"Sound Effect Language")
       );
   language.sfx->register_to_ini (
-    dll_ini,
-      L"UnX.Language",
+    language_ini,
+      L"Language.Master",
         L"SoundEffects" );
 
   language.video =
@@ -273,8 +280,8 @@ UNX_LoadConfig (std::wstring name) {
         L"Video Language")
       );
   language.video->register_to_ini (
-    dll_ini,
-      L"UnX.Language",
+    language_ini,
+      L"Language.Master",
         L"Video" );
 
 
@@ -441,13 +448,80 @@ UNX_LoadConfig (std::wstring name) {
 
   if (language.voice->load ())
     config.language.voice = language.voice->get_value ();
+  else
+    language.voice->set_value (config.language.voice);
+
+  extern wchar_t* UNX_GetExecutableName (void);
+
+  unx::ParameterStringW* voice_override =
+    (unx::ParameterStringW *)
+      g_ParameterFactory.create_parameter <std::wstring> (
+        L"App-Specific Voice Language Preference");
+
+  voice_override->register_to_ini (
+      language_ini,
+        UNX_GetExecutableName (),
+          L"Voice" );
+
+  if (voice_override->load ()) {
+    if (voice_override->get_value ().length ()) {
+      config.language.voice = voice_override->get_value ();
+    }
+  } else {
+    voice_override->set_value (L"");
+    voice_override->store     ();
+  }
+
 
   if (language.sfx->load ())
     config.language.sfx = language.sfx->get_value ();
+  else
+    language.sfx->set_value (config.language.sfx);
+
+
+  unx::ParameterStringW* sfx_override =
+    (unx::ParameterStringW *)
+      g_ParameterFactory.create_parameter <std::wstring> (
+        L"App-Specific SFX Language Preference");
+
+  sfx_override->register_to_ini (
+      language_ini,
+        UNX_GetExecutableName (),
+          L"SoundEffects" );
+
+  if (sfx_override->load ()) {
+    if (sfx_override->get_value ().length ()) {
+      config.language.sfx = sfx_override->get_value ();
+    }
+  } else {
+    sfx_override->set_value (L"");
+    sfx_override->store     ();
+  }
+
 
   if (language.video->load ())
     config.language.video = language.video->get_value ();
+  else
+    language.video->set_value (config.language.video);
 
+  unx::ParameterStringW* fmv_override =
+    (unx::ParameterStringW *)
+      g_ParameterFactory.create_parameter <std::wstring> (
+        L"App-Specific FMV Language Preference");
+
+  fmv_override->register_to_ini (
+      language_ini,
+        UNX_GetExecutableName (),
+          L"Video" );
+
+  if (fmv_override->load ()) {
+    if (fmv_override->get_value ().length ()) {
+      config.language.video = fmv_override->get_value ();
+    }
+  } else {
+    fmv_override->set_value (L"");
+    fmv_override->store     ();
+  }
 
   //if (input.block_left_alt->load ())
     //config.input.block_left_alt = input.block_left_alt->get_value ();
@@ -476,6 +550,7 @@ UNX_LoadConfig (std::wstring name) {
 
   if (input.activate_on_kbd->load ())
     config.input.activate_on_kbd = input.activate_on_kbd->get_value ();
+
 
 
   if (sys.version->load ())
@@ -553,18 +628,28 @@ UNX_SaveConfig (std::wstring name, bool close_config) {
 //  input.alias_wasd->store           ();
 
 
+  language.sfx->store   ();
+  language.voice->store ();
+  language.video->store ();
+
   sys.version->set_value  (UNX_VER_STR);
   sys.version->store      ();
 
   sys.injector->set_value (config.system.injector);
   sys.injector->store     ();
 
-  dll_ini->write (name + L".ini");
+  dll_ini->write      (name + L".ini");
+  language_ini->write (name + L"_Language.ini");
 
   if (close_config) {
     if (dll_ini != nullptr) {
       delete dll_ini;
       dll_ini = nullptr;
+    }
+
+    if (language_ini != nullptr) {
+      delete language_ini;
+      language_ini = nullptr;
     }
   }
 }
