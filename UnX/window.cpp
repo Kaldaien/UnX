@@ -106,6 +106,73 @@ UNX_SetGameMute (bool bMute)
 }
 
 
+#include <dxgi.h>
+#include <d3d11.h>
+
+typedef HRESULT (WINAPI *DXGISwap_ResizeBuffers_pfn)(
+   IDXGISwapChain *This,
+   UINT            BufferCount,
+   UINT            Width,
+   UINT            Height,
+   DXGI_FORMAT     NewFormat,
+   UINT            SwapChainFlags
+);
+DXGISwap_ResizeBuffers_pfn DXGISwap_ResizeBuffers_Original = nullptr;
+
+typedef HWND (WINAPI *SK_GetGameWindow_pfn)(void);
+extern SK_GetGameWindow_pfn SK_GetGameWindow;
+
+IDXGISwapChain* pGameSwapChain = nullptr;
+
+enum unx_fullscreen_op_t {
+  Fullscreen,
+  Window,
+  Restore
+};
+
+void
+UNX_SetFullscreenState (unx_fullscreen_op_t op)
+{
+  static BOOL last_fullscreen = FALSE;
+
+  //pGameSwapChain->GetFullscreenState (&last_fullscreen, nullptr);
+  CComPtr <ID3D11Device> pDev;
+
+  if (SUCCEEDED (pGameSwapChain->GetDevice (IID_PPV_ARGS (&pDev)))) {
+    CComPtr <ID3D11DeviceContext> pDevCtx;
+
+    pDev->GetImmediateContext (&pDevCtx);
+    pDevCtx->ClearState ();
+
+    CComPtr <IDXGIOutput> pOutput;
+    if (SUCCEEDED (pGameSwapChain->GetContainingOutput (&pOutput)))
+      pOutput->ReleaseOwnership ();
+
+    if (op == Fullscreen) {
+      /*
+      DXGI_MODE_DESC mode = { 0 };
+      mode.Width       = 3840;
+      mode.Height      = 2160;
+      mode.Format      = DXGI_FORMAT_R8G8B8A8_UNORM;
+        mode.RefreshRate = { 0 };
+      pGameSwapChain->ResizeTarget       (&mode);
+      pGameSwapChain->SetFullscreenState (TRUE,  nullptr);
+      pGameSwapChain->ResizeBuffers      (0, 0, 0, DXGI_FORMAT_UNKNOWN, 0x02);
+      */
+    } else {
+      if (op == Restore) {
+        //UNX_SetFullscreenState (last_fullscreen ? Fullscreen : Window);
+      }
+
+      if (op == Window) {
+        //pGameSwapChain->GetFullscreenState (&last_fullscreen, nullptr);
+        pGameSwapChain->SetFullscreenState (FALSE, nullptr);
+      }
+    }
+  }
+}
+
+
 
 unx::window_state_s unx::window;
 
@@ -140,24 +207,50 @@ DetourWindowProc ( _In_  HWND   hWnd,
                    _In_  WPARAM wParam,
                    _In_  LPARAM lParam )
 {
-  bool last_active = unx::window.active;
+  static bool last_active = unx::window.active;
+
 
   // This state is persistent and we do not want Alt+F4 to remember a muted
   //   state.
-  if (uMsg == WM_DESTROY)
+  if (uMsg == WM_DESTROY || uMsg == WM_QUIT || uMsg == WM_CLOSE) {
+    // The game would deadlock and never shutdown if we tried to Alt+F4 in
+    //   fullscreen mode... oh the quirks of D3D :(
+    if (pGameSwapChain != nullptr && config.display.enable_fullscreen)
+      UNX_SetFullscreenState (Window);
+
     UNX_SetGameMute (FALSE);
+  }
+
 
   // On Window Activation / Deactivation
   if (uMsg == WM_ACTIVATE) {
+    bool deactivate = (wParam == WA_INACTIVE);
+
     if (config.audio.mute_in_background) {
       BOOL bMute = FALSE;
 
-      if (wParam == WA_INACTIVE)
+      if (deactivate)
         bMute = TRUE;
 
       UNX_SetGameMute (bMute);
     }
+
+
+    unx::window.active = (! deactivate);
+
+
+    //
+    // Allow Alt+Tab to work
+    //
+    if (pGameSwapChain != nullptr && config.display.enable_fullscreen) {
+      //if (! deactivate) {
+        //UNX_SetFullscreenState (Restore);
+      //} else {
+        UNX_SetFullscreenState (Window);
+      //}
+    }
   }
+
 
   //
   // The window activation state is changing, among other things we can take
@@ -281,6 +374,72 @@ DetourWindowProc ( _In_  HWND   hWnd,
   return DetourWindowProc_Original (hWnd, uMsg, wParam, lParam);
 }
 
+HRESULT
+WINAPI
+DXGISwap_ResizeBuffers_Detour (
+   IDXGISwapChain *This,
+   UINT            BufferCount,
+   UINT            Width,
+   UINT            Height,
+   DXGI_FORMAT     NewFormat,
+   UINT            SwapChainFlags
+)
+{
+  pGameSwapChain = This;
+
+  if (config.window.center) {
+    MONITORINFO moninfo;
+    moninfo.cbSize = sizeof MONITORINFO;
+
+    GetMonitorInfo (MonitorFromWindow (SK_GetGameWindow (), MONITOR_DEFAULTTONEAREST), &moninfo);
+
+    int mon_width  = moninfo.rcMonitor.right  - moninfo.rcMonitor.left;
+    int mon_height = moninfo.rcMonitor.bottom - moninfo.rcMonitor.top;
+
+    SetWindowPos ( SK_GetGameWindow (), HWND_NOTOPMOST, (mon_width  - Width)  / 2,
+                                                        (mon_height - Height) / 2,
+                     Width, Height,
+                      SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOSENDCHANGING | SWP_NOACTIVATE );
+  }
+
+  if (config.display.enable_fullscreen) {
+    //
+    // Allow Alt+Enter
+    //
+
+    CComPtr <ID3D11Device> pDev;
+    CComPtr <IDXGIDevice>  pDevDXGI;
+    CComPtr <IDXGIAdapter> pAdapter;
+    CComPtr <IDXGIFactory> pFactory;
+
+    if ( SUCCEEDED (pGameSwapChain->GetDevice  (IID_PPV_ARGS (&pDev))     ) &&
+         SUCCEEDED (pDev->QueryInterface       (IID_PPV_ARGS (&pDevDXGI)) ) &&
+         SUCCEEDED (pDevDXGI->GetAdapter                     (&pAdapter)  ) &&
+         SUCCEEDED (      pAdapter->GetParent  (IID_PPV_ARGS (&pFactory)) ) )
+    {
+      DXGI_SWAP_CHAIN_DESC desc;
+
+      if (SUCCEEDED (pGameSwapChain->GetDesc (&desc))) {
+
+        dll_log.Log ( L"[Fullscreen] Setting DXGI Window Association "
+                      L"(HWND: Game=%X,SwapChain=%X - flags=0x00)",
+                        SK_GetGameWindow (), desc.OutputWindow );
+
+        pFactory->MakeWindowAssociation (desc.OutputWindow,   0x00);//DXGI_MWA_NO_WINDOW_CHANGES);
+        pFactory->MakeWindowAssociation (SK_GetGameWindow (), 0x00);//DXGI_MWA_NO_WINDOW_CHANGES);
+      }
+
+      // Allow Fullscreen
+      SwapChainFlags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+    }
+  }
+
+  HRESULT hr =
+    DXGISwap_ResizeBuffers_Original (This, BufferCount, Width, Height, NewFormat, SwapChainFlags);
+
+  return hr;
+}
+
 void
 UNX_InstallWindowHook (HWND hWnd)
 {
@@ -294,6 +453,11 @@ UNX_InstallWindowHook (HWND hWnd)
 
     //DwmEnableMMCSS (TRUE);
   }
+
+  UNX_CreateDLLHook ( config.system.injector.c_str (),
+                      "DXGISwap_ResizeBuffers_Override",
+                       DXGISwap_ResizeBuffers_Detour,
+            (LPVOID *)&DXGISwap_ResizeBuffers_Original );
 }
 
 

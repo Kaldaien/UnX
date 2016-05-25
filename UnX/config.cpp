@@ -239,6 +239,18 @@ UNX_LoadConfig (std::wstring name) {
       L"UnX.Display",
         L"EnableFullscreen" );
 
+
+  window.center =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Center the Render Window")
+      );
+  window.center->register_to_ini (
+    dll_ini,
+      L"UnX.Window",
+        L"Center" );
+
+
   render.bypass_intel =
     static_cast <unx::ParameterBool *>
       (g_ParameterFactory.create_parameter <bool> (
@@ -542,6 +554,8 @@ UNX_LoadConfig (std::wstring name) {
 
   stutter.reduce->load (config.stutter.reduce);
 
+  window.center->load   (config.window.center);
+
   input.remap_dinput8->load (config.input.remap_dinput8);
   input.gamepad_slot->load  (config.input.gamepad_slot);
 
@@ -551,8 +565,7 @@ UNX_LoadConfig (std::wstring name) {
   //input.block_all_keys->load  (config.input.block_all_keys);
 
   input.four_finger_salute->load (config.input.four_finger_salute);
-
-  input.manage_cursor->load (config.input.cursor_mgmt);
+  input.manage_cursor->load      (config.input.cursor_mgmt);
 
   float timeout;
 
@@ -606,6 +619,8 @@ UNX_LoadConfig (std::wstring name) {
 void
 UNX_SaveConfig (std::wstring name, bool close_config) {
   audio.mute_in_background->store   (config.audio.mute_in_background);
+
+  window.center->store              (config.window.center);
 
   stutter.reduce->store             (config.stutter.reduce);
 
