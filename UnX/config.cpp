@@ -34,7 +34,7 @@ static
   unx::INI::File*
              language_ini    = nullptr;
 
-std::wstring UNX_VER_STR = L"0.3.0";
+std::wstring UNX_VER_STR = L"0.3.1";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)     (bool);
@@ -109,6 +109,7 @@ struct {
 struct {
   unx::ParameterBool*    remap_dinput8;
   unx::ParameterInt*     gamepad_slot;
+  unx::ParameterBool*    fix_bg_input;
 
   unx::ParameterBool*    block_left_alt;
   unx::ParameterBool*    block_left_ctrl;
@@ -120,6 +121,8 @@ struct {
   unx::ParameterBool*    manage_cursor;
   unx::ParameterFloat*   cursor_timeout;
   unx::ParameterBool*    activate_on_kbd;
+
+  unx::ParameterBool*    fast_exit;
 } input;
 
 struct {
@@ -336,6 +339,16 @@ UNX_LoadConfig (std::wstring name) {
       L"UnX.Input",
         L"RemapDirectInput" );
 
+  input.fix_bg_input =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Prevent DirectInput Nonsense in Background")
+      );
+  input.fix_bg_input->register_to_ini (
+    dll_ini,
+      L"UnX.Input",
+        L"FixBackgroundInput" );
+
   input.block_left_alt =
     static_cast <unx::ParameterBool *>
       (g_ParameterFactory.create_parameter <bool> (
@@ -425,6 +438,16 @@ UNX_LoadConfig (std::wstring name) {
     dll_ini,
       L"UnX.Input",
         L"KeysActivateCursor" );
+
+  input.fast_exit =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Exit Without Confirmation")
+      );
+  input.fast_exit->register_to_ini (
+    dll_ini,
+      L"UnX.Input",
+        L"FastExit" );
 
 
   textures.resource_root =
@@ -558,6 +581,7 @@ UNX_LoadConfig (std::wstring name) {
 
   input.remap_dinput8->load (config.input.remap_dinput8);
   input.gamepad_slot->load  (config.input.gamepad_slot);
+  input.fix_bg_input->load  (config.input.fix_bg_input);
 
   input.block_windows->load (config.input.block_windows);
   //input.block_left_alt->load  (config.input.block_left_alt);
@@ -575,6 +599,7 @@ UNX_LoadConfig (std::wstring name) {
 
   input.activate_on_kbd->load (config.input.activate_on_kbd);
 
+  input.fast_exit->load (config.input.fast_exit);
 
   sys.version->load  (config.system.version);
   sys.injector->load (config.system.injector);
@@ -633,6 +658,7 @@ UNX_SaveConfig (std::wstring name, bool close_config) {
 //input.gamepad_slot->store         (config.input.gamepad_slot);
   input.activate_on_kbd->store      (config.input.activate_on_kbd);
   //input.block_windows->store        (config.input.block_windows);
+  input.fix_bg_input->store         (config.input.fix_bg_input);
 
   ((unx::iParameter *)language.sfx)->store   ();
   ((unx::iParameter *)language.voice)->store ();

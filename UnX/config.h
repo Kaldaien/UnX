@@ -114,6 +114,7 @@ struct unx_config_s
   struct {
     bool remap_dinput8      = true;
     bool ignore_background  = true;
+    bool fix_bg_input       = true;
 
     bool block_left_alt     = false;
     bool block_left_ctrl    = false;
@@ -126,6 +127,8 @@ struct unx_config_s
     int  cursor_timeout     = 0;
     bool activate_on_kbd    = false;
     int  gamepad_slot       = -1;
+
+    bool fast_exit          = true;
   } input;
 
   struct {

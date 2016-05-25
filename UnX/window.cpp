@@ -191,6 +191,25 @@ bool windowed = false;
 #include <dwmapi.h>
 #pragma comment (lib, "dwmapi.lib")
 
+typedef BOOL (WINAPI *GetWindowInfo_pfn)(
+  _In_    HWND        hwnd,
+  _Inout_ PWINDOWINFO pwi
+);
+
+GetWindowInfo_pfn GetWindowInfo_Original = nullptr;
+
+BOOL
+WINAPI
+GetWindowInfo_Detour ( _In_ HWND        hWnd,
+                    _Inout_ PWINDOWINFO pwi )
+{
+  BOOL ret =
+    GetWindowInfo_Original (hWnd, pwi);
+
+  return ret;
+}
+
+
 typedef LRESULT (CALLBACK *DetourWindowProc_pfn)( _In_  HWND   hWnd,
                    _In_  UINT   uMsg,
                    _In_  WPARAM wParam,
@@ -210,9 +229,15 @@ DetourWindowProc ( _In_  HWND   hWnd,
   static bool last_active = unx::window.active;
 
 
+  if (GetForegroundWindow () == hWnd)
+    unx::window.active = true;
+  else
+    unx::window.active = false;
+
+
   // This state is persistent and we do not want Alt+F4 to remember a muted
   //   state.
-  if (uMsg == WM_DESTROY || uMsg == WM_QUIT || uMsg == WM_CLOSE) {
+  if (uMsg == WM_DESTROY || uMsg == WM_QUIT || (config.input.fast_exit && uMsg == WM_CLOSE)) {
     // The game would deadlock and never shutdown if we tried to Alt+F4 in
     //   fullscreen mode... oh the quirks of D3D :(
     if (pGameSwapChain != nullptr && config.display.enable_fullscreen)
@@ -221,10 +246,19 @@ DetourWindowProc ( _In_  HWND   hWnd,
     UNX_SetGameMute (FALSE);
   }
 
+  //
+  // The window activation state is changing, among other things we can take
+  //   this opportunity to setup a special framerate limit.
+  //
+  if (unx::window.active != last_active || (uMsg == WM_ACTIVATEAPP && unx::window.active != last_active)) {
+    bool deactivate = ! (unx::window.active);
 
-  // On Window Activation / Deactivation
-  if (uMsg == WM_ACTIVATE) {
-    bool deactivate = (wParam == WA_INACTIVE);
+    if (uMsg == WM_ACTIVATEAPP) {
+      deactivate = ! (bool)wParam;
+      unx::window.active = ! deactivate;
+    }
+
+    last_active = unx::window.active;
 
     if (config.audio.mute_in_background) {
       BOOL bMute = FALSE;
@@ -235,9 +269,11 @@ DetourWindowProc ( _In_  HWND   hWnd,
       UNX_SetGameMute (bMute);
     }
 
+    //unx::window.active = (! deactivate);
 
-    unx::window.active = (! deactivate);
-
+    dll_log.Log ( L"[ Window ] Activation: %s",
+                    unx::window.active ? L"ACTIVE" :
+                                         L"INACTIVE" );
 
     //
     // Allow Alt+Tab to work
@@ -251,42 +287,41 @@ DetourWindowProc ( _In_  HWND   hWnd,
     }
   }
 
+  const bool fix_background_input = true;
 
-  //
-  // The window activation state is changing, among other things we can take
-  //   this opportunity to setup a special framerate limit.
-  //
+  if (fix_background_input) {
+    if ( uMsg == WM_NCACTIVATE ) {
+      return 0;
+    }
+  }
+
+
+
   if (unx::window.active != last_active) {
 //    eTB_CommandProcessor* pCommandProc =
 //      SK_GetCommandProcessor           ();
   }
 
-#if 0
-  // Block keyboard input to the game while the console is visible
-  if (console_visible/* || background_render*/) {
-    // Only prevent the mouse from working while the window is in the bg
-    //if (background_render && uMsg >= WM_MOUSEFIRST && uMsg <= WM_MOUSELAST)
-      //return DefWindowProc (hWnd, uMsg, wParam, lParam);
 
-    if (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST)
-      return DefWindowProc (hWnd, uMsg, wParam, lParam);
+  if (config.input.fix_bg_input) {
+    // Block keyboard input to the game while the console is visible
+    if (! (unx::window.active)/* || background_render*/) {
+      if (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST)
+        return DefWindowProc (hWnd, uMsg, wParam, lParam);
 
-    // Block RAW Input
-    if (uMsg == WM_INPUT)
-      return DefWindowProc (hWnd, uMsg, wParam, lParam);
+      // Block RAW Input
+      if (uMsg == WM_INPUT)
+        return DefWindowProc (hWnd, uMsg, wParam, lParam);
+    }
   }
-#endif
 
-#if 0
+
   // Block the menu key from messing with stuff*
-  if (config.input.block_left_alt &&
-      (uMsg == WM_SYSKEYDOWN || uMsg == WM_SYSKEYUP)) {
-    // Make an exception for Alt+Enter, for fullscreen mode toggle.
-    //   F4 as well for exit
-    if (wParam != VK_RETURN && wParam != VK_F4)
+  if ((uMsg == WM_SYSKEYDOWN || uMsg == WM_SYSKEYUP)) {
+    // Actually, just block Alt+F4
+   if (config.input.fast_exit || wParam != VK_F4)
       return DefWindowProc (hWnd, uMsg, wParam, lParam);
   }
-#endif
 
   // What an ugly mess, this is crazy :)
   if (config.input.cursor_mgmt) {
@@ -445,19 +480,25 @@ UNX_InstallWindowHook (HWND hWnd)
 {
   unx::window.hwnd = hWnd;
 
-  if (hWnd == 0) {
+  //if (hWnd == 0) {
     UNX_CreateDLLHook ( config.system.injector.c_str (),
                         "SK_DetourWindowProc",
                          DetourWindowProc,
               (LPVOID *)&DetourWindowProc_Original );
 
     //DwmEnableMMCSS (TRUE);
-  }
+  //}
 
   UNX_CreateDLLHook ( config.system.injector.c_str (),
                       "DXGISwap_ResizeBuffers_Override",
                        DXGISwap_ResizeBuffers_Detour,
             (LPVOID *)&DXGISwap_ResizeBuffers_Original );
+
+  UNX_CreateDLLHook ( L"user32.dll",
+                      "GetWindowInfo",
+                       GetWindowInfo_Detour,
+            (LPVOID *)&GetWindowInfo_Original );
+
 }
 
 

@@ -181,7 +181,7 @@ IDirectInputDevice8_SetCooperativeLevel_pfn
 
 struct di8_keyboard_s {
   LPDIRECTINPUTDEVICE pDev = nullptr;
-  uint8_t             state [512]; // Handle overrun just in case
+  uint8_t             state [256]; // Handle overrun just in case
 } _dik;
 
 struct di8_mouse_s {
@@ -225,6 +225,19 @@ IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE        This,
             in.rgbButtons [ gamepad.remap.map [ i ] ];
         }
       }
+    }
+  }
+
+  if (This == _dik.pDev) {
+    if (unx::window.active) {
+      memcpy (_dik.state, lpvData, cbData);
+    } else {
+      memcpy (lpvData, _dik.state, cbData);
+
+      ((uint8_t *)lpvData) [DIK_LALT]   = 0x0;
+      ((uint8_t *)lpvData) [DIK_RALT]   = 0x0;
+      ((uint8_t *)lpvData) [DIK_TAB]    = 0x0;
+      ((uint8_t *)lpvData) [DIK_ESCAPE] = 0x0;
     }
   }
 #if 0
@@ -341,12 +354,10 @@ IDirectInput8_CreateDevice_Detour ( IDirectInput8       *This,
                             IDirectInputDevice8_SetCooperativeLevel_pfn );
 #endif
 
-    //if (rguid == GUID_SysMouse)
-      //_dim.pDev = *lplpDirectInputDevice;
-    //else if (rguid == GUID_SysKeyboard)
-      //_dik.pDev = *lplpDirectInputDevice;
-    //else
-      //return E_NOTIMPL;
+    if (rguid == GUID_SysMouse)
+      _dim.pDev = *lplpDirectInputDevice;
+    else if (rguid == GUID_SysKeyboard)
+      _dik.pDev = *lplpDirectInputDevice;
   }
 
 #if 0
@@ -413,6 +424,58 @@ DirectInput8Create_Detour ( HINSTANCE  hinst,
   return hr;
 }
 
+typedef SHORT (WINAPI *GetAsyncKeyState_pfn)(
+  _In_ int vKey
+);
+
+typedef UINT (WINAPI *GetRawInputData_pfn)(
+  _In_      HRAWINPUT hRawInput,
+  _In_      UINT      uiCommand,
+  _Out_opt_ LPVOID    pData,
+  _Inout_   PUINT     pcbSize,
+  _In_      UINT      cbSizeHeader
+);
+
+GetAsyncKeyState_pfn GetAsyncKeyState_Original = nullptr;
+GetRawInputData_pfn  GetRawInputData_Original  = nullptr;
+
+SHORT
+WINAPI
+GetAsyncKeyState_Detour ( _In_ int vKey )
+{
+  if (unx::window.active)
+    return GetAsyncKeyState_Original (vKey);
+
+  GetAsyncKeyState_Original (vKey);
+
+  return 0x00;
+}
+
+UINT
+WINAPI
+GetRawInputData_Detour (
+  _In_      HRAWINPUT hRawInput,
+  _In_      UINT      uiCommand,
+  _Out_opt_ LPVOID    pData,
+  _Inout_   PUINT     pcbSize,
+  _In_      UINT      cbSizeHeader )
+{
+  if (unx::window.active) {
+    return GetRawInputData_Original (
+             hRawInput,
+               uiCommand,
+                 pData,
+                   pcbSize,
+                     cbSizeHeader );
+  }
+
+  if (pData != nullptr && pcbSize != nullptr) {
+    memset (pData, 0, *pcbSize);
+    *pcbSize = 0;
+  }
+
+  return 0;
+}
 
 
 
@@ -816,32 +879,23 @@ unx::InputManager::Init (void)
   }
 
 
-#if 0
-  //
-  // For this game, the only reason we hook this is to block the Windows key.
-  //
-  if (config.input.block_windows) {
-    //
-    // We only hook one DLL export from DInput8, all other DInput stuff is
-    //   handled through virtual function table overrides
-    //
-    UNX_CreateDLLHook ( L"dinput8.dll", "DirectInput8Create",
-                        DirectInput8Create_Detour,
-              (LPVOID*)&DirectInput8Create_Original,
-              (LPVOID*)&DirectInput8Create_Hook );
-    UNX_EnableHook    (DirectInput8Create_Hook);
-  }
-
   //
   // Win32 API Input Hooks
   //
 
-  HookRawInput ();
+  //HookRawInput ();
 
-  UNX_CreateDLLHook ( L"user32.dll", "GetAsyncKeyState",
-                      GetAsyncKeyState_Detour,
-            (LPVOID*)&GetAsyncKeyState_Original );
-#endif
+  if (config.input.fix_bg_input) {
+    UNX_CreateDLLHook ( config.system.injector.c_str (),
+                       "GetRawInputData_Detour",
+                        GetRawInputData_Detour,
+              (LPVOID*)&GetRawInputData_Original );
+
+    UNX_CreateDLLHook ( config.system.injector.c_str (),
+                       "GetAsyncKeyState_Detour",
+                        GetAsyncKeyState_Detour,
+              (LPVOID*)&GetAsyncKeyState_Original );
+  }
 
   UNX_CreateDLLHook ( L"XInput9_1_0.dll",
                        "XInputGetState",
@@ -1222,14 +1276,24 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
    if (xi_state.Gamepad.bRightTrigger < 25)
      xi_state.Gamepad.bRightTrigger = 0;
 
-    bool four_finger = (
-        config.input.four_finger_salute      &&
+    bool esc_menu = (
         xi_ret == 0                          &&
         xi_state.Gamepad.bLeftTrigger        &&
         xi_state.Gamepad.bRightTrigger       &&
       ( xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_START |
                                       XINPUT_GAMEPAD_BACK ) )
-      );
+    );
+
+    bool four_finger = (
+        xi_ret == 0                          &&
+        config.input.four_finger_salute      &&
+        xi_state.Gamepad.bLeftTrigger        &&
+        xi_state.Gamepad.bRightTrigger       &&
+        xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_LEFT_SHOULDER)  &&
+        xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_RIGHT_SHOULDER) &&
+        xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_START)          &&
+        xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_BACK)
+    );
 
     f1.poll (xi_ret, xi_state.Gamepad);
     f2.poll (xi_ret, xi_state.Gamepad);
@@ -1247,7 +1311,7 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
                                                                       \
                               pressed_scancodes.push (scancode); }
 
-    if (four_finger) {
+    if (esc_menu) {
 #if 0
       extern void*
       UNX_Scan (const uint8_t* pattern, size_t len, const uint8_t* mask);
@@ -1301,6 +1365,22 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 
     if (f5.state)
       UNX_SendScancode (0x3f);
+
+    if (four_finger) {
+      SetFocus            (SK_GetGameWindow ());
+      SetForegroundWindow (SK_GetGameWindow ());
+      SetActiveWindow     (SK_GetGameWindow ());
+
+      keys [0].ki.wScan = 0x38;
+      SendInput (1, &keys [0], sizeof INPUT);
+
+      Sleep (10);
+
+      keys [0].ki.wScan = 0x3e;
+      SendInput (1, &keys [0], sizeof INPUT);
+
+      Sleep (10);
+    }
 
     if (ss.wasJustPressed ()) {
       typedef bool (__stdcall *SK_SteamAPI_TakeScreenshot_pfn)(void);
