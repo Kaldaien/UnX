@@ -119,6 +119,12 @@ typedef HRESULT (WINAPI *DXGISwap_ResizeBuffers_pfn)(
 );
 DXGISwap_ResizeBuffers_pfn DXGISwap_ResizeBuffers_Original = nullptr;
 
+typedef HRESULT (WINAPI *DXGISwap_ResizeTarget_pfn)(
+   IDXGISwapChain *This,
+   DXGI_MODE_DESC *desc
+);
+DXGISwap_ResizeTarget_pfn DXGISwap_ResizeTarget_Original = nullptr;
+
 typedef HWND (WINAPI *SK_GetGameWindow_pfn)(void);
 extern SK_GetGameWindow_pfn SK_GetGameWindow;
 
@@ -144,9 +150,11 @@ UNX_SetFullscreenState (unx_fullscreen_op_t op)
     pDev->GetImmediateContext (&pDevCtx);
     pDevCtx->ClearState ();
 
+#if 0
     CComPtr <IDXGIOutput> pOutput;
     if (SUCCEEDED (pGameSwapChain->GetContainingOutput (&pOutput)))
       pOutput->ReleaseOwnership ();
+#endif
 
     if (op == Fullscreen) {
       /*
@@ -159,13 +167,14 @@ UNX_SetFullscreenState (unx_fullscreen_op_t op)
       pGameSwapChain->SetFullscreenState (TRUE,  nullptr);
       pGameSwapChain->ResizeBuffers      (0, 0, 0, DXGI_FORMAT_UNKNOWN, 0x02);
       */
+      pGameSwapChain->SetFullscreenState (TRUE, nullptr);
     } else {
       if (op == Restore) {
-        //UNX_SetFullscreenState (last_fullscreen ? Fullscreen : Window);
+        UNX_SetFullscreenState (last_fullscreen ? Fullscreen : Window);
       }
 
       if (op == Window) {
-        //pGameSwapChain->GetFullscreenState (&last_fullscreen, nullptr);
+        pGameSwapChain->GetFullscreenState (&last_fullscreen, nullptr);
         pGameSwapChain->SetFullscreenState (FALSE, nullptr);
       }
     }
@@ -173,6 +182,9 @@ UNX_SetFullscreenState (unx_fullscreen_op_t op)
 }
 
 
+
+// We cannot do this immediately, or we would create an infinite loop...
+bool pending_fullscreen_restore = false;
 
 unx::window_state_s unx::window;
 
@@ -279,11 +291,16 @@ DetourWindowProc ( _In_  HWND   hWnd,
     // Allow Alt+Tab to work
     //
     if (pGameSwapChain != nullptr && config.display.enable_fullscreen) {
-      //if (! deactivate) {
-        //UNX_SetFullscreenState (Restore);
-      //} else {
+      if (! deactivate) {
+        UNX_SetFullscreenState (Restore);
+      } else {
         UNX_SetFullscreenState (Window);
-      //}
+      }
+    }
+  } else {
+    if (pending_fullscreen_restore) {
+      UNX_SetFullscreenState (Fullscreen);
+      pending_fullscreen_restore = false;
     }
   }
 
@@ -420,9 +437,14 @@ DXGISwap_ResizeBuffers_Detour (
    UINT            SwapChainFlags
 )
 {
-  pGameSwapChain = This;
+  DXGI_SWAP_CHAIN_DESC desc;
 
-  if (config.window.center) {
+  if (SUCCEEDED (This->GetDesc (&desc))) {
+    if (desc.OutputWindow == SK_GetGameWindow ())
+      pGameSwapChain = This;
+  }
+
+  if (pGameSwapChain == This && config.window.center) {
     MONITORINFO moninfo;
     moninfo.cbSize = sizeof MONITORINFO;
 
@@ -437,7 +459,7 @@ DXGISwap_ResizeBuffers_Detour (
                       SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOSENDCHANGING | SWP_NOACTIVATE );
   }
 
-  if (config.display.enable_fullscreen) {
+  if (pGameSwapChain == This && config.display.enable_fullscreen) {
     //
     // Allow Alt+Enter
     //
@@ -472,6 +494,37 @@ DXGISwap_ResizeBuffers_Detour (
   HRESULT hr =
     DXGISwap_ResizeBuffers_Original (This, BufferCount, Width, Height, NewFormat, SwapChainFlags);
 
+
+  if ( pGameSwapChain == This && config.display.enable_fullscreen  && BufferCount != 0 && Width != 0 && Height != 0)
+  {
+    //BOOL fullscreen = FALSE;
+
+    //pGameSwapChain->GetFullscreenState (&fullscreen, nullptr);
+
+    UNX_SetFullscreenState (Window);
+
+    //if (fullscreen)
+      //pending_fullscreen_restore = true;
+  }
+
+  return hr;
+}
+
+HRESULT
+WINAPI
+DXGISwap_ResizeTarget_Detour (
+   IDXGISwapChain *This,
+   DXGI_MODE_DESC *desc )
+{
+  if ( pGameSwapChain == This && config.display.enable_fullscreen &&
+       ( desc->RefreshRate.Denominator != 0 || desc->RefreshRate.Numerator != 0 ) )
+  {
+    UNX_SetFullscreenState (Window);
+  }
+
+  HRESULT hr =
+    DXGISwap_ResizeTarget_Original (This, desc);
+
   return hr;
 }
 
@@ -493,6 +546,11 @@ UNX_InstallWindowHook (HWND hWnd)
                       "DXGISwap_ResizeBuffers_Override",
                        DXGISwap_ResizeBuffers_Detour,
             (LPVOID *)&DXGISwap_ResizeBuffers_Original );
+
+  UNX_CreateDLLHook ( config.system.injector.c_str (),
+                      "DXGISwap_ResizeTarget_Override",
+                       DXGISwap_ResizeTarget_Detour,
+            (LPVOID *)&DXGISwap_ResizeTarget_Original );
 
   UNX_CreateDLLHook ( L"user32.dll",
                       "GetWindowInfo",
