@@ -256,6 +256,10 @@ DetourWindowProc ( _In_  HWND   hWnd,
       UNX_SetFullscreenState (Window);
 
     UNX_SetGameMute (FALSE);
+
+    // Without this, some Windows functions wouldn't work correctly
+    extern void UNX_ReleaseESCKey (void);
+    UNX_ReleaseESCKey ();
   }
 
   //
@@ -448,7 +452,6 @@ DXGISwap_ResizeBuffers_Detour (
       pGameSwapChain = This;
   }
 
-#if 0
   if (pGameSwapChain == This && config.window.center) {
     MONITORINFO moninfo;
     moninfo.cbSize = sizeof MONITORINFO;
@@ -458,12 +461,13 @@ DXGISwap_ResizeBuffers_Detour (
     int mon_width  = moninfo.rcMonitor.right  - moninfo.rcMonitor.left;
     int mon_height = moninfo.rcMonitor.bottom - moninfo.rcMonitor.top;
 
-    SetWindowPos ( SK_GetGameWindow (), HWND_NOTOPMOST, (mon_width  - Width)  / 2,
-                                                        (mon_height - Height) / 2,
-                     Width, Height,
-                      SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOSENDCHANGING | SWP_NOACTIVATE );
+    if (Width < mon_width && Height < mon_height) {
+      SetWindowPos ( SK_GetGameWindow (), HWND_NOTOPMOST, (mon_width  - Width)  / 2,
+                                                          (mon_height - Height) / 2,
+                       Width, Height,
+                        SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOSENDCHANGING | SWP_NOACTIVATE );
+    }
   }
-#endif
 
   if (pGameSwapChain == This && config.display.enable_fullscreen) {
     //

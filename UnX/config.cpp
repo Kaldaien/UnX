@@ -34,7 +34,7 @@ static
   unx::INI::File*
              language_ini    = nullptr;
 
-std::wstring UNX_VER_STR = L"0.4.1";
+std::wstring UNX_VER_STR = L"0.4.2";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)     (bool);

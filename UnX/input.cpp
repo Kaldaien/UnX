@@ -1426,6 +1426,12 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
                                                                       \
                               pressed_scancodes.push (scancode); }
 
+    if (four_finger) {
+      SendMessage (SK_GetGameWindow (), WM_CLOSE, 0, 0);
+      Sleep (100);
+      continue;
+    }
+
     if (esc.state) {
 #if 0
       extern void*
@@ -1481,10 +1487,6 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
     if (f5.state)
       UNX_SendScancode (0x3f);
 
-    if (four_finger) {
-      SendMessage (SK_GetGameWindow (), WM_CLOSE, 0, 0);
-    }
-
     if (full.wasJustPressed ()) {
       // Alt
       keys [0].ki.wScan = 0x38;
@@ -1526,6 +1528,42 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
   }
 
   return 0;
+}
+
+void
+UNX_ReleaseESCKey (void)
+{
+  INPUT keys [2];
+
+  keys [0].type           = INPUT_KEYBOARD;
+  keys [0].ki.wVk         = 0;
+  keys [0].ki.wScan       = 0x01;
+  keys [0].ki.dwFlags     = KEYEVENTF_SCANCODE;
+  keys [0].ki.time        = 0;
+  keys [0].ki.dwExtraInfo = 0;
+
+  SendInput (1, &keys [0], sizeof INPUT);
+  Sleep     (0);
+
+  keys [1].type           = INPUT_KEYBOARD;
+  keys [1].ki.wVk         = 0;
+  keys [1].ki.wScan       = 0x01;
+  keys [1].ki.dwFlags     = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+  keys [1].ki.time        = 0;
+  keys [1].ki.dwExtraInfo = 0;
+
+  SendInput (1, &keys [1], sizeof INPUT);
+  Sleep     (0);
+
+  keys [1].type           = INPUT_KEYBOARD;
+  keys [1].ki.wVk         = 0;
+  keys [1].ki.wScan       = 0x01;
+  keys [1].ki.dwFlags     = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+  keys [1].ki.time        = 0;
+  keys [1].ki.dwExtraInfo = 0;
+
+  SendInput (1, &keys [1], sizeof INPUT);
+  Sleep     (0);
 }
 
 unx::InputManager::Hooker* unx::InputManager::Hooker::pInputHook = nullptr;
