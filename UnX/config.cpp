@@ -601,6 +601,18 @@ UNX_LoadConfig (std::wstring name) {
 
   input.fast_exit->load (config.input.fast_exit);
 
+
+#if 1
+  // Force BG input fix off if this is disabled
+  if (! config.input.fast_exit)
+    config.input.fix_bg_input = false;
+#else
+  // Force fast exit on if this is enabled
+  if (config.input.fix_bg_input)
+    config.input.fast_exit = true;
+#endif
+
+
   sys.version->load  (config.system.version);
   sys.injector->load (config.system.injector);
 

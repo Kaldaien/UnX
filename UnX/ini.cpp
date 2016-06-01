@@ -417,13 +417,13 @@ unx::INI::File::Section::add_key_value (std::wstring key, std::wstring value)
 bool
 unx::INI::File::contains_section (std::wstring section)
 {
-  return sections.find (section) != sections.end ();
+  return sections.count (section) > 0;
 }
 
 unx::INI::File::Section&
 unx::INI::File::get_section (std::wstring section)
 {
-  if (sections.find (section) == sections.end ())
+  if (! sections.count (section))
     ordered_sections.push_back (section);
 
   return sections [section];
@@ -463,9 +463,11 @@ unx::INI::File::write (std::wstring fname)
       }
 
       // Append a newline for everything except the last line...
-      if (++it != end)
+      if ((it + 1) != end)
         fwprintf (fOut, L"\n");
     }
+
+    ++it;
   }
 
   fflush (fOut);

@@ -82,15 +82,31 @@ struct unx_gamepad_s {
     int map [12];
 
     static int indexToEnum (int idx) {
+      // For Axes
+      if (idx < 0) {
+        idx = (16 - idx);
+      }
+
       return 1 << (idx - 1);
     }
 
     static int enumToIndex (unsigned int enum_val) {
       int idx = 0;
 
+      // For Axes
+      bool axis = false;
+
+      if (enum_val >= (1 << 16))
+        axis = true;
+
       while (enum_val > 0) {
         enum_val >>= 1;
         idx++;
+      }
+
+      if (axis) {
+        idx -= 16;
+        idx  = -idx;
       }
 
       return idx;
@@ -221,8 +237,11 @@ IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE        This,
         DIJOYSTATE2  in  = *out;
 
         for (int i = 0; i < 12; i++) {
-          out->rgbButtons [ i ] = 
-            in.rgbButtons [ gamepad.remap.map [ i ] ];
+          // Negative values are for axes, we cannot remap those yet
+          if (gamepad.remap.map [ i ] > 0) {
+            out->rgbButtons [ i ] = 
+              in.rgbButtons [ gamepad.remap.map [ i ] ];
+          }
         }
       }
     }
@@ -257,6 +276,7 @@ IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE        This,
         ((DIMOUSESTATE *)lpvData)->lY = mouse_pos.y;
       }
 #endif
+dev
       memcpy (&_dim.state, lpvData, cbData);
     }
 
@@ -362,7 +382,7 @@ IDirectInput8_CreateDevice_Detour ( IDirectInput8       *This,
 
 #if 0
   if (SUCCEEDED (hr) && lplpDirectInputDevice != nullptr) {
-    DWORD dwFlag = DISCL_FOREGROUND | DISCL_EXCLUSIVE;
+    DWORD dwFlag = DISCL_FOREGROUND | DISCL_NONEXCLUSIVE;
 
     if (config.input.block_windows)
       dwFlag |= DISCL_NOWINKEY;
@@ -394,8 +414,8 @@ DirectInput8Create_Detour ( HINSTANCE  hinst,
                                           punkOuter ));
 
   if (hinst != GetModuleHandle (nullptr)) {
-    dll_log.Log (L"[   Input  ] >> A third-party DLL is manipulating DirectInput 8; will not hook.");
-    return hr;
+    dll_log.Log (L"[   Input  ] >> A third-party DLL is manipulating DirectInput 8; bad things may happen.");
+    //return hr;
   }
 
   // Avoid multiple hooks for third-party compatibility
@@ -505,7 +525,7 @@ XInputGetState_pfn XInputGetState_Original = nullptr;
 bool
 IsControllerPluggedIn (UINT uJoyID)
 {
- if (uJoyID == (UINT)-1)
+  if (uJoyID == (UINT)-1)
     return true;
 
   XINPUT_STATE xstate;
@@ -558,6 +578,21 @@ SpinOrSleep (DWORD dwMilliseconds)
     YieldProcessor ();
     Sleep (dwMilliseconds);
   }
+}
+
+typedef BOOL (WINAPI *ClipCursor_pfn)(
+  _In_opt_ const RECT *lpRect
+);
+
+ClipCursor_pfn ClipCursor_Original = nullptr;
+
+BOOL
+WINAPI
+ClipCursor_Detour (
+  _In_opt_ const RECT *lpRect
+)
+{
+  return TRUE;
 }
 
 void
@@ -915,6 +950,11 @@ unx::InputManager::Init (void)
               (LPVOID*)&GetAsyncKeyState_Original );
   }
 
+  UNX_CreateDLLHook ( L"user32.dll",
+                      "ClipCursor",
+                      ClipCursor_Detour,
+           (LPVOID *)&ClipCursor_Original );
+
   UNX_CreateDLLHook ( L"XInput9_1_0.dll",
                        "XInputGetState",
                         XInputGetState_Detour,
@@ -1161,6 +1201,35 @@ struct combo_button_s {
   bool last_state;
 };
 
+BYTE
+UNX_PollAxis (int axis, const JOYINFOEX& joy_ex, const JOYCAPSW& caps)
+{
+  switch (unx_gamepad_s::remap_s::enumToIndex (axis))
+  {
+    case -1:
+      return 255 * ((float)(joy_ex.dwXpos - caps.wXmin) /
+                       (float)(caps.wXmax - caps.wXmin));
+    case -2:
+      return 255 * ((float)(joy_ex.dwYpos - caps.wYmin) /
+                       (float)(caps.wYmax - caps.wYmin));
+    case -3:
+      return 255 * ((float)(joy_ex.dwZpos - caps.wZmin) /
+                       (float)(caps.wZmax - caps.wZmin));
+    case -4:
+      return 255 * ((float)(joy_ex.dwUpos - caps.wUmin) /
+                       (float)(caps.wUmax - caps.wUmin));
+    case -5:
+      return 255 * ((float)(joy_ex.dwVpos - caps.wVmin) /
+                       (float)(caps.wVmax - caps.wVmin));
+    case -6:
+      return 255 * ((float)(joy_ex.dwRpos - caps.wRmin) /
+                       (float)(caps.wRmax - caps.wRmin));
+    default:
+      return 255 * ((joy_ex.dwButtons & axis) ? 1 : 0);
+  }
+}
+
+
 DWORD
 WINAPI
 unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
@@ -1247,6 +1316,11 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
         if (! joyGetNumDevs ()) {
           xi_ret = ERROR_DEVICE_NOT_CONNECTED;
         } else {
+          static JOYCAPSW caps = { 0 };
+
+          if (! caps.wMaxButtons)
+            joyGetDevCaps (JOYSTICKID1, &caps, sizeof JOYCAPSW);
+
           xi_ret = 0;
 
           JOYINFOEX joy_ex { 0 };
@@ -1261,33 +1335,34 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 
           xi_state.Gamepad.wButtons = 0;
 
-          if (joy_ex.dwButtons & gamepad.remap.buttons.A)
+          if (UNX_PollAxis (gamepad.remap.buttons.A, joy_ex, caps) > 190)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_A;
-          if (joy_ex.dwButtons & gamepad.remap.buttons.B)
+          if (UNX_PollAxis (gamepad.remap.buttons.B, joy_ex, caps) > 190)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_B;
-          if (joy_ex.dwButtons & gamepad.remap.buttons.X)
+          if (UNX_PollAxis (gamepad.remap.buttons.X, joy_ex, caps) > 190)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_X;
-          if (joy_ex.dwButtons & gamepad.remap.buttons.Y)
+          if (UNX_PollAxis (gamepad.remap.buttons.Y, joy_ex, caps) > 190)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_Y;
 
-          if (joy_ex.dwButtons & gamepad.remap.buttons.START)
+          if (UNX_PollAxis (gamepad.remap.buttons.START, joy_ex, caps) > 190)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_START;
-          if (joy_ex.dwButtons & gamepad.remap.buttons.BACK)
+          if (UNX_PollAxis (gamepad.remap.buttons.BACK, joy_ex, caps) > 190)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_BACK;
 
-          if (joy_ex.dwButtons & gamepad.remap.buttons.LT)
-            xi_state.Gamepad.bLeftTrigger  = 255;
-          if (joy_ex.dwButtons & gamepad.remap.buttons.RT)
-            xi_state.Gamepad.bRightTrigger = 255;
+          xi_state.Gamepad.bLeftTrigger =
+            UNX_PollAxis (gamepad.remap.buttons.LT, joy_ex, caps);
 
-          if (joy_ex.dwButtons & gamepad.remap.buttons.LB)
+          xi_state.Gamepad.bRightTrigger =
+            UNX_PollAxis (gamepad.remap.buttons.RT, joy_ex, caps);
+
+          if (UNX_PollAxis (gamepad.remap.buttons.LB, joy_ex, caps) > 190)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_LEFT_SHOULDER;
-          if (joy_ex.dwButtons & gamepad.remap.buttons.RB)
+          if (UNX_PollAxis (gamepad.remap.buttons.RB, joy_ex, caps) > 190)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_RIGHT_SHOULDER;
 
-          if (joy_ex.dwButtons & gamepad.remap.buttons.LS)
+          if (UNX_PollAxis (gamepad.remap.buttons.LS, joy_ex, caps) > 190)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_LEFT_THUMB;
-          if (joy_ex.dwButtons & gamepad.remap.buttons.RS)
+          if (UNX_PollAxis (gamepad.remap.buttons.RS, joy_ex, caps) > 190)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_RIGHT_THUMB;
 
           if (joy_ex.dwPOV & JOY_POVFORWARD)
@@ -1306,10 +1381,10 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
    //
    // Analog deadzone compensation
    //
-   if (xi_state.Gamepad.bLeftTrigger < 25)
+   if (xi_state.Gamepad.bLeftTrigger < 130)
      xi_state.Gamepad.bLeftTrigger = 0;
 
-   if (xi_state.Gamepad.bRightTrigger < 25)
+   if (xi_state.Gamepad.bRightTrigger < 130)
      xi_state.Gamepad.bRightTrigger = 0;
 
 #if 0

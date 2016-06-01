@@ -386,7 +386,11 @@ DetourWindowProc ( _In_  HWND   hWnd,
      };
 
     if (! last_mouse.init) {
-      SetTimer (hWnd, last_mouse.timer_id, config.input.cursor_timeout / 2, nullptr);
+      if (config.input.cursor_timeout != 0)
+        SetTimer (hWnd, last_mouse.timer_id, config.input.cursor_timeout / 2, nullptr);
+      else
+        SetTimer (hWnd, last_mouse.timer_id, 250/*USER_TIMER_MINIMUM*/, nullptr);
+
       last_mouse.init = true;
     }
 
@@ -444,6 +448,7 @@ DXGISwap_ResizeBuffers_Detour (
       pGameSwapChain = This;
   }
 
+#if 0
   if (pGameSwapChain == This && config.window.center) {
     MONITORINFO moninfo;
     moninfo.cbSize = sizeof MONITORINFO;
@@ -458,6 +463,7 @@ DXGISwap_ResizeBuffers_Detour (
                      Width, Height,
                       SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOSENDCHANGING | SWP_NOACTIVATE );
   }
+#endif
 
   if (pGameSwapChain == This && config.display.enable_fullscreen) {
     //
