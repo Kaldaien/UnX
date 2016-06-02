@@ -43,6 +43,12 @@ struct unx_config_s
   } audio;
 
   struct {
+    struct {
+      bool  entire_party_earns_ap = false;
+    } ffx;
+  } cheat;
+
+  struct {
   } compatibility;
 
   struct {

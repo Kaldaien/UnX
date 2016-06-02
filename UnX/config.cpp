@@ -34,7 +34,11 @@ static
   unx::INI::File*
              language_ini    = nullptr;
 
-std::wstring UNX_VER_STR = L"0.4.2";
+static
+  unx::INI::File*
+             booster_ini     = nullptr;
+
+std::wstring UNX_VER_STR = L"0.5.0";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)     (bool);
@@ -72,6 +76,12 @@ struct {
 
 struct {
 } compatibility;
+
+struct {
+  struct {
+    unx::ParameterBool*  entire_party_earns_ap;
+  } ffx;
+} booster;
 
 struct {
   unx::ParameterBool*    center;
@@ -218,6 +228,9 @@ UNX_LoadConfig (std::wstring name) {
 
   std::wstring language_file = name + L"_Language.ini";
   language_ini = new unx::INI::File ((wchar_t *)language_file.c_str ());
+
+  std::wstring booster_file = name + L"_Booster.ini";
+  booster_ini = new unx::INI::File ((wchar_t *)booster_file.c_str ());
 
   //
   // Create Parameters
@@ -481,6 +494,15 @@ UNX_LoadConfig (std::wstring name) {
         L"Inject" );
 
 
+  booster.ffx.entire_party_earns_ap =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Give everyone in the current party AP")
+    );
+  booster.ffx.entire_party_earns_ap->register_to_ini (
+    booster_ini,
+      L"Boost.FFX",
+        L"EntirePartyEarnsAP" );
 
   sys.version =
     static_cast <unx::ParameterStringW *>
@@ -613,6 +635,9 @@ UNX_LoadConfig (std::wstring name) {
 #endif
 
 
+  booster.ffx.entire_party_earns_ap->load (config.cheat.ffx.entire_party_earns_ap);
+
+
   sys.version->load  (config.system.version);
   sys.injector->load (config.system.injector);
 
@@ -638,6 +663,9 @@ UNX_LoadConfig (std::wstring name) {
     SK_D3D11_SetResourceRoot (config.textures.resource_root);
     SK_D3D11_EnableTexDump   (config.textures.dump);
     SK_D3D11_EnableTexInject (config.textures.inject);
+
+    if (config.textures.inject)
+      SK_D3D11_AddTexHash (L"Title.dds", 0xA4FFC068);
   }
 
   if (UNX_SetupWindowMgmt ()) {
@@ -672,15 +700,21 @@ UNX_SaveConfig (std::wstring name, bool close_config) {
   //input.block_windows->store        (config.input.block_windows);
   input.fix_bg_input->store         (config.input.fix_bg_input);
 
+
   ((unx::iParameter *)language.sfx)->store   ();
   ((unx::iParameter *)language.voice)->store ();
   ((unx::iParameter *)language.video)->store ();
+
+
+  booster.ffx.entire_party_earns_ap->store (config.cheat.ffx.entire_party_earns_ap);
+
 
   sys.version->store      (UNX_VER_STR);
   sys.injector->store     (config.system.injector);
 
   dll_ini->write      (name + L".ini");
   language_ini->write (name + L"_Language.ini");
+  booster_ini->write  (name + L"_Booster.ini");
 
   if (close_config) {
     if (dll_ini != nullptr) {
@@ -691,6 +725,11 @@ UNX_SaveConfig (std::wstring name, bool close_config) {
     if (language_ini != nullptr) {
       delete language_ini;
       language_ini = nullptr;
+    }
+
+    if (booster_ini != nullptr) {
+      delete booster_ini;
+      booster_ini = nullptr;
     }
   }
 }

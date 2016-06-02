@@ -159,6 +159,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="cheat.h" />
     <ClInclude Include="command.h" />
     <ClInclude Include="config.h" />
     <ClInclude Include="display.h" />
@@ -170,10 +171,12 @@
     <ClInclude Include="MinHook\include\MinHook.h" />
     <ClInclude Include="parameter.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="sound.h" />
     <ClInclude Include="timing.h" />
     <ClInclude Include="window.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="cheat.cpp" />
     <ClCompile Include="command.cpp" />
     <ClCompile Include="compatibility.cpp" />
     <ClCompile Include="config.cpp" />
@@ -198,6 +201,7 @@
     <ClCompile Include="log.cpp" />
     <ClCompile Include="parameter.cpp" />
     <ClCompile Include="display.cpp" />
+    <ClCompile Include="sound.cpp" />
     <ClCompile Include="timing.cpp" />
     <ClCompile Include="window.cpp" />
   </ItemGroup>

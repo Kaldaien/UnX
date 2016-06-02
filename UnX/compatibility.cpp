@@ -271,7 +271,7 @@ UNX_Scan (const uint8_t* pattern, size_t len, const uint8_t* mask)
 #endif
 #endif
 
-  //__UNX_base_img_addr = base_addr;
+  __UNX_base_img_addr = base_addr;
   __UNX_end_img_addr  = end_addr;
 
   uint8_t*  begin = (uint8_t *)base_addr;

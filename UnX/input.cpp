@@ -415,7 +415,7 @@ DirectInput8Create_Detour ( HINSTANCE  hinst,
 
   if (hinst != GetModuleHandle (nullptr)) {
     dll_log.Log (L"[   Input  ] >> A third-party DLL is manipulating DirectInput 8; bad things may happen.");
-    //return hr;
+    return hr;
   }
 
   // Avoid multiple hooks for third-party compatibility
@@ -593,6 +593,33 @@ ClipCursor_Detour (
 )
 {
   return TRUE;
+}
+
+typedef void (CALLBACK *SK_PluginKeyPress_pfn)( BOOL Control,
+                        BOOL Shift,
+                        BOOL Alt,
+                        BYTE vkCode );
+SK_PluginKeyPress_pfn SK_PluginKeyPress_Original = nullptr;
+
+
+void
+CALLBACK
+SK_UNX_PluginKeyPress ( BOOL Control,
+                        BOOL Shift,
+                        BOOL Alt,
+                        BYTE vkCode )
+{
+  if (Control && Shift && vkCode == 'V') {
+    eTB_CommandResult result = 
+      SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval");
+
+    if (result.getVariable ()->getValueString () != "0")
+      SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval 0");
+    else
+      SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval 1");
+  }
+
+  //SK_PluginKeyPress_Original (Control, Shift, Alt, vkCode);
 }
 
 void
@@ -959,6 +986,11 @@ unx::InputManager::Init (void)
                        "XInputGetState",
                         XInputGetState_Detour,
              (LPVOID *)&XInputGetState_Original );
+
+  UNX_CreateDLLHook ( config.system.injector.c_str (),
+                      "SK_PluginKeyPress",
+                        SK_UNX_PluginKeyPress,
+             (LPVOID *)&SK_PluginKeyPress_Original );
 
   unx::InputManager::Hooker* pHook =
     unx::InputManager::Hooker::getInstance ();

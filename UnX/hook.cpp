@@ -36,14 +36,14 @@ UNX_CreateFuncHook ( LPCWSTR pwszFuncName,
   static HMODULE hParent =
     GetModuleHandle (config.system.injector.c_str ());
 
-  typedef MH_STATUS (WINAPI *BMF_CreateFuncHook_t)
+  typedef MH_STATUS (WINAPI *SK_CreateFuncHook_pfn)
       ( LPCWSTR pwszFuncName, LPVOID  pTarget,
         LPVOID  pDetour,      LPVOID *ppOriginal );
-  static BMF_CreateFuncHook_t BMF_CreateFuncHook =
-    (BMF_CreateFuncHook_t)GetProcAddress (hParent, "BMF_CreateFuncHook");
+  static SK_CreateFuncHook_pfn SK_CreateFuncHook =
+    (SK_CreateFuncHook_pfn)GetProcAddress (hParent, "SK_CreateFuncHook");
 
   return
-    BMF_CreateFuncHook (pwszFuncName, pTarget, pDetour, ppOriginal);
+    SK_CreateFuncHook (pwszFuncName, pTarget, pDetour, ppOriginal);
 }
 
 MH_STATUS
@@ -55,15 +55,15 @@ UNX_CreateDLLHook ( LPCWSTR pwszModule, LPCSTR  pszProcName,
   static HMODULE hParent =
     GetModuleHandle (config.system.injector.c_str ());
 
-  typedef MH_STATUS (WINAPI *BMF_CreateDLLHook_t)(
+  typedef MH_STATUS (WINAPI *SK_CreateDLLHook_pfn)(
         LPCWSTR pwszModule, LPCSTR  pszProcName,
         LPVOID  pDetour,    LPVOID *ppOriginal, 
         LPVOID *ppFuncAddr );
-  static BMF_CreateDLLHook_t BMF_CreateDLLHook =
-    (BMF_CreateDLLHook_t)GetProcAddress (hParent, "BMF_CreateDLLHook");
+  static SK_CreateDLLHook_pfn SK_CreateDLLHook =
+    (SK_CreateDLLHook_pfn)GetProcAddress (hParent, "SK_CreateDLLHook");
 
   return
-    BMF_CreateDLLHook (pwszModule,pszProcName,pDetour,ppOriginal,ppFuncAddr);
+    SK_CreateDLLHook (pwszModule,pszProcName,pDetour,ppOriginal,ppFuncAddr);
 }
 
 
@@ -80,11 +80,11 @@ UNX_EnableHook (LPVOID pTarget)
   static HMODULE hParent =
     GetModuleHandle (config.system.injector.c_str ());
 
-  typedef MH_STATUS (WINAPI *BMF_EnableHook_t)(LPVOID pTarget);
-  static BMF_EnableHook_t BMF_EnableHook =
-    (BMF_EnableHook_t)GetProcAddress (hParent, "BMF_EnableHook");
+  typedef MH_STATUS (WINAPI *SK_EnableHook_pfn)(LPVOID pTarget);
+  static SK_EnableHook_pfn SK_EnableHook =
+    (SK_EnableHook_pfn)GetProcAddress (hParent, "SK_EnableHook");
 
-  return BMF_EnableHook (pTarget);
+  return SK_EnableHook (pTarget);
 }
 
 MH_STATUS
@@ -94,11 +94,11 @@ UNX_DisableHook (LPVOID pTarget)
   static HMODULE hParent =
     GetModuleHandle (config.system.injector.c_str ());
 
-  typedef MH_STATUS (WINAPI *BMF_DisableHook_t)(LPVOID pTarget);
-  static BMF_DisableHook_t BMF_DisableHook =
-    (BMF_DisableHook_t)GetProcAddress (hParent, "BMF_DisableHook");
+  typedef MH_STATUS (WINAPI *SK_DisableHook_pfn)(LPVOID pTarget);
+  static SK_DisableHook_pfn SK_DisableHook =
+    (SK_DisableHook_pfn)GetProcAddress (hParent, "SK_DisableHook");
 
-  return BMF_DisableHook (pTarget);
+  return SK_DisableHook (pTarget);
 }
 
 MH_STATUS
@@ -108,11 +108,11 @@ UNX_RemoveHook (LPVOID pTarget)
   static HMODULE hParent =
     GetModuleHandle (config.system.injector.c_str ());
 
-  typedef MH_STATUS (WINAPI *BMF_RemoveHook_t)(LPVOID pTarget);
-  static BMF_RemoveHook_t BMF_RemoveHook =
-    (BMF_RemoveHook_t)GetProcAddress (hParent, "BMF_RemoveHook");
+  typedef MH_STATUS (WINAPI *SK_RemoveHook_pfn)(LPVOID pTarget);
+  static SK_RemoveHook_pfn SK_RemoveHook =
+    (SK_RemoveHook_pfn)GetProcAddress (hParent, "SK_RemoveHook");
 
-  return BMF_RemoveHook (pTarget);
+  return SK_RemoveHook (pTarget);
 }
 
 MH_STATUS
