@@ -1589,7 +1589,7 @@ UNX_ReleaseESCKey (void)
   keys [0].ki.dwExtraInfo = 0;
 
   SendInput (1, &keys [0], sizeof INPUT);
-  Sleep     (0);
+  Sleep     (66);
 
   keys [1].type           = INPUT_KEYBOARD;
   keys [1].ki.wVk         = 0;
@@ -1599,17 +1599,7 @@ UNX_ReleaseESCKey (void)
   keys [1].ki.dwExtraInfo = 0;
 
   SendInput (1, &keys [1], sizeof INPUT);
-  Sleep     (0);
-
-  keys [1].type           = INPUT_KEYBOARD;
-  keys [1].ki.wVk         = 0;
-  keys [1].ki.wScan       = 0x01;
-  keys [1].ki.dwFlags     = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
-  keys [1].ki.time        = 0;
-  keys [1].ki.dwExtraInfo = 0;
-
-  SendInput (1, &keys [1], sizeof INPUT);
-  Sleep     (0);
+  Sleep     (66);
 }
 
 unx::InputManager::Hooker* unx::InputManager::Hooker::pInputHook = nullptr;

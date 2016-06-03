@@ -145,9 +145,11 @@ namespace unx
     bool    active           = true;
     bool    activating       = false;
 
-    DWORD   proc_id = 0;
-    HWND    hwnd    = nullptr;
+    DWORD   proc_id       = 0;
+    DWORD   render_thread = 0;
+    HWND    hwnd          = nullptr;
 
+    bool    fullscreen    = false;
     RECT    window_rect;
     RECT    cursor_clip;
     POINT   cursor_pos; // The cursor position when the game isn't screwing

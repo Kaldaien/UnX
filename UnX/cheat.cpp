@@ -32,6 +32,45 @@ enum unx_gametype_t {
   GAME_FFX2    = 0x02
 } game_type = GAME_INVALID;
 
+enum Offsets_FFX {
+  OFFSET_PARTY_BASE = 0x0D32078,
+  OFFSET_IN_BATTLE  = 0x1F10EA0,
+  OFFSET_GAINED_AP  = 0x1F10EC4,
+
+  OFFSET_PARTY_IS_MEMBER = 0x10
+};
+
+enum Sizes_FFX {
+  SIZE_PARTY = 0x94
+};
+
+struct unx_debug_ffx2_s {
+  uint8_t invincible_allies;  // 0x9F78B8
+  uint8_t invincible_enemies; // 0x9F78B9
+  uint8_t unknown [4];        // 0x9F78BA
+  uint8_t control_enemies;    // 0x9F78BE
+  uint8_t control_monsters;   // 0x9F78BF
+  uint8_t unknown1 [5];       // 0x9F78C0
+  uint8_t mp_zero;            // 0x9F78C5
+  uint8_t unknown2 [5];       // 0x9F78C6
+  uint8_t always_critical;    // 0x9F78CC
+  uint8_t critical;           // 0x9F78CD
+  uint8_t probability_100;    // 0x9F78CE
+  uint8_t unknown3 [2];       // 0x9F78CF
+  uint8_t damage_random;      // 0x9F78D1
+  uint8_t damage_1;           // 0x9F78D2
+  uint8_t damage_9999;        // 0x9F78D3
+  uint8_t damage_99999;       // 0x9F78D4
+  uint8_t rare_drop_100;      // 0x9F78D5
+  uint8_t exp_100x;           // 0x9F78D6
+  uint8_t gil_100x;           // 0x9F78D7
+  uint8_t unknown4;           // 0x9F78D8
+  uint8_t always_oversoul;    // 0x9F78D9
+  uint8_t unknown5 [10];      // 0x9F78DA
+  uint8_t first_attack;       // 0x9F78E4 (0xFF = OFF)
+} *ffx2_debug_flags = nullptr;
+
+
 extern wchar_t* UNX_GetExecutableName (void);
 extern LPVOID __UNX_base_img_addr;
 
@@ -48,7 +87,9 @@ unx::CheatManager::Init (void)
 
   else if (! lstrcmpiW (pwszShortName, L"ffx-2.exe")) {
     game_type = GAME_FFX2;
-    //SetTimer (unx::window.hwnd, CHEAT_TIMER_FFX2, 33, nullptr);
+    ffx2_debug_flags = (unx_debug_ffx2_s *)((uint8_t *)__UNX_base_img_addr + 0x9F78B8);
+    //ffx2_debug_flags->always_critical = 1;
+    SetTimer (unx::window.hwnd, CHEAT_TIMER_FFX2, 33, nullptr);
   }
 }
 
@@ -56,18 +97,6 @@ void
 unx::CheatManager::Shutdown (void)
 {
 }
-
-enum Offsets_FFX {
-  OFFSET_PARTY_BASE = 0x0D32078,
-  OFFSET_IN_BATTLE  = 0x1F10EA0,
-  OFFSET_GAINED_AP  = 0x1F10EC4,
-
-  OFFSET_PARTY_IS_MEMBER = 0x10
-};
-
-enum Sizes_FFX {
-  SIZE_PARTY = 0x94
-};
 
 #include "log.h"
 
