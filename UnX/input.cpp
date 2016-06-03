@@ -83,10 +83,12 @@ struct unx_gamepad_s {
 
     static int indexToEnum (int idx) {
       // For Axes
-      if (idx < 0) {
+      if (idx <= 0) {
         idx = (16 - idx);
       }
 
+      // Possibility for sign-related problems exists if
+      //   0 is passed, but button 0 is not valid anyway.
       return 1 << (idx - 1);
     }
 
@@ -197,7 +199,7 @@ IDirectInputDevice8_SetCooperativeLevel_pfn
 
 struct di8_keyboard_s {
   LPDIRECTINPUTDEVICE pDev = nullptr;
-  uint8_t             state [256]; // Handle overrun just in case
+  uint8_t             state [256];
 } _dik;
 
 struct di8_mouse_s {
@@ -224,7 +226,7 @@ IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE        This,
       DIJOYSTATE2* out = (DIJOYSTATE2 *)lpvData;
 
       // Fix Wonky Input Behavior When Window is Not In Foreground
-      if (GetForegroundWindow () != SK_GetGameWindow ()) {
+      if (! unx::window.active/*GetForegroundWindow () != SK_GetGameWindow ()*/) {
         memset (out, 0, sizeof DIJOYSTATE2);
 
         out->rgdwPOV [0] = -1;
@@ -238,7 +240,7 @@ IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE        This,
 
         for (int i = 0; i < 12; i++) {
           // Negative values are for axes, we cannot remap those yet
-          if (gamepad.remap.map [ i ] > 0) {
+          if (gamepad.remap.map [ i ] >= 0) {
             out->rgbButtons [ i ] = 
               in.rgbButtons [ gamepad.remap.map [ i ] ];
           }
@@ -247,6 +249,9 @@ IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE        This,
     }
   }
 
+  //
+  // Keyboard
+  //
   if (This == _dik.pDev) {
     if (unx::window.active) {
       memcpy (_dik.state, lpvData, cbData);
@@ -257,38 +262,28 @@ IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE        This,
       ((uint8_t *)lpvData) [DIK_RALT]   = 0x0;
       ((uint8_t *)lpvData) [DIK_TAB]    = 0x0;
       ((uint8_t *)lpvData) [DIK_ESCAPE] = 0x0;
+      ((uint8_t *)lpvData) [DIK_UP]     = 0x0;
+      ((uint8_t *)lpvData) [DIK_DOWN]   = 0x0;
+      ((uint8_t *)lpvData) [DIK_LEFT]   = 0x0;
+      ((uint8_t *)lpvData) [DIK_RIGHT]  = 0x0;
+      ((uint8_t *)lpvData) [DIK_RETURN] = 0x0;
+      ((uint8_t *)lpvData) [DIK_LMENU]  = 0x0;
+      ((uint8_t *)lpvData) [DIK_RMENU]  = 0x0;
     }
   }
-#if 0
-    if (unx::window.active && This == _dim.pDev) {
-//
-// This is only for mouselook, etc. That stuff works fine without aspect ratio correction.
-//
-//#define FIX_DINPUT8_MOUSE
-#ifdef FIX_DINPUT8_MOUSE
-      if (cbData == sizeof (DIMOUSESTATE) || cbData == sizeof (DIMOUSESTATE2)) {
-        POINT mouse_pos { ((DIMOUSESTATE *)lpvData)->lX,
-                          ((DIMOUSESTATE *)lpvData)->lY };
 
-        unx::InputManager::CalcCursorPos (&mouse_pos);
-
-        ((DIMOUSESTATE *)lpvData)->lX = mouse_pos.x;
-        ((DIMOUSESTATE *)lpvData)->lY = mouse_pos.y;
-      }
-#endif
-dev
+  //
+  // Mouse
+  //
+  if (This == _dim.pDev) {
+    if (unx::window.active) {
       memcpy (&_dim.state, lpvData, cbData);
-    }
-
-    else if (unx::window.active && This == _dik.pDev) {
-      memcpy (&_dik.state, lpvData, cbData);
+    } else {
+      memcpy (lpvData, &_dim.state, cbData);
     }
   }
 
   return hr;
-#else
-  return hr;
-#endif
 }
 
 HRESULT
@@ -609,6 +604,18 @@ SK_UNX_PluginKeyPress ( BOOL Control,
                         BOOL Alt,
                         BYTE vkCode )
 {
+  if (Control && Shift && vkCode == 'F') {
+    extern void UNX_ToggleFreeLook (void);
+    UNX_ToggleFreeLook ();
+  }
+  if (Control && Shift && vkCode == 'S') {
+    extern void UNX_ToggleSensor (void);
+    UNX_ToggleSensor ();
+  }
+  if (Control && Shift && vkCode == 'A') {
+    config.cheat.ffx.entire_party_earns_ap = (! config.cheat.ffx.entire_party_earns_ap);
+  }
+
   if (Control && Shift && vkCode == 'V') {
     eTB_CommandResult result = 
       SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval");
@@ -1459,7 +1466,14 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
                               pressed_scancodes.push (scancode); }
 
     if (four_finger) {
-      SendMessage (SK_GetGameWindow (), WM_CLOSE, 0, 0);
+      extern bool UNX_KillMeNow (void);
+
+      // If in battle, trigger a Game Over screen, otherwise restart the
+      //   entire game.
+      if (! UNX_KillMeNow ()) {
+        SendMessage (SK_GetGameWindow (), WM_CLOSE, 0, 0);
+      }
+
       Sleep (100);
       continue;
     }

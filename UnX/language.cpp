@@ -155,6 +155,12 @@ UNX_PatchLanguageFFX (void)
                                "/MetaMenu/GameData/PS3Data/Video/US/timestamp_%s.txt" );
   }
 
+  extern LPVOID __UNX_base_img_addr;
+  DWORD dwProtect;
+  VirtualProtect ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x8e9004), 4, PAGE_READWRITE, &dwProtect);
+  *(uint32_t *)((intptr_t)__UNX_base_img_addr + 0x8e9004) = 0;
+  VirtualProtect ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x8e9004), 4, dwProtect, &dwProtect);
+
   return true;
 }
 
@@ -332,8 +338,9 @@ UNX_PatchLanguage (void)
 {
   wchar_t* pwszShortName = UNX_GetExecutableName ();
 
-  if (! lstrcmpiW (pwszShortName, L"ffx.exe"))
+  if (! lstrcmpiW (pwszShortName, L"ffx.exe")) {
     return UNX_PatchLanguageFFX ();
+  }
 
   else if (! lstrcmpiW (pwszShortName, L"ffx-2.exe"))
     return UNX_PatchLanguageFFX2 ();

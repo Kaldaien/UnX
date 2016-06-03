@@ -45,6 +45,8 @@ struct unx_config_s
   struct {
     struct {
       bool  entire_party_earns_ap = false;
+      bool  playable_seymour      = false;
+      bool  permanent_sensor      = false;
     } ffx;
   } cheat;
 

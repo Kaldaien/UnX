@@ -66,8 +66,11 @@ UNX_SE_FixFramerateLimiter (DWORD dwMilliseconds)
     //return;
   }
 
-  if (dwMilliseconds == 5)
-    return;
+  if (dwMilliseconds == 5) {
+    YieldProcessor ();
+    //return;
+    dwMilliseconds = 0;
+  }
 
   return SK_Sleep (dwMilliseconds);
 }
@@ -102,7 +105,7 @@ unx::TimingFix::Init (void)
   }
 
   if (config.stutter.reduce) {
-    SK_GetCommandProcessor ()->ProcessCommandFormatted ("MaxDeltaTime 0");
+    //SK_GetCommandProcessor ()->ProcessCommandFormatted ("MaxDeltaTime 0");
 
     UNX_CreateDLLHook ( config.system.injector.c_str (),
                         "Sleep_Detour",

@@ -38,7 +38,7 @@ static
   unx::INI::File*
              booster_ini     = nullptr;
 
-std::wstring UNX_VER_STR = L"0.5.0";
+std::wstring UNX_VER_STR = L"0.5.1";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)     (bool);
@@ -80,6 +80,8 @@ struct {
 struct {
   struct {
     unx::ParameterBool*  entire_party_earns_ap;
+    unx::ParameterBool*  playable_seymour;
+    unx::ParameterBool*  permanent_sensor;
   } ffx;
 } booster;
 
@@ -504,6 +506,26 @@ UNX_LoadConfig (std::wstring name) {
       L"Boost.FFX",
         L"EntirePartyEarnsAP" );
 
+  booster.ffx.permanent_sensor =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Grant the Sensor ability no matter what weapon is equipped")
+    );
+  booster.ffx.permanent_sensor->register_to_ini (
+    booster_ini,
+      L"Boost.FFX",
+        L"GrantPermanentSensor" );
+
+  booster.ffx.playable_seymour =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Make Seymour a playable character")
+    );
+  booster.ffx.playable_seymour->register_to_ini (
+    booster_ini,
+      L"Fun.FFX",
+        L"PlayableSeymour" );
+
   sys.version =
     static_cast <unx::ParameterStringW *>
       (g_ParameterFactory.create_parameter <std::wstring> (
@@ -636,7 +658,8 @@ UNX_LoadConfig (std::wstring name) {
 
 
   booster.ffx.entire_party_earns_ap->load (config.cheat.ffx.entire_party_earns_ap);
-
+  booster.ffx.permanent_sensor->load      (config.cheat.ffx.permanent_sensor);
+  booster.ffx.playable_seymour->load      (config.cheat.ffx.playable_seymour);
 
   sys.version->load  (config.system.version);
   sys.injector->load (config.system.injector);
@@ -707,6 +730,8 @@ UNX_SaveConfig (std::wstring name, bool close_config) {
 
 
   booster.ffx.entire_party_earns_ap->store (config.cheat.ffx.entire_party_earns_ap);
+  booster.ffx.permanent_sensor->store      (config.cheat.ffx.permanent_sensor);
+  booster.ffx.playable_seymour->store      (config.cheat.ffx.playable_seymour);
 
 
   sys.version->store      (UNX_VER_STR);

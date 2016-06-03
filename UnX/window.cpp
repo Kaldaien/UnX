@@ -63,18 +63,36 @@ enum unx_fullscreen_op_t {
 #include <atlbase.h>
 
 void
-UNX_SetFullscreenState (unx_fullscreen_op_t op)
+UNX_ClearD3D11DevCtx (IDXGISwapChain* pSwapChain)
 {
-  static BOOL last_fullscreen = FALSE;
-
-  //pGameSwapChain->GetFullscreenState (&last_fullscreen, nullptr);
   CComPtr <ID3D11Device> pDev;
 
-  if (SUCCEEDED (pGameSwapChain->GetDevice (IID_PPV_ARGS (&pDev)))) {
+  if (SUCCEEDED (pSwapChain->GetDevice (IID_PPV_ARGS (&pDev)))) {
     CComPtr <ID3D11DeviceContext> pDevCtx;
 
     pDev->GetImmediateContext (&pDevCtx);
+    pDevCtx->Flush      ();
     pDevCtx->ClearState ();
+  }
+}
+
+void UNX_SetFullscreenState (unx_fullscreen_op_t op);
+
+DWORD
+WINAPI
+FullScreenThread (LPVOID user)
+{
+  unx_fullscreen_op_t op =
+    *(unx_fullscreen_op_t *)user;
+
+  static BOOL last_fullscreen = FALSE;
+
+  CComPtr <IDXGIOutput> pOut = nullptr;
+
+  UNX_ClearD3D11DevCtx (pGameSwapChain);
+
+  BOOL fs;
+  pGameSwapChain->GetFullscreenState (&fs, nullptr);//&pOut);
 
 #if 0
     CComPtr <IDXGIOutput> pOutput;
@@ -82,29 +100,86 @@ UNX_SetFullscreenState (unx_fullscreen_op_t op)
       pOutput->ReleaseOwnership ();
 #endif
 
-    if (op == Fullscreen) {
-      /*
-      DXGI_MODE_DESC mode = { 0 };
-      mode.Width       = 3840;
-      mode.Height      = 2160;
-      mode.Format      = DXGI_FORMAT_R8G8B8A8_UNORM;
-        mode.RefreshRate = { 0 };
-      pGameSwapChain->ResizeTarget       (&mode);
-      pGameSwapChain->SetFullscreenState (TRUE,  nullptr);
-      pGameSwapChain->ResizeBuffers      (0, 0, 0, DXGI_FORMAT_UNKNOWN, 0x02);
-      */
-      pGameSwapChain->SetFullscreenState (TRUE, nullptr);
-    } else {
-      if (op == Restore) {
-        UNX_SetFullscreenState (last_fullscreen ? Fullscreen : Window);
-      }
+  if (op == Fullscreen) {
+    /*
+    DXGI_MODE_DESC mode = { 0 };
+    mode.Width       = 3840;
+    mode.Height      = 2160;
+    mode.Format      = DXGI_FORMAT_R8G8B8A8_UNORM;
+      mode.RefreshRate = { 0 };
+    pGameSwapChain->ResizeTarget       (&mode);
+    pGameSwapChain->SetFullscreenState (TRUE,  nullptr);
+    pGameSwapChain->ResizeBuffers      (0, 0, 0, DXGI_FORMAT_UNKNOWN, 0x02);
+    */
 
-      if (op == Window) {
-        pGameSwapChain->GetFullscreenState (&last_fullscreen, nullptr);
-        pGameSwapChain->SetFullscreenState (FALSE, nullptr);
+    if (fs != TRUE) {
+      dll_log.Log (L"[Fullscreen] Transition: Window -> Full");
+
+      last_fullscreen = fs;
+
+      UNX_ClearD3D11DevCtx (pGameSwapChain);
+
+      INPUT keys [2];
+
+      keys [0].type           = INPUT_KEYBOARD;
+      keys [0].ki.wVk         = 0;
+      keys [0].ki.dwFlags     = KEYEVENTF_SCANCODE;
+      keys [0].ki.time        = 0;
+      keys [0].ki.dwExtraInfo = 0;
+
+      keys [1].type           = INPUT_KEYBOARD;
+      keys [1].ki.wVk         = 0;
+      keys [1].ki.dwFlags     = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+      keys [1].ki.time        = 0;
+      keys [1].ki.dwExtraInfo = 0;
+
+      // Alt
+      keys [0].ki.wScan = 0x38;
+      SendInput (1, &keys [0], sizeof INPUT);
+
+      // Enter
+      keys [0].ki.wScan = 0x1c;
+      SendInput (1, &keys [0], sizeof INPUT);
+
+      Sleep (0);
+
+      // Enter
+      keys [1].ki.wScan = 0x1c;
+      SendInput (1, &keys [1], sizeof INPUT);
+
+      // Alt
+      keys [1].ki.wScan = 0x38;
+      SendInput (1, &keys [1], sizeof INPUT);
+    }
+  } else {
+    if (op == Restore) {
+      dll_log.Log (L"[Fullscreen] Operation: *Restore");
+      UNX_SetFullscreenState (last_fullscreen ? Fullscreen : Window);
+      last_fullscreen = fs;
+    }
+
+    if (op == Window) {
+      if (fs == TRUE) {
+        dll_log.Log (L"[Fullscreen] Transition: Full -> Window");
+
+        last_fullscreen = fs;
+
+        UNX_ClearD3D11DevCtx (pGameSwapChain);
+
+        pGameSwapChain->SetFullscreenState (FALSE, pOut);
+        //pGameSwapChain->ResizeBuffers      (0, 0, 0, DXGI_FORMAT_UNKNOWN, 0x02);
       }
     }
   }
+
+  return 0;
+}
+
+void
+UNX_SetFullscreenState (unx_fullscreen_op_t op)
+{
+  FullScreenThread (&op);
+  //CreateThread (nullptr, 0, FullScreenThread, &op, 0, nullptr);
 }
 
 
@@ -225,7 +300,7 @@ DetourWindowProc ( _In_  HWND   hWnd,
 
     //unx::window.active = (! deactivate);
 
-    dll_log.Log ( L"[ Window ] Activation: %s",
+    dll_log.Log ( L"[Window Mgr] Activation: %s",
                     unx::window.active ? L"ACTIVE" :
                                          L"INACTIVE" );
 

@@ -71,6 +71,13 @@ BlacklistLibraryW (LPCWSTR lpFileName)
   }
 
 #if 0
+  if (StrStrIW (lpFileName, L"igdusc32")) {
+    dll_log.Log (L"[Black List] Intel D3D11 Driver Bypassed");
+    return TRUE;
+  }
+#endif
+
+#if 0
   if (StrStrIW (lpFileName, L"ig75icd32")) {
     dll_log.Log (L"[Black List] Preventing Intel Integrated OpenGL driver from activating...");
     return TRUE;
