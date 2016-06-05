@@ -604,6 +604,11 @@ SK_UNX_PluginKeyPress ( BOOL Control,
                         BOOL Alt,
                         BYTE vkCode )
 {
+  if (Control && Shift && vkCode == 'Q') {
+    extern void UNX_Quickie (void);
+    UNX_Quickie ();
+  }
+
   if (Control && Shift && vkCode == 'F') {
     extern void UNX_ToggleFreeLook (void);
     UNX_ToggleFreeLook ();
@@ -1474,9 +1479,16 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
         SendMessage (SK_GetGameWindow (), WM_CLOSE, 0, 0);
       }
 
-      Sleep (100);
+      Sleep (1000);
       continue;
     }
+
+    // Filter out what appears to be the beginning of a "four finger salute"
+    //   so that menus and various other things are not activated.
+    if ( xi_state.Gamepad.bRightTrigger && xi_state.Gamepad.bLeftTrigger &&
+         xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_LEFT_SHOULDER)      &&
+         xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_RIGHT_SHOULDER) )
+      continue;
 
     if (esc.state) {
 /*

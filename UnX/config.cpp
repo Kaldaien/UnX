@@ -38,7 +38,7 @@ static
   unx::INI::File*
              booster_ini     = nullptr;
 
-std::wstring UNX_VER_STR = L"0.5.1";
+std::wstring UNX_VER_STR = L"0.5.3";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)     (bool);

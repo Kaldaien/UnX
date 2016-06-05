@@ -114,7 +114,7 @@ UNX_ToggleFullscreenThread (LPVOID user)
       mode.RefreshRate.Numerator   = 0;
 
       pGameSwapChain->ResizeTarget  (&mode);
-      pGameSwapChain->ResizeBuffers (0, 0, 0, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+      //pGameSwapChain->ResizeBuffers (0, 0, 0, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
     }
   }
 
@@ -198,6 +198,8 @@ typedef LRESULT (CALLBACK *DetourWindowProc_pfn)( _In_  HWND   hWnd,
 
 DetourWindowProc_pfn DetourWindowProc_Original = nullptr;
 
+bool schedule_load = false;
+bool queue_death   = false;
 
 LRESULT
 CALLBACK
@@ -206,6 +208,47 @@ DetourWindowProc ( _In_  HWND   hWnd,
                    _In_  WPARAM wParam,
                    _In_  LPARAM lParam )
 {
+  extern LPVOID __UNX_base_img_addr;
+
+  if (queue_death) {
+    queue_death = false;
+
+    uint8_t* battle_init = (uint8_t *)((intptr_t)__UNX_base_img_addr + 0xD2A8E2);
+    *battle_init = 2;
+  }
+
+  if (schedule_load) {
+    schedule_load = false;
+    typedef int (__stdcall *LoadSave_pfn)(void);
+    LoadSave_pfn LoadSave = (LoadSave_pfn)((intptr_t)__UNX_base_img_addr + 0x248910);//0x302B60);
+    typedef int (__cdecl *LoadSave2_pfn)(int);
+    LoadSave2_pfn LoadSave2 = (LoadSave2_pfn)((intptr_t)__UNX_base_img_addr + 0x248890);//0x302B60);
+    typedef int (__stdcall *LoadSave3_pfn)(void);
+    LoadSave3_pfn LoadSave3 = (LoadSave3_pfn)((intptr_t)__UNX_base_img_addr + 0x230DE0);
+
+    int xxx = 0;
+    //*(int *)((intptr_t)__UNX_base_img_addr + 0xCE72D0) = 0;
+
+    *(int *)((intptr_t)__UNX_base_img_addr + 0x8CB994) = 1;
+
+    typedef int (__cdecl *LoadSaveXXX_pfn)(int);
+    LoadSaveXXX_pfn LoadSaveXXX = (LoadSaveXXX_pfn)((intptr_t)__UNX_base_img_addr + 0x421870);//0x302B60);
+
+    LoadSaveXXX (3);
+
+
+//sub_821870
+
+//0x421870
+
+//    LoadSave  ();
+//    LoadSave2 (1);
+//    LoadSave2 (2);
+//    LoadSave3 ();
+  }
+
+
+
   static bool shutting_down = false;
   static bool last_active   = unx::window.active;
 
@@ -539,7 +582,18 @@ SK_BeginBufferSwap_Detour (void)
   }
 #endif
 
-  return SK_BeginBufferSwap_Original ();
+  HRESULT hr = SK_BeginBufferSwap_Original ();
+
+  extern LPVOID __UNX_base_img_addr;
+
+  if (queue_death) {
+    queue_death = false;
+
+    uint8_t* battle_init = (uint8_t *)((intptr_t)__UNX_base_img_addr + 0xD2A8E2);
+    *battle_init = 2;
+  }
+
+  return hr;
 }
 
 void

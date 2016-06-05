@@ -89,10 +89,11 @@ struct unx_ffx2_memory_s {
 struct unx_ffx_memory_s {
   struct {
     enum offset_t {
-      PartyBase = 0x0D32060,
-      InBattle  = 0x1F10EA0,
-      GainedAp  = 0x1F10EC4,
-      Debug     = 0x0D2A8F8
+      PartyBase  = 0x0D32060,
+      InBattle   = 0x1F10EA0,
+      GainedAp   = 0x1F10EC4,
+      Debug      = 0x0D2A8F8,
+      BattleTrio = 0x0F3F7A4
     };
   } offsets;
 
@@ -236,186 +237,16 @@ struct unx_ffx_memory_s {
     uint8_t  participation;
   } *battle = nullptr;
 
+  struct battle_trio_s {
+    uint32_t hp0;
+    uint32_t hp1;
+    uint8_t  unknown [136];
+  } *trio = nullptr;
+
   struct ap_s {
     uint8_t  earn;
   } *ap = nullptr;
 } ffx;
-
-extern wchar_t* UNX_GetExecutableName (void);
-extern LPVOID __UNX_base_img_addr;
-
-void
-unx::CheatManager::Init (void)
-{
-  wchar_t* pwszShortName =
-    UNX_GetExecutableName ();
-
-  //
-  // FFX
-  //
-  if (! lstrcmpiW (pwszShortName, L"ffx.exe")) {
-    game_type = GAME_FFX;
-
-    ffx.debug_flags =
-      (unx_ffx_memory_s::debug_s *)
-        ((intptr_t)__UNX_base_img_addr + ffx.offsets.Debug);
-
-    ffx.party =
-      (unx_ffx_memory_s::party_s *)
-        ((intptr_t)__UNX_base_img_addr + ffx.offsets.PartyBase);
-
-    ffx.battle =
-      (unx_ffx_memory_s::battle_s *)
-        ((intptr_t)__UNX_base_img_addr + ffx.offsets.InBattle);
-
-    ffx.ap =
-      (unx_ffx_memory_s::ap_s *)
-        ((intptr_t)__UNX_base_img_addr + ffx.offsets.GainedAp);
-
-    SetTimer (unx::window.hwnd, CHEAT_TIMER_FFX, 33, nullptr);
-  }
-
-  //
-  // FFX-2
-  //
-  else if (! lstrcmpiW (pwszShortName, L"ffx-2.exe")) {
-    game_type = GAME_FFX2;
-
-    ffx2.debug_flags =
-      (unx_ffx2_memory_s::debug_s *)
-        ((intptr_t)__UNX_base_img_addr + ffx2.offsets.Debug);
-
-    SetTimer (unx::window.hwnd, CHEAT_TIMER_FFX2, 33, nullptr);
-  }
-}
-
-void
-unx::CheatManager::Shutdown (void)
-{
-}
-
-#include "log.h"
-
-void
-UNX_ToggleFreeLook (void)
-{
-  if (game_type != GAME_FFX)
-    return;
-
-  ffx.debug_flags->control.camera =
-    (! ffx.debug_flags->control.camera);
-}
-
-void
-UNX_ToggleSensor (void)
-{
-  config.cheat.ffx.permanent_sensor =
-    (! config.cheat.ffx.permanent_sensor);
-}
-
-bool
-UNX_IsInBattle (void)
-{
-  if (game_type != GAME_FFX)
-    return false;
-
-  for (int i = 0; i < 7; i++) {
-    uint8_t state = ffx.party [i].in_party;
-
-    if (state != 0x00 && state != 0x10) {
-      if (ffx.battle [i].participation == 1)
-        return true;
-    }
-  }
-
-  return false;
-}
-
-bool
-UNX_KillMeNow (void)
-{
-  if (game_type != GAME_FFX)
-    return false;
-
-  return false;
-
-  if (! UNX_IsInBattle ())
-    return false;
-
-  else {
-#if 0
-    std::queue <DWORD> suspended_tids =
-      UNX_SuspendAllOtherThreads ();
-
-    for (int i = 0; i < 8; i++) {
-      ffx.party [i].vitals.current.HP = 0UL;
-    }
-
-    UNX_ResumeThreads (suspended_tids);
-#endif
-  }
-
-  return true;
-}
-
-void
-unx::CheatTimer_FFX (void)
-{
-  if (game_type != GAME_FFX)
-    return;
-
-  DWORD dwProtect;
-
-  ffx.debug_flags->permanent_sensor =
-    config.cheat.ffx.permanent_sensor;
-
-
-  if (config.cheat.ffx.playable_seymour) {
-    ffx.party [ffx.characters.Seymour].in_party = 0x11;
-  } else {
-    ffx.party [ffx.characters.Seymour].in_party = 0x10;
-  }
-
-  if (config.cheat.ffx.entire_party_earns_ap && UNX_IsInBattle ()) {
-    VirtualProtect (&ffx.battle->participation, 8, PAGE_READWRITE, &dwProtect);
-
-      for (int i = 0; i < 7; i++) {
-        uint8_t state = ffx.party [i].in_party;
-
-        if (state != 0x00 && state != 0x10) {
-          if (ffx.battle [i].participation != 1)
-            ffx.battle [i].participation = 2;
-        } else {
-          ffx.battle [i].participation = 0;
-        }
-      }
-
-    VirtualProtect (&ffx.battle->participation, 8, dwProtect,      &dwProtect);
-    VirtualProtect (&ffx.ap->earn,              8, PAGE_READWRITE, &dwProtect);
-
-      for (int i = 0; i < 7; i++) {
-        uint8_t state = ffx.party [i].in_party;
-
-        if (state != 0x00 && state != 0x10)
-          ffx.ap [i].earn = 1;
-        else
-          ffx.ap [i].earn = 0;
-      }
-
-    VirtualProtect (&ffx.ap->earn, 8, dwProtect, &dwProtect);
-  }
-}
-
-void
-unx::CheatTimer_FFX2 (void)
-{
-  if (game_type != GAME_FFX2)
-    return;
-}
-
-
-
-
 
 
 #include <windows.h>
@@ -485,4 +316,211 @@ UNX_ResumeThreads (std::queue <DWORD> threads)
 
     threads.pop ();
   }
+}
+
+
+extern wchar_t* UNX_GetExecutableName (void);
+extern LPVOID __UNX_base_img_addr;
+
+void
+unx::CheatManager::Init (void)
+{
+  wchar_t* pwszShortName =
+    UNX_GetExecutableName ();
+
+  //
+  // FFX
+  //
+  if (! lstrcmpiW (pwszShortName, L"ffx.exe")) {
+    game_type = GAME_FFX;
+
+    ffx.debug_flags =
+      (unx_ffx_memory_s::debug_s *)
+        ((intptr_t)__UNX_base_img_addr + ffx.offsets.Debug);
+
+    ffx.party =
+      (unx_ffx_memory_s::party_s *)
+        ((intptr_t)__UNX_base_img_addr + ffx.offsets.PartyBase);
+
+    ffx.battle =
+      (unx_ffx_memory_s::battle_s *)
+        ((intptr_t)__UNX_base_img_addr + ffx.offsets.InBattle);
+
+    ffx.trio =
+      (unx_ffx_memory_s::battle_trio_s *)
+        ((intptr_t)__UNX_base_img_addr + ffx.offsets.BattleTrio);
+
+    ffx.ap =
+      (unx_ffx_memory_s::ap_s *)
+        ((intptr_t)__UNX_base_img_addr + ffx.offsets.GainedAp);
+
+    SetTimer (unx::window.hwnd, CHEAT_TIMER_FFX, 33, nullptr);
+  }
+
+  //
+  // FFX-2
+  //
+  else if (! lstrcmpiW (pwszShortName, L"ffx-2.exe")) {
+    game_type = GAME_FFX2;
+
+    ffx2.debug_flags =
+      (unx_ffx2_memory_s::debug_s *)
+        ((intptr_t)__UNX_base_img_addr + ffx2.offsets.Debug);
+
+    SetTimer (unx::window.hwnd, CHEAT_TIMER_FFX2, 33, nullptr);
+  }
+}
+
+void
+unx::CheatManager::Shutdown (void)
+{
+}
+
+#include "log.h"
+
+void
+UNX_ToggleFreeLook (void)
+{
+  if (game_type != GAME_FFX)
+    return;
+
+  ffx.debug_flags->control.camera =
+    (! ffx.debug_flags->control.camera);
+}
+
+void
+UNX_ToggleSensor (void)
+{
+  config.cheat.ffx.permanent_sensor =
+    (! config.cheat.ffx.permanent_sensor);
+}
+
+// Quick Load
+void
+UNX_Quickie (void)
+{
+  if (game_type != GAME_FFX)
+    return;
+
+  extern bool schedule_load;
+  schedule_load = true;
+}
+
+bool
+UNX_IsInBattle (void)
+{
+  if (game_type != GAME_FFX)
+    return false;
+
+  for (int i = 0; i < 7; i++) {
+    uint8_t state = ffx.party [i].in_party;
+
+    if (state != 0x00 && state != 0x10) {
+      if (ffx.battle [i].participation == 1)
+        return true;
+    }
+  }
+
+  return false;
+}
+
+bool
+UNX_KillMeNow (void)
+{
+  if (game_type != GAME_FFX)
+    return false;
+
+  if (UNX_IsInBattle ()) {
+    uint8_t* inst = (uint8_t*)((intptr_t)__UNX_base_img_addr + 0x392930);
+
+    const uint8_t die  [] = { 0xEB, 0x1D };
+    const uint8_t live [] = { 0x75, 0x1D };
+
+    DWORD dwProtect;
+
+    std::queue <DWORD> suspended_tids =
+      UNX_SuspendAllOtherThreads ();
+    {
+      VirtualProtect (inst, 2, PAGE_EXECUTE_READWRITE, &dwProtect);
+      memcpy         (inst, die, 2);
+    }
+    UNX_ResumeThreads (suspended_tids);
+
+    Sleep (0);
+
+    suspended_tids =
+      UNX_SuspendAllOtherThreads ();
+    {
+      memcpy         (inst, live, 2);
+      VirtualProtect (inst, 2, dwProtect, &dwProtect);
+    }
+    UNX_ResumeThreads (suspended_tids);
+
+    return true;
+  }
+
+  for (int i = 0; i < 8; i++) {
+    ffx.party [i].vitals.current.HP = 0UL;
+  }
+
+  extern bool queue_death;
+  queue_death = true;
+
+  Sleep (0);
+
+  return true;
+}
+
+void
+unx::CheatTimer_FFX (void)
+{
+  if (game_type != GAME_FFX)
+    return;
+
+  DWORD dwProtect;
+
+  ffx.debug_flags->permanent_sensor =
+    config.cheat.ffx.permanent_sensor;
+
+  if (config.cheat.ffx.playable_seymour) {
+    ffx.party [ffx.characters.Seymour].in_party = 0x11;
+  } else {
+    ffx.party [ffx.characters.Seymour].in_party = 0x10;
+  }
+
+  if (config.cheat.ffx.entire_party_earns_ap && UNX_IsInBattle ()) {
+    VirtualProtect (&ffx.battle->participation, 8, PAGE_READWRITE, &dwProtect);
+
+      for (int i = 0; i < 7; i++) {
+        uint8_t state = ffx.party [i].in_party;
+
+        if (state != 0x00 && state != 0x10) {
+          if (ffx.battle [i].participation != 1)
+            ffx.battle [i].participation = 2;
+        } else {
+          ffx.battle [i].participation = 0;
+        }
+      }
+
+    VirtualProtect (&ffx.battle->participation, 8, dwProtect,      &dwProtect);
+    VirtualProtect (&ffx.ap->earn,              8, PAGE_READWRITE, &dwProtect);
+
+      for (int i = 0; i < 7; i++) {
+        uint8_t state = ffx.party [i].in_party;
+
+        if (state != 0x00 && state != 0x10)
+          ffx.ap [i].earn = 1;
+        else
+          ffx.ap [i].earn = 0;
+      }
+
+    VirtualProtect (&ffx.ap->earn, 8, dwProtect, &dwProtect);
+  }
+}
+
+void
+unx::CheatTimer_FFX2 (void)
+{
+  if (game_type != GAME_FFX2)
+    return;
 }
