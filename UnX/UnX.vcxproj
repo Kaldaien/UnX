@@ -79,6 +79,8 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>C:\Program Files (x86)\Steam\steamapps\common\FINAL FANTASY FFX&amp;FFX-2 HD Remaster\</OutDir>
     <TargetName>unx</TargetName>
+    <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -129,6 +131,7 @@
       <RemoveUnreferencedCodeData>false</RemoveUnreferencedCodeData>
       <BrowseInformation>true</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <EnablePREfast>false</EnablePREfast>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

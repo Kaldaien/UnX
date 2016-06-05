@@ -199,7 +199,7 @@ IDirectInputDevice8_SetCooperativeLevel_pfn
 
 struct di8_keyboard_s {
   LPDIRECTINPUTDEVICE pDev = nullptr;
-  uint8_t             state [256];
+  uint8_t             state [512];
 } _dik;
 
 struct di8_mouse_s {
@@ -518,20 +518,20 @@ typedef DWORD (WINAPI *XInputGetState_pfn)(
 XInputGetState_pfn XInputGetState_Original = nullptr;
 
 bool
-IsControllerPluggedIn (UINT uJoyID)
+IsControllerPluggedIn (INT iJoyID)
 {
-  if (uJoyID == (UINT)-1)
+  if (iJoyID == -1)
     return true;
 
   XINPUT_STATE xstate;
 
   static DWORD last_poll = timeGetTime ();
-  static DWORD dwRet     = XInputGetState_Original (uJoyID, &xstate);
+  static DWORD dwRet     = XInputGetState_Original (iJoyID, &xstate);
 
   // This function is actually a performance hazzard when no controllers
   //   are plugged in, so ... throttle the sucker.
   if (last_poll < timeGetTime () - 500UL)
-    dwRet = XInputGetState_Original (uJoyID, &xstate);
+    dwRet = XInputGetState_Original (iJoyID, &xstate);
 
   if (dwRet == ERROR_DEVICE_NOT_CONNECTED)
     return false;
@@ -552,8 +552,8 @@ XInputGetState_Detour ( _In_  DWORD         dwUserIndex,
 
   DWORD dwRet = XInputGetState_Original (slot, pState);
 
-  if (dwRet == ERROR_NOT_CONNECTED)
-    dwRet = 0;
+  //if (dwRet == ERROR_NOT_CONNECTED)
+    //dwRet = 0;
 
   return dwRet;
 }
@@ -1404,7 +1404,7 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
           if (UNX_PollAxis (gamepad.remap.buttons.RS, joy_ex, caps) > 190)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_RIGHT_THUMB;
 
-          if (joy_ex.dwPOV & JOY_POVFORWARD)
+          if (joy_ex.dwPOV == JOY_POVFORWARD)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_DPAD_UP;
           if (joy_ex.dwPOV & JOY_POVBACKWARD)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_DPAD_DOWN;
@@ -1479,6 +1479,14 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
     }
 
     if (esc.state) {
+/*
+FFX.exe+302C4F - 6A 01                 - push 01 { 00000001 }
+FFX.exe+302C51 - 6A 00                 - push 00 { 0 }
+FFX.exe+302C53 - 6A 00                 - push 00 { 0 }
+FFX.exe+302C55 - 68 78CE8700           - push FFX.exe+74CE78 { ["showSaveLoad"] }
+FFX.exe+302C5A - 6A 00                 - push 00 { 0 }
+FFX.exe+302C5C - E8 3F5F3200           - call FFX.exe+628BA0
+*/
 #if 0
       extern void*
       UNX_Scan (const uint8_t* pattern, size_t len, const uint8_t* mask);

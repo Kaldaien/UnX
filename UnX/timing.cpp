@@ -57,19 +57,36 @@ HMODULE                    NtDll                  = 0;
 NtQueryTimerResolution_pfn NtQueryTimerResolution = nullptr;
 NtSetTimerResolution_pfn   NtSetTimerResolution   = nullptr;
 
+typedef DWORD (WINAPI *SleepEx_pfn)(
+  _In_ DWORD dwMilliseconds,
+  _In_ BOOL  bAlertable
+);
+
+SleepEx_pfn SleepEx_Original = nullptr;
+
+DWORD
+SleepEx_Detour (DWORD dwMilliseconds, BOOL bAlertable)
+{
+  if (dwMilliseconds > 5)
+    dwMilliseconds = 5;
+
+  return SleepEx_Original (dwMilliseconds, bAlertable);
+}
+
+
 void
 WINAPI
 UNX_SE_FixFramerateLimiter (DWORD dwMilliseconds)
 {
   if (dwMilliseconds == 0) {
     YieldProcessor ();
-    //return;
+    return;
   }
 
   if (dwMilliseconds == 5) {
-    YieldProcessor ();
-    //return;
-    dwMilliseconds = 0;
+    //YieldProcessor ();
+    return;
+    ////dwMilliseconds = 0;
   }
 
   return SK_Sleep (dwMilliseconds);
@@ -111,6 +128,11 @@ unx::TimingFix::Init (void)
                         "Sleep_Detour",
                         UNX_SE_FixFramerateLimiter,
              (LPVOID *)&SK_Sleep );
+
+    UNX_CreateDLLHook ( L"kernel32.dll",
+                        "SleepEx",
+                        SleepEx_Detour,
+             (LPVOID *)&SleepEx_Original );
   }
 
   HMODULE hModKernel32 = LoadLibrary (L"kernel32.dll");

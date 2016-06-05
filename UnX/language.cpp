@@ -155,12 +155,6 @@ UNX_PatchLanguageFFX (void)
                                "/MetaMenu/GameData/PS3Data/Video/US/timestamp_%s.txt" );
   }
 
-  extern LPVOID __UNX_base_img_addr;
-  DWORD dwProtect;
-  VirtualProtect ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x8e9004), 4, PAGE_READWRITE, &dwProtect);
-  *(uint32_t *)((intptr_t)__UNX_base_img_addr + 0x8e9004) = 0;
-  VirtualProtect ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x8e9004), 4, dwProtect, &dwProtect);
-
   return true;
 }
 

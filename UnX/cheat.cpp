@@ -32,44 +32,214 @@ enum unx_gametype_t {
   GAME_FFX2    = 0x02
 } game_type = GAME_INVALID;
 
-enum Offsets_FFX {
-  OFFSET_PARTY_BASE = 0x0D32078,
-  OFFSET_IN_BATTLE  = 0x1F10EA0,
-  OFFSET_GAINED_AP  = 0x1F10EC4,
 
-  OFFSET_PARTY_IS_MEMBER = 0x10
-};
+struct unx_ffx2_memory_s {
+  struct {
+    enum offset_t {
+      Debug = 0x9F78B8
+    };
+  } offsets;
 
-enum Sizes_FFX {
-  SIZE_PARTY = 0x94
-};
+  struct debug_s {
+    struct {
+      uint8_t allies;           // 0x9F78B8
+      uint8_t enemies;          // 0x9F78B9
+    } invincible;
 
-struct unx_debug_ffx2_s {
-  uint8_t invincible_allies;  // 0x9F78B8
-  uint8_t invincible_enemies; // 0x9F78B9
-  uint8_t unknown [4];        // 0x9F78BA
-  uint8_t control_enemies;    // 0x9F78BE
-  uint8_t control_monsters;   // 0x9F78BF
-  uint8_t unknown1 [5];       // 0x9F78C0
-  uint8_t mp_zero;            // 0x9F78C5
-  uint8_t unknown2 [5];       // 0x9F78C6
-  uint8_t always_critical;    // 0x9F78CC
-  uint8_t critical;           // 0x9F78CD
-  uint8_t probability_100;    // 0x9F78CE
-  uint8_t unknown3 [2];       // 0x9F78CF
-  uint8_t damage_random;      // 0x9F78D1
-  uint8_t damage_1;           // 0x9F78D2
-  uint8_t damage_9999;        // 0x9F78D3
-  uint8_t damage_99999;       // 0x9F78D4
-  uint8_t rare_drop_100;      // 0x9F78D5
-  uint8_t exp_100x;           // 0x9F78D6
-  uint8_t gil_100x;           // 0x9F78D7
-  uint8_t unknown4;           // 0x9F78D8
-  uint8_t always_oversoul;    // 0x9F78D9
-  uint8_t unknown5 [10];      // 0x9F78DA
-  uint8_t first_attack;       // 0x9F78E4 (0xFF = OFF)
-} *ffx2_debug_flags = nullptr;
+    uint8_t unknown [4];        // 0x9F78BA
 
+    struct {
+      uint8_t enemies;          // 0x9F78BE
+      uint8_t monsters;         // 0x9F78BF
+    } control;
+
+    uint8_t unknown1 [5];       // 0x9F78C0
+
+    uint8_t mp_zero;            // 0x9F78C5
+    uint8_t unknown2 [5];       // 0x9F78C6
+
+    struct {
+      uint8_t always_critical;  // 0x9F78CC
+      uint8_t critical;         // 0x9F78CD
+      uint8_t probability_100;  // 0x9F78CE
+      uint8_t unknown3 [2];     // 0x9F78CF
+      uint8_t damage_random;    // 0x9F78D1
+      uint8_t damage_1;         // 0x9F78D2
+      uint8_t damage_9999;      // 0x9F78D3
+      uint8_t damage_99999;     // 0x9F78D4
+    } damage;
+
+    struct {
+      uint8_t always_drop_rare; // 0x9F78D5
+      uint8_t exp_100x;         // 0x9F78D6
+      uint8_t gil_100x;         // 0x9F78D7
+    } reward;
+
+    uint8_t unknown4;           // 0x9F78D8
+
+    uint8_t always_oversoul;    // 0x9F78D9
+
+    uint8_t unknown5 [10];      // 0x9F78DA
+
+    uint8_t first_attack;       // 0x9F78E4 (0xFF = OFF)
+  } *debug_flags = nullptr;
+} ffx2;
+
+
+struct unx_ffx_memory_s {
+  struct {
+    enum offset_t {
+      PartyBase = 0x0D32060,
+      InBattle  = 0x1F10EA0,
+      GainedAp  = 0x1F10EC4,
+      Debug     = 0x0D2A8F8
+    };
+  } offsets;
+
+  struct {
+    enum character_t {
+      Tidus   = 0,
+      Yuna    = 1,
+      Auron   = 2,
+      Kimahri = 3,
+      Wakka   = 4,
+      Lulu    = 5,
+      Rikku   = 6,
+      Seymour = 7
+    };
+  } characters;
+
+
+  struct debug_s {
+    struct {
+      uint8_t enemies;
+      uint8_t party;
+    } invincible;
+
+    struct {
+      uint8_t enemies;
+      uint8_t unk3;
+      uint8_t camera;
+    } control;
+
+    uint8_t unk4;
+    uint8_t unk5;
+    uint8_t unk6;
+    uint8_t unk7;
+    uint8_t unk8;
+    uint8_t unk9;
+    uint8_t unk10;
+    uint8_t unk11;
+    uint8_t unk12;
+    uint8_t unk13;
+    uint8_t unk14;
+    uint8_t unk15;
+    uint8_t unk16;
+    uint8_t unk17;
+    uint8_t unk18;
+
+    struct {
+      uint8_t always_overdrive;
+      uint8_t always_critical;
+      uint8_t always_deal_1;
+      uint8_t always_deal_10000;
+      uint8_t always_deal_99999;
+    } damage;
+
+    struct {
+      uint8_t always_rare_drop;
+      uint8_t ap_100x;
+      uint8_t gil_100x;
+    } reward;
+
+    uint8_t unk27;
+    uint8_t permanent_sensor;
+    uint8_t unk28;
+    uint8_t unk29;
+  } *debug_flags = nullptr;
+
+  struct party_s {
+    struct {
+      uint32_t HP;
+      uint32_t MP;
+      uint8_t  strength;
+      uint8_t  defense;
+      uint8_t  magic;
+      uint8_t  magic_defense;
+      uint8_t  agility;
+      uint8_t  luck;
+      uint8_t  evasion;
+      uint8_t  accuracy;
+    } base;
+
+    struct {
+      uint32_t total;
+      uint32_t current;
+    } AP;
+
+    struct {
+      struct {
+        uint32_t HP;
+        uint32_t MP;
+      } current;
+
+      struct {
+        uint32_t HP;
+        uint32_t MP;
+      } max;
+    } vitals;
+
+    uint8_t  in_party;
+
+    struct {
+      uint8_t  weapon;
+      uint8_t  armor;
+    } equipment;
+
+    struct {
+      uint8_t  strength;
+      uint8_t  defense;
+      uint8_t  magic;
+      uint8_t  magic_defense;
+      uint8_t  agility;
+      uint8_t  luck;
+      uint8_t  evasion;
+      uint8_t  accuracy;
+    } current;
+
+    uint8_t  unknown2;
+
+    struct {
+      uint8_t  mode;
+      uint8_t  level;
+      uint8_t  max;
+    } overdrive;
+
+    struct {
+      uint8_t  banked;
+      uint8_t  total;
+    } sphere_level;
+
+    uint8_t  unknown3;
+
+    uint32_t skill_flags;
+
+    struct {
+      uint32_t battles;
+      uint32_t kills;
+    } record;
+
+    uint8_t  unknown_blob [76];
+  } *party = nullptr;
+
+  struct battle_s {
+    uint8_t  participation;
+  } *battle = nullptr;
+
+  struct ap_s {
+    uint8_t  earn;
+  } *ap = nullptr;
+} ffx;
 
 extern wchar_t* UNX_GetExecutableName (void);
 extern LPVOID __UNX_base_img_addr;
@@ -80,15 +250,41 @@ unx::CheatManager::Init (void)
   wchar_t* pwszShortName =
     UNX_GetExecutableName ();
 
+  //
+  // FFX
+  //
   if (! lstrcmpiW (pwszShortName, L"ffx.exe")) {
     game_type = GAME_FFX;
+
+    ffx.debug_flags =
+      (unx_ffx_memory_s::debug_s *)
+        ((intptr_t)__UNX_base_img_addr + ffx.offsets.Debug);
+
+    ffx.party =
+      (unx_ffx_memory_s::party_s *)
+        ((intptr_t)__UNX_base_img_addr + ffx.offsets.PartyBase);
+
+    ffx.battle =
+      (unx_ffx_memory_s::battle_s *)
+        ((intptr_t)__UNX_base_img_addr + ffx.offsets.InBattle);
+
+    ffx.ap =
+      (unx_ffx_memory_s::ap_s *)
+        ((intptr_t)__UNX_base_img_addr + ffx.offsets.GainedAp);
+
     SetTimer (unx::window.hwnd, CHEAT_TIMER_FFX, 33, nullptr);
   }
 
+  //
+  // FFX-2
+  //
   else if (! lstrcmpiW (pwszShortName, L"ffx-2.exe")) {
     game_type = GAME_FFX2;
-    ffx2_debug_flags = (unx_debug_ffx2_s *)((uint8_t *)__UNX_base_img_addr + 0x9F78B8);
-    //ffx2_debug_flags->always_critical = 1;
+
+    ffx2.debug_flags =
+      (unx_ffx2_memory_s::debug_s *)
+        ((intptr_t)__UNX_base_img_addr + ffx2.offsets.Debug);
+
     SetTimer (unx::window.hwnd, CHEAT_TIMER_FFX2, 33, nullptr);
   }
 }
@@ -100,96 +296,21 @@ unx::CheatManager::Shutdown (void)
 
 #include "log.h"
 
-struct unx_party_s {
-  uint32_t HP_cur;
-  uint32_t MP_cur;
-
-  uint32_t HP_max;
-  uint32_t MP_max;
-
-  uint8_t  in_party;
-
-  uint8_t  unknown0;
-  uint8_t  unknown1;
-
-  uint8_t  strength;
-  uint8_t  defense;
-  uint8_t  magic;
-  uint8_t  magic_defense;
-  uint8_t  agility;
-  uint8_t  luck;
-  uint8_t  evasion;
-  uint8_t  accuracy;
-
-  uint8_t  unknown2;
-
-  uint8_t  overdrive_mode;
-  uint8_t  overdrive_level;
-  uint8_t  overdrive_max;
-
-  uint8_t  sphere_level_banked;
-  uint8_t  sphere_level_net;
-
-  uint8_t  unknown3;
-
-  uint32_t skill_flags;
-
-  uint8_t  unknown_blob [108];
-};
-
-const intptr_t unx_debug_offset = 0xD2A8F8;
-
-struct unx_debug_s {
-  uint8_t unk0;
-  uint8_t unk1;
-  uint8_t unk2;
-  uint8_t unk3;
-  uint8_t free_camera;
-  uint8_t unk4;
-  uint8_t unk5;
-  uint8_t unk6;
-  uint8_t unk7;
-  uint8_t unk8;
-  uint8_t unk9;
-  uint8_t unk10;
-  uint8_t unk11;
-  uint8_t unk12;
-  uint8_t unk13;
-  uint8_t unk14;
-  uint8_t unk15;
-  uint8_t unk16;
-  uint8_t unk17;
-  uint8_t unk18;
-  uint8_t unk19;
-  uint8_t unk20;
-  uint8_t unk21;
-  uint8_t unk22;
-  uint8_t unk23;
-  uint8_t unk24;
-  uint8_t unk25;
-  uint8_t unk26;
-  uint8_t unk27;
-  uint8_t permanent_sensor;
-  uint8_t unk28;
-  uint8_t unk29;
-};
-
 void
 UNX_ToggleFreeLook (void)
 {
   if (game_type != GAME_FFX)
     return;
 
-  unx_debug_s*
-    debug = (unx_debug_s *)((uint8_t *)__UNX_base_img_addr + unx_debug_offset);
-
-  debug->free_camera = (! debug->free_camera);
+  ffx.debug_flags->control.camera =
+    (! ffx.debug_flags->control.camera);
 }
 
 void
 UNX_ToggleSensor (void)
 {
-  config.cheat.ffx.permanent_sensor = (! config.cheat.ffx.permanent_sensor);
+  config.cheat.ffx.permanent_sensor =
+    (! config.cheat.ffx.permanent_sensor);
 }
 
 bool
@@ -198,16 +319,11 @@ UNX_IsInBattle (void)
   if (game_type != GAME_FFX)
     return false;
 
-  unx_party_s* party =
-    (unx_party_s *)((uint8_t *)__UNX_base_img_addr + OFFSET_PARTY_BASE);
-
-  uint8_t* lpInBattle = (uint8_t *)__UNX_base_img_addr + OFFSET_IN_BATTLE;
-
   for (int i = 0; i < 7; i++) {
-    uint8_t state = party [i].in_party;
+    uint8_t state = ffx.party [i].in_party;
 
     if (state != 0x00 && state != 0x10) {
-      if (lpInBattle [i] == 1)
+      if (ffx.battle [i].participation == 1)
         return true;
     }
   }
@@ -218,18 +334,25 @@ UNX_IsInBattle (void)
 bool
 UNX_KillMeNow (void)
 {
-  return false;
+  if (game_type != GAME_FFX)
+    return false;
 
-  unx_party_s* party =
-    (unx_party_s *)((uint8_t *)__UNX_base_img_addr + OFFSET_PARTY_BASE);
+  return false;
 
   if (! UNX_IsInBattle ())
     return false;
 
   else {
+#if 0
+    std::queue <DWORD> suspended_tids =
+      UNX_SuspendAllOtherThreads ();
+
     for (int i = 0; i < 8; i++) {
-      party [i].HP_cur = 0UL;
+      ffx.party [i].vitals.current.HP = 0UL;
     }
+
+    UNX_ResumeThreads (suspended_tids);
+#endif
   }
 
   return true;
@@ -241,54 +364,45 @@ unx::CheatTimer_FFX (void)
   if (game_type != GAME_FFX)
     return;
 
-  unx_party_s* party =
-    (unx_party_s *)((uint8_t *)__UNX_base_img_addr + OFFSET_PARTY_BASE);
-
-  uint8_t* lpInBattle = (uint8_t *)__UNX_base_img_addr + OFFSET_IN_BATTLE;
-  uint8_t* lpGainedAp = (uint8_t *)__UNX_base_img_addr + OFFSET_GAINED_AP;
-
   DWORD dwProtect;
 
-
-  unx_debug_s*
-    debug = (unx_debug_s *)((uint8_t *)__UNX_base_img_addr + unx_debug_offset);
-
-  debug->permanent_sensor = config.cheat.ffx.permanent_sensor;
+  ffx.debug_flags->permanent_sensor =
+    config.cheat.ffx.permanent_sensor;
 
 
   if (config.cheat.ffx.playable_seymour) {
-    party [7].in_party = 0x11;
+    ffx.party [ffx.characters.Seymour].in_party = 0x11;
   } else {
-    party [7].in_party = 0x10;
+    ffx.party [ffx.characters.Seymour].in_party = 0x10;
   }
 
   if (config.cheat.ffx.entire_party_earns_ap && UNX_IsInBattle ()) {
-    VirtualProtect (lpInBattle, 8, PAGE_READWRITE, &dwProtect);
+    VirtualProtect (&ffx.battle->participation, 8, PAGE_READWRITE, &dwProtect);
 
       for (int i = 0; i < 7; i++) {
-        uint8_t state = party [i].in_party;
+        uint8_t state = ffx.party [i].in_party;
 
         if (state != 0x00 && state != 0x10) {
-          if (lpInBattle [i] != 1)
-            lpInBattle [i] = 2;
+          if (ffx.battle [i].participation != 1)
+            ffx.battle [i].participation = 2;
         } else {
-          lpInBattle [i] = 0;
+          ffx.battle [i].participation = 0;
         }
       }
 
-    VirtualProtect (lpInBattle, 8, dwProtect, &dwProtect);
-    VirtualProtect (lpGainedAp, 8, PAGE_READWRITE, &dwProtect);
+    VirtualProtect (&ffx.battle->participation, 8, dwProtect,      &dwProtect);
+    VirtualProtect (&ffx.ap->earn,              8, PAGE_READWRITE, &dwProtect);
 
       for (int i = 0; i < 7; i++) {
-        uint8_t state = party [i].in_party;
+        uint8_t state = ffx.party [i].in_party;
 
         if (state != 0x00 && state != 0x10)
-          lpGainedAp [i] = 1;
+          ffx.ap [i].earn = 1;
         else
-          lpGainedAp [i] = 0;
+          ffx.ap [i].earn = 0;
       }
 
-    VirtualProtect (lpGainedAp, 8, dwProtect, &dwProtect);
+    VirtualProtect (&ffx.ap->earn, 8, dwProtect, &dwProtect);
   }
 }
 
@@ -297,4 +411,78 @@ unx::CheatTimer_FFX2 (void)
 {
   if (game_type != GAME_FFX2)
     return;
+}
+
+
+
+
+
+
+#include <windows.h>
+#include <tlhelp32.h>
+#include <queue>
+
+std::queue <DWORD>
+UNX_SuspendAllOtherThreads (void)
+{
+  std::queue <DWORD> threads;
+
+  HANDLE hSnap =
+    CreateToolhelp32Snapshot (TH32CS_SNAPTHREAD, 0);
+
+  if (hSnap != INVALID_HANDLE_VALUE)
+  {
+    THREADENTRY32 tent;
+    tent.dwSize = sizeof THREADENTRY32;
+
+    if (Thread32First (hSnap, &tent))
+    {
+      do
+      {
+        if ( tent.dwSize >= FIELD_OFFSET (THREADENTRY32, th32OwnerProcessID) +
+                                  sizeof (tent.th32OwnerProcessID) )
+        {
+          if ( tent.th32ThreadID       != GetCurrentThreadId  () &&
+               tent.th32OwnerProcessID == GetCurrentProcessId () )
+          {
+            HANDLE hThread =
+              OpenThread (THREAD_ALL_ACCESS, FALSE, tent.th32ThreadID);
+
+            if (hThread != NULL)
+            {
+              threads.push (tent.th32ThreadID);
+              SuspendThread (hThread);
+              CloseHandle   (hThread);
+            }
+          }
+        }
+
+        tent.dwSize = sizeof (tent);
+      } while (Thread32Next (hSnap, &tent));
+    }
+
+    CloseHandle (hSnap);
+  }
+
+  return threads;
+}
+
+void
+UNX_ResumeThreads (std::queue <DWORD> threads)
+{
+  while (! threads.empty ())
+  {
+    DWORD tid = threads.front ();
+
+    HANDLE hThread =
+      OpenThread (THREAD_ALL_ACCESS, FALSE, tid);
+
+    if (hThread != NULL)
+    {
+      ResumeThread (hThread);
+      CloseHandle  (hThread);
+    }
+
+    threads.pop ();
+  }
 }
