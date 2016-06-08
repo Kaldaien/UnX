@@ -82,7 +82,7 @@ UNX_GetVolumeControl (void)
 }
 
 void
-UNX_SetGameMute (bool bMute)
+UNX_SetGameMute (BOOL bMute)
 {
   ISimpleAudioVolume* pVolume =
     UNX_GetVolumeControl ();

@@ -35,7 +35,8 @@ struct unx_config_s
 
   struct {
     bool    disable_dpi_scaling = true;
-    bool    enable_fullscreen   = false;
+    bool    enable_fullscreen   = true;
+    bool    start_fullscreen    = true;
   } display;
 
   struct {
@@ -47,6 +48,8 @@ struct unx_config_s
       bool  entire_party_earns_ap = false;
       bool  playable_seymour      = false;
       bool  permanent_sensor      = false;
+      float max_speed             = 8.0f;
+      float step_exp              = 2.0f;
     } ffx;
   } cheat;
 
@@ -100,7 +103,7 @@ struct unx_config_s
     } pad;
 
     bool         dump              = false;
-    bool         inject            = false;
+    bool         inject            = true;
     bool         mark              = false;
   } textures;
 
@@ -136,6 +139,7 @@ struct unx_config_s
     bool activate_on_kbd    = false;
     int  gamepad_slot       = -1;
 
+    bool use_square_speed   = true;
     bool fast_exit          = true;
   } input;
 

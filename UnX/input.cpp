@@ -19,6 +19,7 @@
  *
 **/
 #define _CRT_SECURE_NO_WARNINGS
+#define _CRT_NON_CONFORMING_WCSTOK
 #define DIRECTINPUT_VERSION 0x0800
 
 #include <Windows.h>
@@ -58,7 +59,7 @@ struct unx_gamepad_s {
     int          button2  = 0xffffffff;
     bool         lt       = false;
     bool         rt       = false;
-  } f1, f2, f3, f4, f5, screenshot, fullscreen, esc;
+  } f1, f2, f3, f4, f5, screenshot, fullscreen, esc, speedboost;
 
   struct remap_s {
     struct buttons_s {
@@ -596,7 +597,6 @@ typedef void (CALLBACK *SK_PluginKeyPress_pfn)( BOOL Control,
                         BYTE vkCode );
 SK_PluginKeyPress_pfn SK_PluginKeyPress_Original = nullptr;
 
-
 void
 CALLBACK
 SK_UNX_PluginKeyPress ( BOOL Control,
@@ -604,6 +604,16 @@ SK_UNX_PluginKeyPress ( BOOL Control,
                         BOOL Alt,
                         BYTE vkCode )
 {
+  if (Control && Shift && vkCode == 'H') {
+    extern void UNX_SpeedStep (); 
+    UNX_SpeedStep ();
+  }
+
+  if (Control && Shift && vkCode == 'U') {
+    extern void UNX_FFX2_UnitTest (void);
+    UNX_FFX2_UnitTest ();
+  }
+
   if (Control && Shift && vkCode == 'Q') {
     extern void UNX_Quickie (void);
     UNX_Quickie ();
@@ -861,6 +871,18 @@ unx::InputManager::Init (void)
       RS->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.RS));
     }
   }
+
+  unx::ParameterStringW* combo_Speed =
+    (unx::ParameterStringW *)
+      factory.create_parameter <std::wstring> (L"SpeedBoost");
+  combo_Speed->register_to_ini (pad_cfg, L"Gamepad.PC", L"SpeedBoost");
+
+  if (! combo_Speed->load (gamepad.speedboost.unparsed)) {
+    combo_Speed->store (
+      (gamepad.speedboost.unparsed = L"Select+L2+Cross")
+    );
+  }
+
 
   unx::ParameterStringW* combo_F1 =
     (unx::ParameterStringW *)
@@ -1200,12 +1222,21 @@ UNX_SetupSpecialButtons (void)
   gamepad.fullscreen.lt      = state.lt;
   gamepad.fullscreen.rt      = state.rt;
   gamepad.fullscreen.buttons = state.buttons;
+
+  state =
+    UNX_ParseButtonCombo ( gamepad.speedboost.unparsed,
+                             &gamepad.speedboost.button0 );
+
+  gamepad.speedboost.lt      = state.lt;
+  gamepad.speedboost.rt      = state.rt;
+  gamepad.speedboost.buttons = state.buttons;
+
 }
 
 #include "ini.h"
 #include "parameter.h"
 
-#include <queue>
+#include <deque>
 
 struct combo_button_s {
   combo_button_s (
@@ -1248,6 +1279,9 @@ struct combo_button_s {
 BYTE
 UNX_PollAxis (int axis, const JOYINFOEX& joy_ex, const JOYCAPSW& caps)
 {
+#pragma warning (push)
+#pragma warning (disable: 4244)
+
   switch (unx_gamepad_s::remap_s::enumToIndex (axis))
   {
     case -1:
@@ -1271,6 +1305,7 @@ UNX_PollAxis (int axis, const JOYINFOEX& joy_ex, const JOYCAPSW& caps)
     default:
       return 255 * ((joy_ex.dwButtons & axis) ? 1 : 0);
   }
+#pragma warning (pop)
 }
 
 
@@ -1283,14 +1318,15 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 
   UNX_SetupSpecialButtons ();
 
-  combo_button_s f1    ( &gamepad.f1 );
-  combo_button_s f2    ( &gamepad.f2 );
-  combo_button_s f3    ( &gamepad.f3 );
-  combo_button_s f4    ( &gamepad.f4 );
-  combo_button_s f5    ( &gamepad.f5 );
-  combo_button_s esc   ( &gamepad.esc );
-  combo_button_s full  ( &gamepad.fullscreen );
-  combo_button_s sshot ( &gamepad.screenshot );
+  combo_button_s f1         ( &gamepad.f1 );
+  combo_button_s f2         ( &gamepad.f2 );
+  combo_button_s f3         ( &gamepad.f3 );
+  combo_button_s f4         ( &gamepad.f4 );
+  combo_button_s f5         ( &gamepad.f5 );
+  combo_button_s esc        ( &gamepad.esc );
+  combo_button_s full       ( &gamepad.fullscreen );
+  combo_button_s sshot      ( &gamepad.screenshot );
+  combo_button_s speedboost ( &gamepad.speedboost );
 
 #define XI_POLL_INTERVAL 500UL
 
@@ -1313,24 +1349,9 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
     keys [i].ki.dwExtraInfo = 0;
   }
 
-  std::queue <WORD> pressed_scancodes;
+  std::deque <WORD> pressed_scancodes;
 
   while (true) {
-    int i = 1;
-
-    while (pressed_scancodes.size ()) {
-      keys [i++].ki.wScan = pressed_scancodes.back ();
-                            pressed_scancodes.pop  ();
-
-      if (i > 4) {
-        SendInput (4, &keys [1], sizeof INPUT);
-        i = 1;
-      }
-    }
-
-    if (i > 1)
-      SendInput (i-1, &keys [1], sizeof INPUT);
-
     int slot = config.input.gamepad_slot;
     if (slot == -1)
       slot = 0;
@@ -1431,15 +1452,7 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
    if (xi_state.Gamepad.bRightTrigger < 130)
      xi_state.Gamepad.bRightTrigger = 0;
 
-#if 0
-    bool esc_menu = (
-        xi_ret == 0                          &&
-        xi_state.Gamepad.bLeftTrigger        &&
-        xi_state.Gamepad.bRightTrigger       &&
-      ( xi_state.Gamepad.wButtons & ( XINPUT_GAMEPAD_START |
-                                      XINPUT_GAMEPAD_BACK ) )
-    );
-#endif
+    SetFocus (SK_GetGameWindow ());
 
     bool four_finger = (
         xi_ret == 0                          &&
@@ -1452,14 +1465,15 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
         xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_BACK)
     );
 
-    f1.poll    (xi_ret, xi_state.Gamepad);
-    f2.poll    (xi_ret, xi_state.Gamepad);
-    f3.poll    (xi_ret, xi_state.Gamepad);
-    f4.poll    (xi_ret, xi_state.Gamepad);
-    f5.poll    (xi_ret, xi_state.Gamepad);
-    esc.poll   (xi_ret, xi_state.Gamepad);
-    full.poll  (xi_ret, xi_state.Gamepad);
-    sshot.poll (xi_ret, xi_state.Gamepad);
+    f1.poll         (xi_ret, xi_state.Gamepad);
+    f2.poll         (xi_ret, xi_state.Gamepad);
+    f3.poll         (xi_ret, xi_state.Gamepad);
+    f4.poll         (xi_ret, xi_state.Gamepad);
+    f5.poll         (xi_ret, xi_state.Gamepad);
+    esc.poll        (xi_ret, xi_state.Gamepad);
+    full.poll       (xi_ret, xi_state.Gamepad);
+    sshot.poll      (xi_ret, xi_state.Gamepad);
+    speedboost.poll (xi_ret, xi_state.Gamepad);
 
     WORD scancode = 0;
 
@@ -1468,7 +1482,7 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
                                                                       \
                               SendInput (1, &keys [0], sizeof INPUT); \
                                                                       \
-                              pressed_scancodes.push (scancode); }
+                              pressed_scancodes.push_back (scancode); }
 
     if (four_finger) {
       extern bool UNX_KillMeNow (void);
@@ -1479,7 +1493,7 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
         SendMessage (SK_GetGameWindow (), WM_CLOSE, 0, 0);
       }
 
-      Sleep (1000);
+      Sleep (15);
       continue;
     }
 
@@ -1487,8 +1501,12 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
     //   so that menus and various other things are not activated.
     if ( xi_state.Gamepad.bRightTrigger && xi_state.Gamepad.bLeftTrigger &&
          xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_LEFT_SHOULDER)      &&
-         xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_RIGHT_SHOULDER) )
+         xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_RIGHT_SHOULDER) ) {
+      Sleep (15);
       continue;
+    }
+
+    bool full_sleep = true;
 
     if (esc.state) {
 /*
@@ -1534,48 +1552,41 @@ FFX.exe+302C5C - E8 3F5F3200           - call FFX.exe+628BA0
       int y = 0;
       //quickie ()
 #endif
-
       UNX_SendScancode (0x01);
     }
 
-    if (f1.state)
-      UNX_SendScancode (0x3b);
-
-    if (f2.state)
-      UNX_SendScancode (0x3c);
-
-    if (f3.state)
-      UNX_SendScancode (0x3d);
-
-    if (f4.state)
-      UNX_SendScancode (0x3e);
-
-    if (f5.state)
-      UNX_SendScancode (0x3f);
-
-    if (full.wasJustPressed ()) {
-      // Alt
-      keys [0].ki.wScan = 0x38;
-      SendInput (1, &keys [0], sizeof INPUT);
-
-      // Enter
-      keys [0].ki.wScan = 0x1c;
-      SendInput (1, &keys [0], sizeof INPUT);
-
-      Sleep (0);
-
-      // Enter
-      keys [1].ki.wScan = 0x1c;
-      SendInput (1, &keys [1], sizeof INPUT);
-
-      // Alt
-      keys [1].ki.wScan = 0x38;
-      SendInput (1, &keys [1], sizeof INPUT);
-
-      Sleep (0);
+    else if (speedboost.wasJustPressed ()) {
+      extern void UNX_SpeedStep (); 
+      UNX_SpeedStep ();
     }
 
-    if (sshot.wasJustPressed ()) {
+    else if (f1.state) {
+      UNX_SendScancode (0x3b);
+    }
+
+    else if (f2.state) {
+      UNX_SendScancode (0x3c);
+    }
+
+    else if (f3.state) {
+      UNX_SendScancode (0x3d);
+    }
+
+    else if (f4.state) {
+      UNX_SendScancode (0x3e);
+    }
+
+    else if (f5.state) {
+      UNX_SendScancode (0x3f);
+    }
+
+    else if (full.wasJustPressed ()) {
+      UNX_SendScancode (0x38);
+      UNX_SendScancode (0x1c);
+      full_sleep = false;
+    }
+
+    else if (sshot.wasJustPressed ()) {
       typedef bool (__stdcall *SK_SteamAPI_TakeScreenshot_pfn)(void);
 
       static SK_SteamAPI_TakeScreenshot_pfn
@@ -1590,7 +1601,29 @@ FFX.exe+302C5C - E8 3F5F3200           - call FFX.exe+628BA0
         SK_SteamAPI_TakeScreenshot ();
     }
 
-    Sleep (15);
+    Sleep (full_sleep ? 15 : 0);
+
+    if (! full_sleep)
+      SetForegroundWindow (SK_GetGameWindow ());
+
+    int i = 1;
+
+    SetFocus (SK_GetGameWindow ());
+
+    while (pressed_scancodes.size ()) {
+      keys [i++].ki.wScan = pressed_scancodes.front     ();
+                            pressed_scancodes.pop_front ();
+
+      if (i > 4) {
+        SendInput (4, &keys [1], sizeof INPUT);
+        i = 1;
+      }
+    }
+
+    if (i > 1)
+      SendInput (i-1, &keys [1], sizeof INPUT);
+
+    SetFocus (SK_GetGameWindow ());
   }
 
   return 0;
@@ -1599,6 +1632,8 @@ FFX.exe+302C5C - E8 3F5F3200           - call FFX.exe+628BA0
 void
 UNX_ReleaseESCKey (void)
 {
+return;
+
   INPUT keys [2];
 
   keys [0].type           = INPUT_KEYBOARD;

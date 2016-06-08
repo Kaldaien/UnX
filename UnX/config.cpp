@@ -38,7 +38,7 @@ static
   unx::INI::File*
              booster_ini     = nullptr;
 
-std::wstring UNX_VER_STR = L"0.5.3";
+std::wstring UNX_VER_STR = L"0.5.4";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)     (bool);
@@ -82,6 +82,7 @@ struct {
     unx::ParameterBool*  entire_party_earns_ap;
     unx::ParameterBool*  playable_seymour;
     unx::ParameterBool*  permanent_sensor;
+    unx::ParameterFloat* max_speed;
   } ffx;
 } booster;
 
@@ -516,6 +517,16 @@ UNX_LoadConfig (std::wstring name) {
       L"Boost.FFX",
         L"GrantPermanentSensor" );
 
+  booster.ffx.max_speed =
+    static_cast <unx::ParameterFloat *>
+      (g_ParameterFactory.create_parameter <float> (
+        L"Grant the Sensor ability no matter what weapon is equipped")
+    );
+  booster.ffx.max_speed->register_to_ini (
+    booster_ini,
+      L"SpeedHack.FFX",
+        L"MaxSpeed" );
+
   booster.ffx.playable_seymour =
     static_cast <unx::ParameterBool *>
       (g_ParameterFactory.create_parameter <bool> (
@@ -661,6 +672,14 @@ UNX_LoadConfig (std::wstring name) {
   booster.ffx.permanent_sensor->load      (config.cheat.ffx.permanent_sensor);
   booster.ffx.playable_seymour->load      (config.cheat.ffx.playable_seymour);
 
+
+  extern wchar_t* UNX_GetExecutableName (void);
+  if (! lstrcmpiW (UNX_GetExecutableName (), L"ffx.exe")) {
+    booster.ffx.max_speed->load (config.cheat.ffx.max_speed);
+  } else {
+    config.cheat.ffx.max_speed = 1.0f;
+  }
+
   sys.version->load  (config.system.version);
   sys.injector->load (config.system.injector);
 
@@ -732,6 +751,7 @@ UNX_SaveConfig (std::wstring name, bool close_config) {
   booster.ffx.entire_party_earns_ap->store (config.cheat.ffx.entire_party_earns_ap);
   booster.ffx.permanent_sensor->store      (config.cheat.ffx.permanent_sensor);
   booster.ffx.playable_seymour->store      (config.cheat.ffx.playable_seymour);
+  booster.ffx.max_speed->store             (config.cheat.ffx.max_speed);
 
 
   sys.version->store      (UNX_VER_STR);

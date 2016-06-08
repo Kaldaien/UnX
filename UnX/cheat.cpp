@@ -22,6 +22,7 @@
 #include "config.h"
 #include "cheat.h"
 #include "window.h"
+#include "hook.h"
 
 #include <Windows.h>
 #include <cstdint>
@@ -36,7 +37,8 @@ enum unx_gametype_t {
 struct unx_ffx2_memory_s {
   struct {
     enum offset_t {
-      Debug = 0x9F78B8
+      Debug      = 0x9F78B8,
+      PartyStats = 0xA016C0
     };
   } offsets;
 
@@ -57,6 +59,8 @@ struct unx_ffx2_memory_s {
 
     uint8_t mp_zero;            // 0x9F78C5
     uint8_t unknown2 [5];       // 0x9F78C6
+
+    uint8_t debug_output;       // 0x9F78CB
 
     struct {
       uint8_t always_critical;  // 0x9F78CC
@@ -83,7 +87,57 @@ struct unx_ffx2_memory_s {
 
     uint8_t first_attack;       // 0x9F78E4 (0xFF = OFF)
   } *debug_flags = nullptr;
+
+  struct party_s {
+    uint32_t unknown0;
+
+    struct {
+      uint32_t HP;
+      uint32_t MP;
+      uint8_t  strength;
+      uint8_t  defense;
+      uint8_t  magic;
+      uint8_t  magic_defense;
+      uint8_t  agility;
+      uint8_t  accurcy;
+      uint8_t  evasion;
+      uint8_t  luck;
+    } modifiers;
+
+    struct {
+      uint32_t current;
+      uint32_t next_level;
+    } exp;
+
+    struct {
+      struct {
+        uint32_t HP;
+        uint32_t MP;
+      } current;
+
+      struct {
+        uint32_t HP;
+        uint32_t MP;
+      } max;
+    } vitals;
+
+    uint8_t unknown1;
+
+    struct {
+      uint8_t strength;
+      uint8_t defense;
+      uint8_t magic;
+      uint8_t magic_defense;
+      uint8_t agility;
+      uint8_t accuracy;
+      uint8_t evasion;
+      uint8_t luck;
+    } attributes;
+
+    uint32_t unknown_blob [18];
+  } *party = nullptr;
 } ffx2;
+
 
 
 struct unx_ffx_memory_s {
@@ -319,6 +373,41 @@ UNX_ResumeThreads (std::queue <DWORD> threads)
 }
 
 
+#include "log.h"
+float __UNX_speed_mod = 1.0f;
+
+typedef int (__cdecl *sub_820C00_pfn)(float);
+sub_820C00_pfn UNX_FFX_StartEvent_Original = nullptr;
+
+void
+UNX_SpeedStep (void)
+{
+  if (__UNX_speed_mod < config.cheat.ffx.max_speed)
+    __UNX_speed_mod *= config.cheat.ffx.step_exp;
+  else
+    __UNX_speed_mod = 1.0f;
+}
+
+int
+__cdecl
+UNX_FFX_StartEvent (float x)
+{
+//  dll_log.Log ( L"[ FFXEvent ] Tick (%f)",
+//s                  x );
+
+  static float last_tick = 0.0f;
+
+  float tick = __UNX_speed_mod * x;
+
+  if (isinf (tick))
+    tick = last_tick;
+
+  last_tick = tick;
+
+  return UNX_FFX_StartEvent_Original (tick);
+}
+
+
 extern wchar_t* UNX_GetExecutableName (void);
 extern LPVOID __UNX_base_img_addr;
 
@@ -354,6 +443,12 @@ unx::CheatManager::Init (void)
       (unx_ffx_memory_s::ap_s *)
         ((intptr_t)__UNX_base_img_addr + ffx.offsets.GainedAp);
 
+    UNX_CreateFuncHook ( L"FFX_SetEventId",
+        (LPVOID)((intptr_t)__UNX_base_img_addr + 0x420C00),
+                             UNX_FFX_StartEvent,
+                  (LPVOID *)&UNX_FFX_StartEvent_Original );
+    UNX_EnableHook ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x420C00));
+
     SetTimer (unx::window.hwnd, CHEAT_TIMER_FFX, 33, nullptr);
   }
 
@@ -367,7 +462,13 @@ unx::CheatManager::Init (void)
       (unx_ffx2_memory_s::debug_s *)
         ((intptr_t)__UNX_base_img_addr + ffx2.offsets.Debug);
 
+    ffx2.party =
+      (unx_ffx2_memory_s::party_s *)
+        ((intptr_t)__UNX_base_img_addr + ffx2.offsets.PartyStats);
+
     SetTimer (unx::window.hwnd, CHEAT_TIMER_FFX2, 33, nullptr);
+
+    ffx2.debug_flags->debug_output = true;
   }
 }
 
@@ -427,46 +528,62 @@ UNX_IsInBattle (void)
 bool
 UNX_KillMeNow (void)
 {
-  if (game_type != GAME_FFX)
-    return false;
-
-  if (UNX_IsInBattle ()) {
-    uint8_t* inst = (uint8_t*)((intptr_t)__UNX_base_img_addr + 0x392930);
-
-    const uint8_t die  [] = { 0xEB, 0x1D };
-    const uint8_t live [] = { 0x75, 0x1D };
-
-    DWORD dwProtect;
-
-    std::queue <DWORD> suspended_tids =
-      UNX_SuspendAllOtherThreads ();
+  switch (game_type)
+  {
+    case GAME_FFX:
     {
-      VirtualProtect (inst, 2, PAGE_EXECUTE_READWRITE, &dwProtect);
-      memcpy         (inst, die, 2);
-    }
-    UNX_ResumeThreads (suspended_tids);
+      if (UNX_IsInBattle ()) {
+        uint8_t* inst = (uint8_t*)((intptr_t)__UNX_base_img_addr + 0x392930);
 
-    Sleep (0);
+        const uint8_t die  [] = { 0xEB, 0x1D };
+              uint8_t live [] = { 0x75, 0x1D };
 
-    suspended_tids =
-      UNX_SuspendAllOtherThreads ();
+        DWORD dwProtect;
+
+        std::queue <DWORD> suspended_tids =
+          UNX_SuspendAllOtherThreads ();
+        {
+          VirtualProtect (inst, 2, PAGE_EXECUTE_READWRITE, &dwProtect);
+          memcpy         (live, inst, 2);
+          memcpy         (inst, die,  2);
+        }
+        UNX_ResumeThreads (suspended_tids);
+
+        Sleep (133);
+
+        suspended_tids =
+          UNX_SuspendAllOtherThreads ();
+        {
+          memcpy         (inst, live, 2);
+          VirtualProtect (inst, 2, dwProtect, &dwProtect);
+        }
+        UNX_ResumeThreads (suspended_tids);
+
+        return true;
+      }
+
+      for (int i = 0; i < 8; i++) {
+        ffx.party [i].vitals.current.HP = 0UL;
+      }
+
+      extern bool queue_death;
+      queue_death = true;
+
+      Sleep (33);
+    } break;
+
+    case GAME_FFX2:
     {
-      memcpy         (inst, live, 2);
-      VirtualProtect (inst, 2, dwProtect, &dwProtect);
-    }
-    UNX_ResumeThreads (suspended_tids);
+      for (int i = 0; i < 8; i++) {
+        ffx2.party [i].vitals.current.HP = 0UL;
+      }
 
-    return true;
+      *(uint8_t *)((intptr_t)__UNX_base_img_addr+0x9F7880) = 0x1;
+      Sleep (33);
+      *(uint8_t *)((intptr_t)__UNX_base_img_addr+0x9F7880) = 0x0;
+      Sleep (0);
+    } break;
   }
-
-  for (int i = 0; i < 8; i++) {
-    ffx.party [i].vitals.current.HP = 0UL;
-  }
-
-  extern bool queue_death;
-  queue_death = true;
-
-  Sleep (0);
 
   return true;
 }
@@ -523,4 +640,21 @@ unx::CheatTimer_FFX2 (void)
 {
   if (game_type != GAME_FFX2)
     return;
+}
+
+void
+UNX_FFX2_UnitTest (void)
+{
+  if (game_type != GAME_FFX2)
+    return;
+
+  //ffx2.party->exp.current != 0;
+  //ffx2.party->vitals.current.HP <= ffx2.party_stats->vitals.max.HP;
+  for (int i = 0; i < 3; i++) {
+    dll_log.Log ( L"[UnitTest] %lu / %lu HP :: %lu / %lu MP",
+                    ffx2.party [i].vitals.current.HP,
+                    ffx2.party [i].vitals.max.HP,
+                      ffx2.party [i].vitals.current.MP,
+                      ffx2.party [i].vitals.max.MP );
+  }
 }

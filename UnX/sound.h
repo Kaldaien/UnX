@@ -19,4 +19,4 @@
  *
 **/
 
-extern void UNX_SetGameMute (bool bMute);
+extern void UNX_SetGameMute (BOOL bMute);

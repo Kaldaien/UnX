@@ -74,6 +74,20 @@ SleepEx_Detour (DWORD dwMilliseconds, BOOL bAlertable)
 }
 
 
+
+typedef int (__cdecl *VSYNCEmulation_pfn)(int);
+VSYNCEmulation_pfn VSYNCEmulation_Original = nullptr;
+
+extern LPVOID __UNX_base_img_addr;
+
+int
+__cdecl
+VSYNCEmulation_Detour (int)
+{
+  return 0;
+}
+
+
 void
 WINAPI
 UNX_SE_FixFramerateLimiter (DWORD dwMilliseconds)
@@ -120,6 +134,12 @@ unx::TimingFix::Init (void)
 
     }
   }
+
+   UNX_CreateFuncHook ( L"VSYNCEmulation",
+       (LPVOID)((intptr_t)__UNX_base_img_addr + 0x67A010),
+                       VSYNCEmulation_Detour,
+            (LPVOID *)&VSYNCEmulation_Original );
+  UNX_EnableHook ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x67A010));
 
   if (config.stutter.reduce) {
     //SK_GetCommandProcessor ()->ProcessCommandFormatted ("MaxDeltaTime 0");
