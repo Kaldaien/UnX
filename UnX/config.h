@@ -105,6 +105,7 @@ struct unx_config_s
     bool         dump              = false;
     bool         inject            = true;
     bool         mark              = false;
+    bool         cache             = false;
   } textures;
 
   struct {
@@ -139,7 +140,6 @@ struct unx_config_s
     bool activate_on_kbd    = false;
     int  gamepad_slot       = -1;
 
-    bool use_square_speed   = true;
     bool fast_exit          = true;
   } input;
 

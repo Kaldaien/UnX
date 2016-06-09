@@ -1555,9 +1555,11 @@ FFX.exe+302C5C - E8 3F5F3200           - call FFX.exe+628BA0
       UNX_SendScancode (0x01);
     }
 
-    else if (speedboost.wasJustPressed ()) {
-      extern void UNX_SpeedStep (); 
-      UNX_SpeedStep ();
+    else if (speedboost.state) {
+      if (speedboost.wasJustPressed ()) {
+        extern void UNX_SpeedStep (); 
+        UNX_SpeedStep ();
+      }
     }
 
     else if (f1.state) {

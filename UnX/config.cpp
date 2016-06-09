@@ -38,7 +38,7 @@ static
   unx::INI::File*
              booster_ini     = nullptr;
 
-std::wstring UNX_VER_STR = L"0.5.4";
+std::wstring UNX_VER_STR = L"0.5.4a";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)     (bool);
@@ -50,6 +50,7 @@ SK_DXGI_SetPreferredAdapter_pfn SK_DXGI_SetPreferredAdapter = nullptr;
 typedef void (WINAPI *SK_D3D11_SetResourceRoot_pfn)  (std::wstring);
 typedef void (WINAPI *SK_D3D11_EnableTexDump_pfn)    (bool);
 typedef void (WINAPI *SK_D3D11_EnableTexInject_pfn)  (bool);
+typedef void (WINAPI *SK_D3D11_EnableTexCache_pfn)   (bool);
 typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)       (std::wstring, uint32_t);
 typedef void (WINAPI *SK_D3D11_RemoveTexHash_pfn)    (uint32_t);
 
@@ -59,6 +60,7 @@ typedef void (WINAPI *SKX_D3D11_EnableFullscreen_pfn)(bool);
 SK_D3D11_SetResourceRoot_pfn   SK_D3D11_SetResourceRoot   = nullptr;
 SK_D3D11_EnableTexDump_pfn     SK_D3D11_EnableTexDump     = nullptr;
 SK_D3D11_EnableTexInject_pfn   SK_D3D11_EnableTexInject   = nullptr;
+SK_D3D11_EnableTexCache_pfn    SK_D3D11_EnableTexCache    = nullptr;
 SK_D3D11_AddTexHash_pfn        SK_D3D11_AddTexHash        = nullptr;
 SK_D3D11_RemoveTexHash_pfn     SK_D3D11_RemoveTexHash     = nullptr;
 
@@ -110,6 +112,7 @@ struct {
   unx::ParameterBool*    dump;
   unx::ParameterBool*    inject;
   unx::ParameterBool*    mark;
+  unx::ParameterBool*    cache;
 } textures;
 
 struct {
@@ -198,6 +201,10 @@ UNX_SetupTexMgmt (void)
     (SK_D3D11_EnableTexInject_pfn)
       GetProcAddress (hInjector, "SK_D3D11_EnableTexInject");
 
+  SK_D3D11_EnableTexCache =
+    (SK_D3D11_EnableTexCache_pfn)
+      GetProcAddress (hInjector, "SK_D3D11_EnableTexCache");
+
   SK_D3D11_AddTexHash =
     (SK_D3D11_AddTexHash_pfn)
       GetProcAddress (hInjector, "SK_D3D11_AddTexHash");
@@ -212,9 +219,9 @@ UNX_SetupTexMgmt (void)
 
   // Ignore SKX_..., these are experimental things and the software
   //   must work even if SpecialK removes the function.
-  if ( SK_D3D11_SetResourceRoot != nullptr && SK_D3D11_EnableTexDump != nullptr &&
-       SK_D3D11_EnableTexInject != nullptr && SK_D3D11_AddTexHash    != nullptr &&
-       SK_D3D11_RemoveTexHash   != nullptr ) {
+  if ( SK_D3D11_SetResourceRoot != nullptr && SK_D3D11_EnableTexDump   != nullptr &&
+       SK_D3D11_EnableTexInject != nullptr && SK_D3D11_EnableTexCache  != nullptr &&
+       SK_D3D11_AddTexHash      != nullptr && SK_D3D11_RemoveTexHash   != nullptr ) {
     return true;
   }
 
@@ -496,6 +503,16 @@ UNX_LoadConfig (std::wstring name) {
       L"UnX.Textures",
         L"Inject" );
 
+  textures.cache =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Cache all texture memory")
+    );
+  textures.cache->register_to_ini (
+    dll_ini,
+      L"UnX.Textures",
+        L"Cache" );
+
 
   booster.ffx.entire_party_earns_ap =
     static_cast <unx::ParameterBool *>
@@ -701,10 +718,12 @@ UNX_LoadConfig (std::wstring name) {
     textures.resource_root->load (config.textures.resource_root);
     textures.dump->load          (config.textures.dump);
     textures.inject->load        (config.textures.inject);
+    textures.cache->load         (config.textures.cache);
 
     SK_D3D11_SetResourceRoot (config.textures.resource_root);
     SK_D3D11_EnableTexDump   (config.textures.dump);
     SK_D3D11_EnableTexInject (config.textures.inject);
+    SK_D3D11_EnableTexCache  (config.textures.cache);
 
     if (config.textures.inject)
       SK_D3D11_AddTexHash (L"Title.dds", 0xA4FFC068);

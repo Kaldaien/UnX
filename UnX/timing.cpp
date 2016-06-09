@@ -82,9 +82,11 @@ extern LPVOID __UNX_base_img_addr;
 
 int
 __cdecl
-VSYNCEmulation_Detour (int)
+VSYNCEmulation_Detour (int x)
 {
-  return 0;
+  dll_log.Log (L"[   Time   ] VSYNC Emulation Thread Created By Game", x);
+
+  return (VSYNCEmulation_Original (x));
 }
 
 
@@ -136,10 +138,10 @@ unx::TimingFix::Init (void)
   }
 
    UNX_CreateFuncHook ( L"VSYNCEmulation",
-       (LPVOID)((intptr_t)__UNX_base_img_addr + 0x67A010),
+       (LPVOID)((intptr_t)__UNX_base_img_addr + 0x27A010),
                        VSYNCEmulation_Detour,
             (LPVOID *)&VSYNCEmulation_Original );
-  UNX_EnableHook ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x67A010));
+  UNX_EnableHook ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x27A010));
 
   if (config.stutter.reduce) {
     //SK_GetCommandProcessor ()->ProcessCommandFormatted ("MaxDeltaTime 0");

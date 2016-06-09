@@ -376,7 +376,7 @@ UNX_ResumeThreads (std::queue <DWORD> threads)
 #include "log.h"
 float __UNX_speed_mod = 1.0f;
 
-typedef int (__cdecl *sub_820C00_pfn)(float);
+typedef float (__cdecl *sub_820C00_pfn)(float);
 sub_820C00_pfn UNX_FFX_StartEvent_Original = nullptr;
 
 void
@@ -388,21 +388,19 @@ UNX_SpeedStep (void)
     __UNX_speed_mod = 1.0f;
 }
 
-int
+float
 __cdecl
 UNX_FFX_StartEvent (float x)
 {
 //  dll_log.Log ( L"[ FFXEvent ] Tick (%f)",
 //s                  x );
 
-  static float last_tick = 0.0f;
-
   float tick = __UNX_speed_mod * x;
 
-  if (isinf (tick))
-    tick = last_tick;
+  //if (isinf (tick) || isnan (tick))
+    //tick = last_tick;
 
-  last_tick = tick;
+  //last_tick = tick;
 
   return UNX_FFX_StartEvent_Original (tick);
 }
