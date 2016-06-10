@@ -609,6 +609,11 @@ SK_UNX_PluginKeyPress ( BOOL Control,
     UNX_SpeedStep ();
   }
 
+  if (Control && Shift && vkCode == 'P') {
+    extern void UNX_TimeStop (void);
+    UNX_TimeStop ();
+  }
+
   if (Control && Shift && vkCode == 'U') {
     extern void UNX_FFX2_UnitTest (void);
     UNX_FFX2_UnitTest ();

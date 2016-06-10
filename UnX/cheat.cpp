@@ -167,50 +167,50 @@ struct unx_ffx_memory_s {
 
   struct debug_s {
     struct {
-      uint8_t enemies;
-      uint8_t party;
+      uint8_t enemies;                  // 0D2A8F8
+      uint8_t party;                    // 0D2A8F9
     } invincible;
 
     struct {
-      uint8_t enemies;
-      uint8_t unk3;
-      uint8_t camera;
+      uint8_t enemies;                  // 0D2A8FA
+      uint8_t unk3;                     // 0D2A8FB
+      uint8_t camera;                   // 0D2A8FC
     } control;
 
-    uint8_t unk4;
-    uint8_t unk5;
-    uint8_t unk6;
-    uint8_t unk7;
-    uint8_t unk8;
-    uint8_t unk9;
-    uint8_t unk10;
-    uint8_t unk11;
-    uint8_t unk12;
-    uint8_t unk13;
-    uint8_t unk14;
-    uint8_t unk15;
-    uint8_t unk16;
-    uint8_t unk17;
-    uint8_t unk18;
+    uint8_t unk4;                       // 0D2A8FD
+    uint8_t unk5;                       // 0D2A8FE
+    uint8_t unk6;                       // 0D2A8FF
+    uint8_t unk7;                       // 0D2A900
+    uint8_t unk8;                       // 0D2A901
+    uint8_t unk9;                       // 0D2A902
+    uint8_t unk10;                      // 0D2A903
+    uint8_t unk11;                      // 0D2A904
+    uint8_t unk12;                      // 0D2A905
+    uint8_t unk13;                      // 0D2A906
+    uint8_t unk14;                      // 0D2A907
+    uint8_t unk15;                      // 0D2A908
+    uint8_t unk16;                      // 0D2A909
+    uint8_t unk17;                      // 0D2A90A
+    uint8_t unk18;                      // 0D2A90B
 
     struct {
-      uint8_t always_overdrive;
-      uint8_t always_critical;
-      uint8_t always_deal_1;
-      uint8_t always_deal_10000;
-      uint8_t always_deal_99999;
+      uint8_t always_overdrive;         // 0D2A90C
+      uint8_t always_critical;          // 0D2A90D
+      uint8_t always_deal_1;            // 0D2A90E
+      uint8_t always_deal_10000;        // 0D2A90F
+      uint8_t always_deal_99999;        // 0D2A910
     } damage;
 
     struct {
-      uint8_t always_rare_drop;
-      uint8_t ap_100x;
-      uint8_t gil_100x;
+      uint8_t always_rare_drop;         // 0D2A911
+      uint8_t ap_100x;                  // 0D2A912
+      uint8_t gil_100x;                 // 0D2A913
     } reward;
 
-    uint8_t unk27;
-    uint8_t permanent_sensor;
-    uint8_t unk28;
-    uint8_t unk29;
+    uint8_t unk27;                      // 0D2A914
+    uint8_t permanent_sensor;           // 0D2A915
+    uint8_t unk28;                      // 0D2A916
+    uint8_t unk29;                      // 0D2A917
   } *debug_flags = nullptr;
 
   struct party_s {
@@ -376,21 +376,63 @@ UNX_ResumeThreads (std::queue <DWORD> threads)
 #include "log.h"
 float __UNX_speed_mod = 1.0f;
 
-typedef float (__cdecl *sub_820C00_pfn)(float);
-sub_820C00_pfn UNX_FFX_StartEvent_Original = nullptr;
+extern LPVOID __UNX_base_img_addr;
+
+void
+UNX_FFX_AudioSkip (bool bSkip)
+{
+  static intptr_t pFMODSyncAddr = (intptr_t)((uint8_t *)__UNX_base_img_addr + 0x30AEC0);
+  static uint8_t  orig_inst []  = { 0x55, 0x00, 0x00, 0x00 };
+
+  static bool init = false;
+
+  if (! init) {
+    memcpy (orig_inst, (char *)pFMODSyncAddr, 3);
+    init = true;
+  }
+
+  DWORD dwProtect;
+
+  std::queue <DWORD> tids =
+    UNX_SuspendAllOtherThreads ();
+
+  VirtualProtect ((LPVOID)pFMODSyncAddr, 3, PAGE_READWRITE, &dwProtect);
+
+  if (bSkip) {
+    const uint8_t skip_inst [] = { 0xc2, 0x08, 0x00, 0x00 };
+    memcpy ((void *)pFMODSyncAddr, skip_inst, 3);
+    //SK_GetCommandProcessor ()->ProcessCommandFormatted ("mem t %p %s", pFMODSyncAddr, skip_inst);
+  } else {
+    memcpy ((void *)pFMODSyncAddr, orig_inst, 3);
+    //SK_GetCommandProcessor ()->ProcessCommandFormatted ("mem t %p %s", pFMODSyncAddr, orig_inst);
+  }
+
+  VirtualProtect ((LPVOID)pFMODSyncAddr, 3, dwProtect, &dwProtect);
+
+  UNX_ResumeThreads (tids);
+}
+
+typedef float (__cdecl *FFX_GameTick_pfn)(float);
+FFX_GameTick_pfn UNX_FFX_GameTick_Original = nullptr;
 
 void
 UNX_SpeedStep (void)
 {
   if (__UNX_speed_mod < config.cheat.ffx.max_speed)
-    __UNX_speed_mod *= config.cheat.ffx.step_exp;
+    __UNX_speed_mod *= config.cheat.ffx.speed_step;
   else
     __UNX_speed_mod = 1.0f;
+
+  if (__UNX_speed_mod >= config.cheat.ffx.skip_dialog) {
+    UNX_FFX_AudioSkip (true);
+  } else {
+    UNX_FFX_AudioSkip (false);
+  }
 }
 
 float
 __cdecl
-UNX_FFX_StartEvent (float x)
+UNX_FFX_GameTick (float x)
 {
 //  dll_log.Log ( L"[ FFXEvent ] Tick (%f)",
 //s                  x );
@@ -402,16 +444,155 @@ UNX_FFX_StartEvent (float x)
 
   //last_tick = tick;
 
-  return UNX_FFX_StartEvent_Original (tick);
+  return UNX_FFX_GameTick_Original (tick);
 }
 
+LPVOID FFX_LoadLevel_Original = nullptr;
+
+__declspec (naked)
+void
+UNX_LoadLevel (char* szName)
+{
+  __asm { pushad
+          pushfd
+  }
+
+  dll_log.Log ( L"[ FFXLevel ] FFX_LoadLevel (%hs)",
+                   szName );
+
+  __asm { popfd
+          popad
+          jmp FFX_LoadLevel_Original }
+}
 
 extern wchar_t* UNX_GetExecutableName (void);
 extern LPVOID __UNX_base_img_addr;
 
+class unxMemCmd : public eTB_Command {
+public:
+  eTB_CommandResult execute (const char* szArgs);
+
+  int         getNumArgs         (void) { return 2; }
+  int         getNumOptionalArgs (void) { return 1; }
+  int         getNumRequiredArgs (void) {
+    return getNumArgs () - getNumOptionalArgs ();
+  }
+
+protected:
+private:
+};
+
+eTB_CommandResult
+unxMemCmd::execute (const char* szArgs)
+{
+  if (szArgs == nullptr)
+    return eTB_CommandResult ("mem", szArgs);
+
+  intptr_t addr;
+  char     type;
+  char     val [256] = { '\0' };
+
+  sscanf (szArgs, "%c %x %s", &type, &addr, val);
+
+  addr += (intptr_t)__UNX_base_img_addr;
+
+  char result [512];
+
+  switch (type) {
+    case 'b':
+      if (strlen (val)) {
+        DWORD dwOld;
+
+        VirtualProtect ((LPVOID)addr, 1, PAGE_READWRITE, &dwOld);
+          uint8_t out;
+          sscanf (val, "%hhx", &out);
+          *(uint8_t *)addr = out;
+        VirtualProtect ((LPVOID)addr, 1, dwOld, &dwOld);
+      }
+
+      sprintf (result, "%u", *(uint8_t *)addr);
+
+      return eTB_CommandResult ("mem", szArgs, result, 1);
+      break;
+    case 's':
+      if (strlen (val)) {
+        DWORD dwOld;
+
+        VirtualProtect ((LPVOID)addr, 2, PAGE_READWRITE, &dwOld);
+          uint16_t out;
+          sscanf (val, "%hx", &out);
+          *(uint16_t *)addr = out;
+        VirtualProtect ((LPVOID)addr, 2, dwOld, &dwOld);
+      }
+
+      sprintf (result, "%u", *(uint16_t *)addr);
+      return eTB_CommandResult ("mem", szArgs, result, 1);
+      break;
+    case 'i':
+      if (strlen (val)) {
+        DWORD dwOld;
+
+        VirtualProtect ((LPVOID)addr, 4, PAGE_READWRITE, &dwOld);
+          uint32_t out;
+          sscanf (val, "%x", &out);
+          *(uint32_t *)addr = out;
+        VirtualProtect ((LPVOID)addr, 4, dwOld, &dwOld);
+      }
+
+      sprintf (result, "%u", *(uint32_t *)addr);
+      return eTB_CommandResult ("mem", szArgs, result, 1);
+      break;
+    case 'd':
+      if (strlen (val)) {
+        DWORD dwOld;
+
+        VirtualProtect ((LPVOID)addr, 8, PAGE_READWRITE, &dwOld);
+          double out;
+          sscanf (val, "%lf", &out);
+          *(double *)addr = out;
+        VirtualProtect ((LPVOID)addr, 8, dwOld, &dwOld);
+      }
+
+      sprintf (result, "%f", *(double *)addr);
+      return eTB_CommandResult ("mem", szArgs, result, 1);
+      break;
+    case 'f':
+      if (strlen (val)) {
+        DWORD dwOld;
+
+        VirtualProtect ((LPVOID)addr, 4, PAGE_READWRITE, &dwOld);
+          float out;
+          sscanf (val, "%f", &out);
+          *(float *)addr = out;
+        VirtualProtect ((LPVOID)addr, 4, dwOld, &dwOld);
+      }
+
+      sprintf (result, "%f", *(float *)addr);
+      return eTB_CommandResult ("mem", szArgs, result, 1);
+      break;
+    case 't':
+      if (strlen (val)) {
+        DWORD dwOld;
+
+        VirtualProtect ((LPVOID)addr, 256, PAGE_READWRITE, &dwOld);
+          strcpy ((char *)addr, val);
+        VirtualProtect ((LPVOID)addr, 256, dwOld, &dwOld);
+      }
+      sprintf (result, "%s", (char *)addr);
+      return eTB_CommandResult ("mem", szArgs, result, 1);
+      break;
+  }
+
+  return eTB_CommandResult ("mem", szArgs);
+}
+
 void
 unx::CheatManager::Init (void)
 {
+  unxMemCmd* mem = new unxMemCmd ();
+
+  SK_GetCommandProcessor ()->AddCommand ("mem", mem);
+
   wchar_t* pwszShortName =
     UNX_GetExecutableName ();
 
@@ -441,11 +622,17 @@ unx::CheatManager::Init (void)
       (unx_ffx_memory_s::ap_s *)
         ((intptr_t)__UNX_base_img_addr + ffx.offsets.GainedAp);
 
-    UNX_CreateFuncHook ( L"FFX_SetEventId",
+    UNX_CreateFuncHook ( L"FFX_GameTick",
         (LPVOID)((intptr_t)__UNX_base_img_addr + 0x420C00),
-                             UNX_FFX_StartEvent,
-                  (LPVOID *)&UNX_FFX_StartEvent_Original );
+                             UNX_FFX_GameTick,
+                  (LPVOID *)&UNX_FFX_GameTick_Original );
     UNX_EnableHook ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x420C00));
+
+    UNX_CreateFuncHook ( L"FFX_LoadLevel",
+        (LPVOID)((intptr_t)__UNX_base_img_addr + 0x241F60),
+                             UNX_LoadLevel,
+                  (LPVOID *)&FFX_LoadLevel_Original);
+    UNX_EnableHook ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x241F60));
 
     SetTimer (unx::window.hwnd, CHEAT_TIMER_FFX, 33, nullptr);
   }
@@ -494,15 +681,65 @@ UNX_ToggleSensor (void)
     (! config.cheat.ffx.permanent_sensor);
 }
 
-// Quick Load
 void
-UNX_Quickie (void)
+UNX_TimeStop (void)
 {
   if (game_type != GAME_FFX)
     return;
 
-  extern bool schedule_load;
-  schedule_load = true;
+  DWORD dwProtect;
+
+  // Timestop actually (0x12FBB63)
+
+  uint8_t* skip = (uint8_t *)((intptr_t)__UNX_base_img_addr + 0x12FBB63 - 0x400000);
+
+  VirtualProtect ((LPVOID)skip, 0x1, PAGE_READWRITE, &dwProtect);
+    *skip = ! (*skip);
+  VirtualProtect ((LPVOID)skip, 0x1, dwProtect,      &dwProtect);
+
+}
+// Quick Load
+void
+UNX_Quickie (void)
+{
+#if 1
+      DWORD     dwProtect;
+#if 0
+      uint32_t* skip = (uint32_t *)((intptr_t)__UNX_base_img_addr + 0x12FB7C0 - 0x400000);
+
+      VirtualProtect ((LPVOID)skip, 4, PAGE_READWRITE, &dwProtect);
+        *skip = 1;
+      VirtualProtect ((LPVOID)skip, 4, dwProtect,      &dwProtect);
+#else
+      // Timestop actually (0x12FBB63)
+
+      uint8_t* skip = (uint8_t *)((intptr_t)__UNX_base_img_addr + 0x12FBB60 - 0x400000);
+
+      VirtualProtect ((LPVOID)skip, 0x13, PAGE_READWRITE, &dwProtect);
+        for (int i = 0; i < 0x13; i++) {
+          //*(skip+i) = ! *(skip+i);
+        }
+      VirtualProtect ((LPVOID)skip, 0x13, dwProtect,      &dwProtect);
+#endif
+
+  typedef int (*sub_786BC0_pfn)(void);
+  sub_786BC0_pfn QuickSave = nullptr;
+
+  QuickSave = (sub_786BC0_pfn)((intptr_t)__UNX_base_img_addr + 0x786BC0 - 0x400000);
+  QuickSave ();
+
+#else
+  if (game_type != GAME_FFX)
+    return;
+
+  typedef int (__cdecl *sub_7C8650_pfn)(int);
+  sub_7C8650_pfn Menu =
+    (sub_7C8650_pfn)((intptr_t)__UNX_base_img_addr + 0x3C8650);
+  Menu (0x6);
+
+  //extern bool schedule_load;
+  //schedule_load = true;
+#endif
 }
 
 bool
@@ -533,17 +770,16 @@ UNX_KillMeNow (void)
       if (UNX_IsInBattle ()) {
         uint8_t* inst = (uint8_t*)((intptr_t)__UNX_base_img_addr + 0x392930);
 
-        const uint8_t die  [] = { 0xEB, 0x1D };
-              uint8_t live [] = { 0x75, 0x1D };
+        const uint8_t die  [] = { 0xEB, 0x1D, 0 };
+              uint8_t live [] = { 0x75, 0x1D, 0 };
 
-        DWORD dwProtect;
+        // Backup the original instructions
+        memcpy (live, inst, 2);
 
         std::queue <DWORD> suspended_tids =
           UNX_SuspendAllOtherThreads ();
         {
-          VirtualProtect (inst, 2, PAGE_EXECUTE_READWRITE, &dwProtect);
-          memcpy         (live, inst, 2);
-          memcpy         (inst, die,  2);
+          SK_GetCommandProcessor ()->ProcessCommandFormatted ("mem t 392930 %s", (const char *)die);
         }
         UNX_ResumeThreads (suspended_tids);
 
@@ -552,8 +788,7 @@ UNX_KillMeNow (void)
         suspended_tids =
           UNX_SuspendAllOtherThreads ();
         {
-          memcpy         (inst, live, 2);
-          VirtualProtect (inst, 2, dwProtect, &dwProtect);
+          SK_GetCommandProcessor ()->ProcessCommandFormatted ("mem t 392930 %s", (const char *)live);
         }
         UNX_ResumeThreads (suspended_tids);
 
@@ -576,9 +811,9 @@ UNX_KillMeNow (void)
         ffx2.party [i].vitals.current.HP = 0UL;
       }
 
-      *(uint8_t *)((intptr_t)__UNX_base_img_addr+0x9F7880) = 0x1;
+      SK_GetCommandProcessor ()->ProcessCommandLine ("mem b 9F7880 1");
       Sleep (33);
-      *(uint8_t *)((intptr_t)__UNX_base_img_addr+0x9F7880) = 0x0;
+      SK_GetCommandProcessor ()->ProcessCommandLine ("mem b 9F7880 0");
       Sleep (0);
     } break;
   }

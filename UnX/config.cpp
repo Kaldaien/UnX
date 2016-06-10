@@ -38,7 +38,7 @@ static
   unx::INI::File*
              booster_ini     = nullptr;
 
-std::wstring UNX_VER_STR = L"0.5.4a";
+std::wstring UNX_VER_STR = L"0.5.5";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)     (bool);
@@ -85,6 +85,8 @@ struct {
     unx::ParameterBool*  playable_seymour;
     unx::ParameterBool*  permanent_sensor;
     unx::ParameterFloat* max_speed;
+    unx::ParameterFloat* speed_step;
+    unx::ParameterFloat* skip_dialog;
   } ffx;
 } booster;
 
@@ -537,12 +539,32 @@ UNX_LoadConfig (std::wstring name) {
   booster.ffx.max_speed =
     static_cast <unx::ParameterFloat *>
       (g_ParameterFactory.create_parameter <float> (
-        L"Grant the Sensor ability no matter what weapon is equipped")
+        L"Maximum Speed Boost")
     );
   booster.ffx.max_speed->register_to_ini (
     booster_ini,
       L"SpeedHack.FFX",
         L"MaxSpeed" );
+
+  booster.ffx.speed_step =
+    static_cast <unx::ParameterFloat *>
+      (g_ParameterFactory.create_parameter <float> (
+        L"Amount to multiply speed by")
+    );
+  booster.ffx.speed_step->register_to_ini (
+    booster_ini,
+      L"SpeedHack.FFX",
+        L"SpeedStep" );
+
+  booster.ffx.skip_dialog =
+    static_cast <unx::ParameterFloat *>
+      (g_ParameterFactory.create_parameter <float> (
+        L"Speed at which dialog is skipped")
+    );
+  booster.ffx.skip_dialog->register_to_ini (
+    booster_ini,
+      L"SpeedHack.FFX",
+        L"SkipDialogAtSpeed" );
 
   booster.ffx.playable_seymour =
     static_cast <unx::ParameterBool *>
@@ -553,6 +575,7 @@ UNX_LoadConfig (std::wstring name) {
     booster_ini,
       L"Fun.FFX",
         L"PlayableSeymour" );
+
 
   sys.version =
     static_cast <unx::ParameterStringW *>
@@ -685,16 +708,18 @@ UNX_LoadConfig (std::wstring name) {
 #endif
 
 
-  booster.ffx.entire_party_earns_ap->load (config.cheat.ffx.entire_party_earns_ap);
-  booster.ffx.permanent_sensor->load      (config.cheat.ffx.permanent_sensor);
-  booster.ffx.playable_seymour->load      (config.cheat.ffx.playable_seymour);
-
-
   extern wchar_t* UNX_GetExecutableName (void);
   if (! lstrcmpiW (UNX_GetExecutableName (), L"ffx.exe")) {
-    booster.ffx.max_speed->load (config.cheat.ffx.max_speed);
-  } else {
-    config.cheat.ffx.max_speed = 1.0f;
+    booster.ffx.entire_party_earns_ap->load (config.cheat.ffx.entire_party_earns_ap);
+    booster.ffx.permanent_sensor->load      (config.cheat.ffx.permanent_sensor);
+    booster.ffx.playable_seymour->load      (config.cheat.ffx.playable_seymour);
+
+    booster.ffx.max_speed->load   (config.cheat.ffx.max_speed);
+    booster.ffx.speed_step->load  (config.cheat.ffx.speed_step);
+    booster.ffx.skip_dialog->load (config.cheat.ffx.skip_dialog);
+} else {
+    config.cheat.ffx.speed_step = 0.0f;
+    config.cheat.ffx.max_speed  = 1.0f;
   }
 
   sys.version->load  (config.system.version);
@@ -766,12 +791,15 @@ UNX_SaveConfig (std::wstring name, bool close_config) {
   ((unx::iParameter *)language.voice)->store ();
   ((unx::iParameter *)language.video)->store ();
 
-
-  booster.ffx.entire_party_earns_ap->store (config.cheat.ffx.entire_party_earns_ap);
-  booster.ffx.permanent_sensor->store      (config.cheat.ffx.permanent_sensor);
-  booster.ffx.playable_seymour->store      (config.cheat.ffx.playable_seymour);
-  booster.ffx.max_speed->store             (config.cheat.ffx.max_speed);
-
+  extern wchar_t* UNX_GetExecutableName (void);
+  if (! lstrcmpiW (UNX_GetExecutableName (), L"ffx.exe")) {
+    booster.ffx.entire_party_earns_ap->store (config.cheat.ffx.entire_party_earns_ap);
+    booster.ffx.permanent_sensor->store      (config.cheat.ffx.permanent_sensor);
+    booster.ffx.playable_seymour->store      (config.cheat.ffx.playable_seymour);
+    booster.ffx.max_speed->store             (config.cheat.ffx.max_speed);
+    booster.ffx.speed_step->store            (config.cheat.ffx.speed_step);
+    booster.ffx.skip_dialog->store           (config.cheat.ffx.skip_dialog);
+  }
 
   sys.version->store      (UNX_VER_STR);
   sys.injector->store     (config.system.injector);

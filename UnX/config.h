@@ -49,7 +49,8 @@ struct unx_config_s
       bool  playable_seymour      = false;
       bool  permanent_sensor      = false;
       float max_speed             = 8.0f;
-      float step_exp              = 2.0f;
+      float speed_step            = 2.0f;
+      float skip_dialog           = 8.0f;
     } ffx;
   } cheat;
 

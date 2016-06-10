@@ -635,8 +635,7 @@ SK_BeginBufferSwap_Detour (void)
   if (queue_death) {
     queue_death = false;
 
-    uint8_t* battle_init = (uint8_t *)((intptr_t)__UNX_base_img_addr + 0xD2A8E2);
-    *battle_init = 2;
+    SK_GetCommandProcessor ()->ProcessCommandLine ("mem b D2A8E2 2");
   }
 
   return hr;
