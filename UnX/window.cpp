@@ -100,15 +100,29 @@ UNX_ToggleFullscreenThread (LPVOID user)
 
   if (SUCCEEDED (pGameSwapChain->GetFullscreenState (&fullscreen, &pOutput))) {
     if (fullscreen) {
+      DXGI_SWAP_CHAIN_DESC swap_desc;
+      pGameSwapChain->GetDesc (&swap_desc);
+
+      DXGI_MODE_DESC mode = swap_desc.BufferDesc;
+      swap_desc.BufferDesc.Format = DXGI_FORMAT_UNKNOWN;
+      swap_desc.BufferUsage       = DXGI_USAGE_DISCARD_ON_PRESENT;
+      swap_desc.Flags             = 0x02;
+
+      pGameSwapChain->ResizeTarget       (&mode);
       pGameSwapChain->SetFullscreenState (FALSE, nullptr);
     } else {
       DXGI_SWAP_CHAIN_DESC swap_desc;
       pGameSwapChain->GetDesc (&swap_desc);
 
       DXGI_MODE_DESC mode = swap_desc.BufferDesc;
+      swap_desc.BufferDesc.Format = DXGI_FORMAT_UNKNOWN;
+      swap_desc.BufferUsage       = DXGI_USAGE_DISCARD_ON_PRESENT;
+      swap_desc.Flags             = 0x02;
 
       pGameSwapChain->ResizeTarget       (&mode);
       pGameSwapChain->SetFullscreenState (TRUE, pOutput);
+
+      pOutput.Release ();
 
       mode.RefreshRate.Denominator = 0;
       mode.RefreshRate.Numerator   = 0;
@@ -116,7 +130,7 @@ UNX_ToggleFullscreenThread (LPVOID user)
       pGameSwapChain->ResizeTarget  (&mode);
 
       //pGameSwapChain->ResizeBuffers (0, 0, 0, DXGI_FORMAT_UNKNOWN,
-      //                               DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
+                                     //DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
     }
   }
 
@@ -130,9 +144,14 @@ UNX_ToggleFullscreen (void)
   if (! pGameSwapChain)
     return;
 
-  // It is not safe to issue DXGI commands from the thread that drives
-  //   the Windows message pump... so spawn a separate thread to do this.
-  CreateThread (nullptr, 0, UNX_ToggleFullscreenThread, nullptr, 0, nullptr);
+  if ( UNX_IsWindowThread () ||
+       UNX_IsRenderThread () ) {
+    // It is not safe to issue DXGI commands from the thread that drives
+    //   the Windows message pump... so spawn a separate thread to do this.
+    CreateThread (nullptr, 0, UNX_ToggleFullscreenThread, nullptr, 0, nullptr);
+  } else {
+    UNX_ToggleFullscreenThread (nullptr);
+  }
 }
 
 
@@ -212,13 +231,6 @@ DetourWindowProc ( _In_  HWND   hWnd,
 {
   extern LPVOID __UNX_base_img_addr;
 
-  if (queue_death) {
-    queue_death = false;
-
-    uint8_t* battle_init = (uint8_t *)((intptr_t)__UNX_base_img_addr + 0xD2A8E2);
-    *battle_init = 2;
-  }
-
   if (schedule_load) {
     schedule_load = false;
 
@@ -287,20 +299,20 @@ DetourWindowProc ( _In_  HWND   hWnd,
       (config.input.fast_exit && uMsg == WM_CLOSE)  ) {
     shutting_down = true;
 
-    // Don't change the active window when shutting down
-    SetForegroundWindow (SK_GetGameWindow ());
-
-    // The game would deadlock and never shutdown if we tried to Alt+F4 in
-    //   fullscreen mode... oh the quirks of D3D :(
-    if (pGameSwapChain != nullptr && config.display.enable_fullscreen) {
-      UNX_SetFullscreenState (Window);
-    }
-
     UNX_SetGameMute (FALSE);
 
-    // Without this, some Windows functions wouldn't work correctly
-    extern void UNX_ReleaseESCKey (void);
-    UNX_ReleaseESCKey ();
+    // Don't change the active window when shutting down
+    //if (SetForegroundWindow (SK_GetGameWindow ())) {
+
+      // The game would deadlock and never shutdown if we tried to Alt+F4 in
+      //   fullscreen mode... oh the quirks of D3D :(
+      if (pGameSwapChain != nullptr && config.display.enable_fullscreen) {
+        UNX_SetFullscreenState (Window);
+        // Give some wait time before proceeding with shutdown so that
+        //   the DLL properly finishes its shutdown procedure.
+        Sleep (250);
+      }
+    //}
 
     // Don't trigger the code below that handles window deactivation
     //   in fullscreen mode
@@ -367,13 +379,6 @@ DetourWindowProc ( _In_  HWND   hWnd,
       unx::CheatTimer_FFX ();
     else if (wParam == unx::CHEAT_TIMER_FFX2)
       unx::CheatTimer_FFX2 ();
-  }
-
-
-
-  if (unx::window.active != last_active) {
-//    eTB_CommandProcessor* pCommandProc =
-//      SK_GetCommandProcessor           ();
   }
 
 
@@ -536,9 +541,10 @@ UNX_MWA_Thread (LPVOID pUser)
            SUCCEEDED (      pAdapter->GetParent  (IID_PPV_ARGS (&pFactory)) ) )
       {
         dll_log.Log( L"[Fullscreen] Setting DXGI Window Association "
-                     L"(HWND: Game=%X,SwapChain=%X - "
-                     L"flags=DXGI_MWA_NO_WINDOW_CHANGES|DXGI_MWA_NO_ALT_ENTER)",
+                     L"(HWND: Game=%X,SwapChain=%X)",
                        SK_GetGameWindow (), desc.OutputWindow );
+        dll_log.Log( L"[Fullscreen]   >> flags: "
+                     L"DXGI_MWA_NO_WINDOW_CHANGES | DXGI_MWA_NO_ALT_ENTER" );
 
         pFactory->MakeWindowAssociation ( desc.OutputWindow,
                                             DXGI_MWA_NO_WINDOW_CHANGES |
@@ -604,7 +610,10 @@ DXGISwap_ResizeBuffers_Detour (
                                             NewFormat,
                                               SwapChainFlags );
 
-  CreateThread (nullptr, 0, UNX_MWA_Thread, nullptr, 0, nullptr);
+  if ( UNX_IsWindowThread () || UNX_IsRenderThread () )
+    CreateThread (nullptr, 0, UNX_MWA_Thread, nullptr, 0, nullptr);
+  else
+    UNX_MWA_Thread (nullptr);
 
   return hr;
 }
@@ -629,8 +638,6 @@ SK_BeginBufferSwap_Detour (void)
 #endif
 
   HRESULT hr = SK_BeginBufferSwap_Original ();
-
-  extern LPVOID __UNX_base_img_addr;
 
   if (queue_death) {
     queue_death = false;

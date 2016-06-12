@@ -28,7 +28,7 @@
 #include <string>
 
 static
-  unx::INI::File* 
+  unx::INI::File*
              dll_ini         = nullptr;
 static
   unx::INI::File*
@@ -38,7 +38,7 @@ static
   unx::INI::File*
              booster_ini     = nullptr;
 
-std::wstring UNX_VER_STR = L"0.5.5";
+std::wstring UNX_VER_STR = L"0.5.6";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)     (bool);
@@ -730,7 +730,8 @@ UNX_LoadConfig (std::wstring name) {
     render.bypass_intel->load (config.render.bypass_intel);
     render.flip_mode->load    (config.render.flip_mode);
 
-    SK_DXGI_EnableFlipMode (config.render.flip_mode);
+    SK_DXGI_EnableFlipMode ( config.render.flip_mode       &&
+                          (! config.display.enable_fullscreen ) );
 
     // Rather dumb logic that assumes the Intel GPU will be Adapter 0.
     //

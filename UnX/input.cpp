@@ -1514,49 +1514,6 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
     bool full_sleep = true;
 
     if (esc.state) {
-/*
-FFX.exe+302C4F - 6A 01                 - push 01 { 00000001 }
-FFX.exe+302C51 - 6A 00                 - push 00 { 0 }
-FFX.exe+302C53 - 6A 00                 - push 00 { 0 }
-FFX.exe+302C55 - 68 78CE8700           - push FFX.exe+74CE78 { ["showSaveLoad"] }
-FFX.exe+302C5A - 6A 00                 - push 00 { 0 }
-FFX.exe+302C5C - E8 3F5F3200           - call FFX.exe+628BA0
-*/
-#if 0
-      extern void*
-      UNX_Scan (const uint8_t* pattern, size_t len, const uint8_t* mask);
-
-      uint8_t inst [] = { 0x68, 0x88, 0x04, 0x00, 0x00,
-                          0xe8, 0x66, 0xe7, 0xf3, 0xff,
-                          0x83, 0xc4, 0x04, 0x85, 0xc0
-      };
-      uint8_t mask [] = { 0xff, 0xff, 0xff, 0xff, 0xff,
-                          0x00, 0x00, 0x00, 0x00, 0x00,
-                          0xff, 0xff, 0xff, 0xff, 0xff
-      };
-
-      typedef void (__fastcall *test_pfn)(void);
-      test_pfn test =
-        (test_pfn)(UNX_Scan (inst, 15, mask));
-
-      uintptr_t expected = 0x6F1D50;
-      uintptr_t offset   = (uintptr_t)test - expected;
-
-      //dll_log.Log (L" Quicksave: %ph", test);
-
-      DWORD quicksave = 0xAE0510 + offset;//0x00648190 + offset;
-
-      //__asm { pushad 
-              //call quicksave
-              //popad };
-
-      //typedef int (__cdecl *quickie_pfn)(void);
-      //quickie_pfn quickie = (quickie_pfn)(0x657BE0/*0x6EFFF0*/ + offset);
-
-      int x = 0;
-      int y = 0;
-      //quickie ()
-#endif
       UNX_SendScancode (0x01);
     }
 
@@ -1664,4 +1621,5 @@ return;
   Sleep     (66);
 }
 
-unx::InputManager::Hooker* unx::InputManager::Hooker::pInputHook = nullptr;
+unx::InputManager::Hooker*
+  unx::InputManager::Hooker::pInputHook = nullptr;

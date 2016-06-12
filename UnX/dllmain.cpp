@@ -56,10 +56,10 @@ DllThread (LPVOID user)
   //
   dll_log.init  ( "logs/UnX.log",
                     "w" );
-  dll_log.LogEx ( false, L"-------------- [Untitled X] "
-                         L"--------------\n" );
+  dll_log.LogEx ( false, L"--------------- [Untitled X] "
+                         L"---------------\n" );
   dll_log.Log   (        L"Untitled X Plug-In\n"
-                         L"============ (Version:  v %s) "
+                         L"============ (Version: v %s) "
                          L"============",
                            UNX_VER_STR.c_str () );
 
@@ -133,12 +133,12 @@ DllMain (HMODULE hModule,
       UNX_UnInit_MinHook ();
       UNX_SaveConfig     ();
 
-      dll_log.LogEx ( false, L"============ (Version:  v %s) "
+      dll_log.LogEx ( false, L"============ (Version: v %s) "
                              L"============\n",
                                UNX_VER_STR.c_str () );
       dll_log.LogEx ( true,  L"End unx.dll\n" );
-      dll_log.LogEx ( false, L"-------------- [Untitled X] "
-                             L"--------------\n" );
+      dll_log.LogEx ( false, L"--------------- [Untitled X] "
+                             L"---------------\n" );
 
       dll_log.close ();
     } break;

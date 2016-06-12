@@ -677,8 +677,14 @@ UNX_ToggleFreeLook (void)
 void
 UNX_ToggleSensor (void)
 {
+  if (game_type != GAME_FFX)
+    return;
+
   config.cheat.ffx.permanent_sensor =
     (! config.cheat.ffx.permanent_sensor);
+
+  ffx.debug_flags->permanent_sensor =
+    config.cheat.ffx.permanent_sensor;
 }
 
 void
@@ -828,9 +834,6 @@ unx::CheatTimer_FFX (void)
     return;
 
   DWORD dwProtect;
-
-  ffx.debug_flags->permanent_sensor =
-    config.cheat.ffx.permanent_sensor;
 
   if (config.cheat.ffx.playable_seymour) {
     ffx.party [ffx.characters.Seymour].in_party = 0x11;
