@@ -138,7 +138,7 @@ DllMain (HMODULE hModule,
                                UNX_VER_STR.c_str () );
       dll_log.LogEx ( true,  L"End unx.dll\n" );
       dll_log.LogEx ( false, L"--------------- [Untitled X] "
-                             L"---------------\n" );
+                             L"---------------" );
 
       dll_log.close ();
     } break;
