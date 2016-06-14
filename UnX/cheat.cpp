@@ -27,6 +27,8 @@
 #include <Windows.h>
 #include <cstdint>
 
+void UNX_SetSensor (bool state);
+
 enum unx_gametype_t {
   GAME_INVALID = 0x0,
   GAME_FFX     = 0x01,
@@ -634,6 +636,8 @@ unx::CheatManager::Init (void)
                   (LPVOID *)&FFX_LoadLevel_Original);
     UNX_EnableHook ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x241F60));
 
+    UNX_SetSensor (config.cheat.ffx.permanent_sensor);
+
     SetTimer (unx::window.hwnd, CHEAT_TIMER_FFX, 33, nullptr);
   }
 
@@ -675,6 +679,15 @@ UNX_ToggleFreeLook (void)
 }
 
 void
+UNX_SetSensor (bool state)
+{
+  config.cheat.ffx.permanent_sensor = state;
+
+  ffx.debug_flags->permanent_sensor =
+    config.cheat.ffx.permanent_sensor;
+}
+
+void
 UNX_ToggleSensor (void)
 {
   if (game_type != GAME_FFX)
@@ -683,8 +696,7 @@ UNX_ToggleSensor (void)
   config.cheat.ffx.permanent_sensor =
     (! config.cheat.ffx.permanent_sensor);
 
-  ffx.debug_flags->permanent_sensor =
-    config.cheat.ffx.permanent_sensor;
+  UNX_SetSensor (config.cheat.ffx.permanent_sensor);
 }
 
 void

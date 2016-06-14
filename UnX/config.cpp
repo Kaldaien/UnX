@@ -38,7 +38,7 @@ static
   unx::INI::File*
              booster_ini     = nullptr;
 
-std::wstring UNX_VER_STR = L"0.5.6";
+std::wstring UNX_VER_STR = L"0.5.6a";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)     (bool);
@@ -725,6 +725,11 @@ UNX_LoadConfig (std::wstring name) {
   sys.version->load  (config.system.version);
   sys.injector->load (config.system.injector);
 
+  if (UNX_SetupWindowMgmt ()) {
+    display.enable_fullscreen->load (config.display.enable_fullscreen);
+
+    SKX_D3D11_EnableFullscreen (config.display.enable_fullscreen);
+  }
 
   if (UNX_SetupLowLevelRender ()) {
     render.bypass_intel->load (config.render.bypass_intel);
@@ -754,13 +759,6 @@ UNX_LoadConfig (std::wstring name) {
     if (config.textures.inject)
       SK_D3D11_AddTexHash (L"Title.dds", 0xA4FFC068);
   }
-
-  if (UNX_SetupWindowMgmt ()) {
-    display.enable_fullscreen->load (config.display.enable_fullscreen);
-
-    SKX_D3D11_EnableFullscreen (config.display.enable_fullscreen);
-  }
-
 
   if (empty)
     return false;
