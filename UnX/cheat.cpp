@@ -845,6 +845,9 @@ unx::CheatTimer_FFX (void)
   if (game_type != GAME_FFX)
     return;
 
+  if (config.cheat.ffx.permanent_sensor)
+    UNX_SetSensor (config.cheat.ffx.permanent_sensor);
+
   DWORD dwProtect;
 
   if (config.cheat.ffx.playable_seymour) {

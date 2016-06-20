@@ -41,7 +41,7 @@
 #include <mmsystem.h>
 #pragma comment (lib, "winmm.lib")
 
-typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)(std::wstring, uint32_t);
+typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)(std::wstring, uint32_t, uint32_t);
 extern SK_D3D11_AddTexHash_pfn SK_D3D11_AddTexHash;
 
 typedef HWND (WINAPI *SK_GetGameWindow_pfn)(void);
@@ -696,10 +696,12 @@ unx::InputManager::Init (void)
     dll_log.Log (L"[Button Map] Button Map:  %s", wszPadIcons);
 
     SK_D3D11_AddTexHash ( wszPadIcons,
-                            config.textures.pad.icons.high );
+                            config.textures.pad.icons.high,
+                              0x00 );
 
     SK_D3D11_AddTexHash ( wszPadIcons,
-                            config.textures.pad.icons.low );
+                            config.textures.pad.icons.low,
+                              0x00 );
 
     const size_t num_buttons = 16;
     const size_t pad_lods    = 2;
@@ -748,7 +750,8 @@ unx::InputManager::Init (void)
 
         SK_D3D11_AddTexHash (
               wszPadButton,
-                hash
+                hash,
+                  0x00
         );
       }
     }
