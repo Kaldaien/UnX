@@ -38,7 +38,7 @@ static
   unx::INI::File*
              booster_ini     = nullptr;
 
-std::wstring UNX_VER_STR = L"0.6.0";
+std::wstring UNX_VER_STR = L"0.6.2";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)      (bool);
@@ -66,6 +66,8 @@ SK_D3D11_RemoveTexHash_pfn      SK_D3D11_RemoveTexHash     = nullptr;
 
 SKX_D3D11_MarkTextures_pfn      SKX_D3D11_MarkTextures     = nullptr;
 SKX_D3D11_EnableFullscreen_pfn  SKX_D3D11_EnableFullscreen = nullptr;
+
+extern wchar_t* UNX_GetExecutableName (void);
 
 struct {
   unx::ParameterBool*    bypass_intel;
@@ -605,8 +607,6 @@ UNX_LoadConfig (std::wstring name) {
 
   if (! language.voice->load (config.language.voice))
     language.voice->set_value (config.language.voice);
-
-  extern wchar_t* UNX_GetExecutableName (void);
 
   unx::ParameterStringW* voice_override =
     (unx::ParameterStringW *)

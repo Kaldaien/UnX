@@ -54,8 +54,8 @@ namespace unx
         return hMsgPump;
       }
 
-      static DWORD
-        WINAPI
+      static unsigned int
+        __stdcall
         MessagePump (LPVOID hook_ptr);
     };
   }

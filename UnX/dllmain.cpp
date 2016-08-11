@@ -32,6 +32,7 @@
 #include "input.h"
 #include "window.h"
 
+#include <process.h>
 #include <comdef.h>
 
 #pragma comment (lib, "kernel32.lib")
@@ -42,8 +43,8 @@ HMODULE hInjectorDLL = { 0 }; // Handle to Special K
 typedef void (__stdcall *SK_SetPluginName_pfn)(std::wstring name);
 SK_SetPluginName_pfn SK_SetPluginName = nullptr;
 
-DWORD
-WINAPI
+unsigned int
+__stdcall
 DllThread (LPVOID user)
 {
   std::wstring plugin_name = L"Untitled Project X v " + UNX_VER_STR;
@@ -112,13 +113,14 @@ DllMain (HMODULE hModule,
   {
     case DLL_PROCESS_ATTACH:
     {
-      DisableThreadLibraryCalls (hModule);
-
       hDLLMod = hModule;
 
-      // This is safe because this DLL is never loaded at launch, it is always
-      //   loaded from dxgi.dll (Special K) explicitly through LoadLibrary (...)
-      DllThread (nullptr);
+      _beginthreadex ( nullptr,
+                         0,
+                           DllThread,
+                             nullptr,
+                               0x00,
+                                 nullptr );
     } break;
 
     case DLL_PROCESS_DETACH:

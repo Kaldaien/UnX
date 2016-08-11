@@ -273,7 +273,7 @@ eTB_CommandProcessor::ProcessCommandLine (const char* szCommandLine)
     eTB_Command* cmd = SK_GetCommandProcessor ()->FindCommand (cmd_word.c_str ());
 
     if (cmd != NULL) {
-      return cmd->execute (command_args);
+      return cmd->execute (cmd_args.c_str ());
     }
 
     /* No command found, perhaps the word was a variable? */
@@ -288,22 +288,22 @@ eTB_CommandProcessor::ProcessCommandLine (const char* szCommandLine)
           bool                bool_val = false;
 
           /* False */
-          if (! (_stricmp (command_args, "false") && _stricmp (command_args, "0") &&
-                 _stricmp (command_args, "off"))) {
+          if (! (_stricmp (cmd_args.c_str (), "false") && _stricmp (cmd_args.c_str (), "0") &&
+                 _stricmp (cmd_args.c_str (), "off"))) {
             bool_val = false;
             bool_var->setValue (bool_val);
           }
 
           /* True */
-          else if (! (_stricmp (command_args, "true") && _stricmp (command_args, "1") &&
-                      _stricmp (command_args, "on"))) {
+          else if (! (_stricmp (cmd_args.c_str (), "true") && _stricmp (cmd_args.c_str (), "1") &&
+                      _stricmp (cmd_args.c_str (), "on"))) {
             bool_val = true;
             bool_var->setValue (bool_val);
           }
 
           /* Toggle */
-          else if (! (_stricmp (command_args, "toggle") && _stricmp (command_args, "~") &&
-                      _stricmp (command_args, "!"))) {
+          else if (! (_stricmp (cmd_args.c_str (), "toggle") && _stricmp (cmd_args.c_str (), "~") &&
+                      _stricmp (cmd_args.c_str (), "!"))) {
             bool_val = ! bool_var->getValue ();
             bool_var->setValue (bool_val);
 
@@ -322,14 +322,14 @@ eTB_CommandProcessor::ProcessCommandLine (const char* szCommandLine)
           int int_val = 0;
 
           /* Increment */
-          if (! (_stricmp (command_args, "++") && _stricmp (command_args, "inc") &&
-                 _stricmp (command_args, "next"))) {
+          if (! (_stricmp (cmd_args.c_str (), "++") && _stricmp (cmd_args.c_str (), "inc") &&
+                 _stricmp (cmd_args.c_str (), "next"))) {
             int_val = original_val + 1;
-          } else if (! (_stricmp (command_args, "--") && _stricmp (command_args, "dec") &&
-                        _stricmp (command_args, "prev"))) {
+          } else if (! (_stricmp (cmd_args.c_str (), "--") && _stricmp (cmd_args.c_str (), "dec") &&
+                        _stricmp (cmd_args.c_str (), "prev"))) {
             int_val = original_val - 1;
           } else
-            int_val = atoi (command_args);
+            int_val = atoi (cmd_args.c_str ());
 
           ((eTB_VarStub <int>*) var)->setValue (int_val);
         }
@@ -342,14 +342,14 @@ eTB_CommandProcessor::ProcessCommandLine (const char* szCommandLine)
           short short_val    = 0;
 
           /* Increment */
-          if (! (_stricmp (command_args, "++") && _stricmp (command_args, "inc") &&
-                 _stricmp (command_args, "next"))) {
+          if (! (_stricmp (cmd_args.c_str (), "++") && _stricmp (cmd_args.c_str (), "inc") &&
+                 _stricmp (cmd_args.c_str (), "next"))) {
             short_val = original_val + 1;
-          } else if (! (_stricmp (command_args, "--") && _stricmp (command_args, "dec") &&
-                        _stricmp (command_args, "prev"))) {
+          } else if (! (_stricmp (cmd_args.c_str (), "--") && _stricmp (cmd_args.c_str (), "dec") &&
+                        _stricmp (cmd_args.c_str (), "prev"))) {
             short_val = original_val - 1;
           } else
-            short_val = (short)atoi (command_args);
+            short_val = (short)atoi (cmd_args.c_str ());
 
           ((eTB_VarStub <short>*) var)->setValue (short_val);
         }
@@ -359,7 +359,7 @@ eTB_CommandProcessor::ProcessCommandLine (const char* szCommandLine)
       {
         if (command_args_len > 0) {
 //          float original_val = ((eTB_VarStub <float>*) var)->getValue ();
-          float float_val = (float)atof (command_args);
+          float float_val = (float)atof (cmd_args.c_str ());
 
           ((eTB_VarStub <float>*) var)->setValue (float_val);
         }

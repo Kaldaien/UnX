@@ -41,6 +41,8 @@
 #include <mmsystem.h>
 #pragma comment (lib, "winmm.lib")
 
+#include <process.h>
+
 typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)(std::wstring, uint32_t, uint32_t);
 extern SK_D3D11_AddTexHash_pfn SK_D3D11_AddTexHash;
 
@@ -1056,12 +1058,13 @@ void
 unx::InputManager::Hooker::Start (void)
 {
   hMsgPump =
-    CreateThread ( NULL,
-                     NULL,
-                       Hooker::MessagePump,
-                         nullptr,
-                           NULL,
-                             NULL );
+    (HANDLE)
+      _beginthreadex ( nullptr,
+                         0,
+                           Hooker::MessagePump,
+                             nullptr,
+                              0,
+                                nullptr );
 }
 
 void
@@ -1317,8 +1320,8 @@ UNX_PollAxis (int axis, const JOYINFOEX& joy_ex, const JOYCAPSW& caps)
 }
 
 
-DWORD
-WINAPI
+unsigned int
+__stdcall
 unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 {
   if ( ((! XInputGetState_Original) && (! gamepad.legacy)) )

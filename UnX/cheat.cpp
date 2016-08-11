@@ -27,6 +27,8 @@
 #include <Windows.h>
 #include <cstdint>
 
+extern wchar_t* UNX_GetExecutableName (void);
+
 void UNX_SetSensor (bool state);
 
 enum unx_gametype_t {
@@ -467,9 +469,6 @@ UNX_LoadLevel (char* szName)
           jmp FFX_LoadLevel_Original }
 }
 
-extern wchar_t* UNX_GetExecutableName (void);
-extern LPVOID __UNX_base_img_addr;
-
 class unxMemCmd : public eTB_Command {
 public:
   eTB_CommandResult execute (const char* szArgs);
@@ -496,7 +495,23 @@ unxMemCmd::execute (const char* szArgs)
 
   sscanf (szArgs, "%c %x %s", &type, &addr, val);
 
-  addr += (intptr_t)__UNX_base_img_addr;
+  static uint8_t* base_addr = nullptr;
+
+  if (base_addr == nullptr) {
+    base_addr = (uint8_t *)GetModuleHandle (nullptr);
+
+    MEMORY_BASIC_INFORMATION mem_info;
+    VirtualQuery (base_addr, &mem_info, sizeof mem_info);
+
+    base_addr = (uint8_t *)mem_info.BaseAddress;
+
+    //IMAGE_DOS_HEADER* pDOS =
+      //(IMAGE_DOS_HEADER *)mem_info.AllocationBase;
+    //IMAGE_NT_HEADERS* pNT  =
+      //(IMAGE_NT_HEADERS *)((intptr_t)(pDOS + pDOS->e_lfanew));
+  }
+
+  addr += (intptr_t)base_addr;
 
   char result [512];
 
