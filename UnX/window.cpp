@@ -317,6 +317,8 @@ DetourWindowProc ( _In_  HWND   hWnd,
     // Don't trigger the code below that handles window deactivation
     //   in fullscreen mode
     unx::window.active = last_active;
+
+    ExitProcess (0);
   }
 
   //
