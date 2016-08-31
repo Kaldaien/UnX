@@ -133,14 +133,6 @@ typedef HRESULT (WINAPI *IDirectInput8_CreateDevice_pfn)(
   LPUNKNOWN            pUnkOuter
 );
 
-typedef HRESULT (WINAPI *DirectInput8Create_pfn)(
-  HINSTANCE  hinst,
-  DWORD      dwVersion,
-  REFIID     riidltf,
-  LPVOID    *ppvOut,
-  LPUNKNOWN  punkOuter
-);
-
 typedef HRESULT (WINAPI *IDirectInputDevice8_GetDeviceState_pfn)(
   LPDIRECTINPUTDEVICE  This,
   DWORD                cbData,
@@ -153,10 +145,6 @@ typedef HRESULT (WINAPI *IDirectInputDevice8_SetCooperativeLevel_pfn)(
   DWORD                dwFlags
 );
 
-DirectInput8Create_pfn
-        DirectInput8Create_Original                      = nullptr;
-LPVOID
-        DirectInput8Create_Hook                          = nullptr;
 IDirectInput8_CreateDevice_pfn
         IDirectInput8_CreateDevice_Original              = nullptr;
 IDirectInputDevice8_GetDeviceState_pfn
@@ -167,14 +155,14 @@ IDirectInputDevice8_SetCooperativeLevel_pfn
 
 
 #define DINPUT8_CALL(_Ret, _Call) {                                     \
-  dll_log.LogEx (true, L"[   Input  ]  Calling original function: ");   \
+  dll_log->LogEx (true, L"[   Input  ]  Calling original function: ");  \
   (_Ret) = (_Call);                                                     \
   _com_error err ((_Ret));                                              \
   if ((_Ret) != S_OK)                                                   \
-    dll_log.LogEx (false, L"(ret=0x%04x - %s)\n", err.WCode (),         \
+    dll_log->LogEx (false, L"(ret=0x%04x - %s)\n", err.WCode (),        \
                                                   err.ErrorMessage ()); \
   else                                                                  \
-    dll_log.LogEx (false, L"(ret=S_OK)\n");                             \
+    dll_log->LogEx (false, L"(ret=S_OK)\n");                            \
 }
 
 #define __PTR_SIZE   sizeof LPCVOID 
@@ -324,11 +312,11 @@ IDirectInput8_CreateDevice_Detour ( IDirectInput8       *This,
                                 (rguid == GUID_SysMouse) ? L"Default System Mouse" :
                                                            L"Other Device";
 
-  dll_log.Log ( L"[   Input  ][!] IDirectInput8::CreateDevice (%08Xh, %s, %08Xh, %08Xh)",
-                  This,
-                    wszDevice,
-                      lplpDirectInputDevice,
-                        pUnkOuter );
+  dll_log->Log ( L"[   Input  ][!] IDirectInput8::CreateDevice (%08Xh, %s, %08Xh, %08Xh)",
+                   This,
+                     wszDevice,
+                       lplpDirectInputDevice,
+                         pUnkOuter );
 
   HRESULT hr;
   DINPUT8_CALL ( hr,
@@ -388,56 +376,6 @@ IDirectInput8_CreateDevice_Detour ( IDirectInput8       *This,
     (*lplpDirectInputDevice)->SetCooperativeLevel (SK_GetGameWindow (), dwFlag);
   }
 #endif
-
-  return hr;
-} 
-
-HRESULT
-WINAPI
-DirectInput8Create_Detour ( HINSTANCE  hinst,
-                            DWORD      dwVersion,
-                            REFIID     riidltf,
-                            LPVOID    *ppvOut,
-                            LPUNKNOWN  punkOuter )
-{
-  dll_log.Log ( L"[   Input  ][!] DirectInput8Create (0x%X, %lu, ..., %08Xh, %08Xh)",
-                  hinst, dwVersion, /*riidltf,*/ ppvOut, punkOuter );
-
-  HRESULT hr;
-  DINPUT8_CALL (hr,
-    DirectInput8Create_Original ( hinst,
-                                    dwVersion,
-                                      riidltf,
-                                        ppvOut,
-                                          punkOuter ));
-
-  if (hinst != GetModuleHandle (nullptr)) {
-    dll_log.Log (L"[   Input  ] >> A third-party DLL is manipulating DirectInput 8; bad things may happen.");
-    return hr;
-  }
-
-  // Avoid multiple hooks for third-party compatibility
-  static bool hooked = false;
-
-  if (SUCCEEDED (hr) && (! hooked)) {
-#if 1
-    void** vftable = *(void***)*ppvOut;
-
-    UNX_CreateFuncHook ( L"IDirectInput8::CreateDevice",
-                         vftable [3],
-                         IDirectInput8_CreateDevice_Detour,
-               (LPVOID*)&IDirectInput8_CreateDevice_Original );
-
-    UNX_EnableHook (vftable [3]);
-#else
-     DI8_VIRTUAL_OVERRIDE ( ppvOut, 3,
-                            L"IDirectInput8::CreateDevice",
-                            IDirectInput8_CreateDevice_Detour,
-                            IDirectInput8_CreateDevice_Original,
-                            IDirectInput8_CreateDevice_pfn );
-#endif
-    hooked = true;
-  }
 
   return hr;
 }
@@ -639,7 +577,7 @@ SK_UNX_PluginKeyPress ( BOOL Control,
   }
 
   if (Control && Shift && vkCode == 'V') {
-    eTB_CommandResult result = 
+    SK_ICommandResult result = 
       SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval");
 
     if (result.getVariable ()->getValueString () != "0")
@@ -651,6 +589,9 @@ SK_UNX_PluginKeyPress ( BOOL Control,
   //SK_PluginKeyPress_Original (Control, Shift, Alt, vkCode);
 }
 
+typedef std::wstring (__stdcall *SK_GetConfigPath_pfn)(void);
+extern SK_GetConfigPath_pfn SK_GetConfigPath;
+
 void
 unx::InputManager::Init (void)
 {
@@ -660,7 +601,12 @@ unx::InputManager::Init (void)
                          "SK_GetGameWindow" );
 
   unx::ParameterFactory factory;
-  unx::INI::File* pad_cfg = new unx::INI::File (L"UnX_Gamepad.ini");
+  iSK_INI* pad_cfg =
+    UNX_CreateINI (
+      std::wstring (
+        SK_GetConfigPath () + L"UnX_Gamepad.ini"
+      ).c_str ()
+    );
   pad_cfg->parse ();
 
   unx::ParameterStringW* texture_set =
@@ -689,13 +635,13 @@ unx::InputManager::Init (void)
     lstrcatW (wszPadRoot, config.textures.gamepad.c_str ());
     lstrcatW (wszPadRoot, L"\\");
 
-    dll_log.Log (L"[Button Map] Button Pack: %s", wszPadRoot);
+    dll_log->Log (L"[Button Map] Button Pack: %s", wszPadRoot);
 
     wchar_t wszPadIcons [MAX_PATH] = { L'\0' };
     lstrcatW (wszPadIcons, wszPadRoot);
     lstrcatW (wszPadIcons, L"ButtonMap.dds");
 
-    dll_log.Log (L"[Button Map] Button Map:  %s", wszPadIcons);
+    dll_log->Log (L"[Button Map] Button Map:  %s", wszPadIcons);
 
     SK_D3D11_AddTexHash ( wszPadIcons,
                             config.textures.pad.icons.high,
@@ -736,18 +682,18 @@ unx::InputManager::Init (void)
       {
         if (new_button) {
           if (i > 0) {
-            dll_log.LogEx
+            dll_log->LogEx
                         ( false, L"\n" );
           }
 
-          dll_log.LogEx ( true, L"[Button Map] Button %10s: '%#38s' ( %08x :: ",
-                          wszButtons [i / pad_lods],
-                            wszPadButton,
-                              hash );
+          dll_log->LogEx ( true, L"[Button Map] Button %10s: '%#38s' ( %08x :: ",
+                           wszButtons [i / pad_lods],
+                             wszPadButton,
+                               hash );
 
           new_button = false;
         } else {
-          dll_log.LogEx ( false, L"%08x )", hash );
+          dll_log->LogEx ( false, L"%08x )", hash );
         }
 
         SK_D3D11_AddTexHash (
@@ -758,7 +704,7 @@ unx::InputManager::Init (void)
       }
     }
 
-    dll_log.LogEx ( false, L"\n" );
+    dll_log->LogEx ( false, L"\n" );
   }
 
   unx::ParameterBool* supports_XInput = 
@@ -982,15 +928,35 @@ unx::InputManager::Init (void)
     );
   }
 
-  pad_cfg->write (L"UnX_Gamepad.ini");
+  pad_cfg->write (SK_GetConfigPath () + L"UnX_Gamepad.ini");
   delete pad_cfg;
 
   if (config.input.remap_dinput8) {
-    UNX_CreateDLLHook ( L"dinput8.dll", "DirectInput8Create",
-                        DirectInput8Create_Detour,
-              (LPVOID*)&DirectInput8Create_Original,
-              (LPVOID*)&DirectInput8Create_Hook );
-    UNX_EnableHook    (DirectInput8Create_Hook);
+    CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+
+    IDirectInput8W* pDInput8 = nullptr;
+
+    HRESULT hr =
+      CoCreateInstance ( CLSID_DirectInput8,
+                           nullptr,
+                             CLSCTX_INPROC_SERVER,
+                               IID_IDirectInput8,
+                                 (LPVOID *)&pDInput8 );
+
+    if (SUCCEEDED (hr)) {
+      void** vftable = *(void***)*&pDInput8;
+
+      pDInput8->Initialize (GetModuleHandle (nullptr), DIRECTINPUT_VERSION);
+
+      UNX_CreateFuncHook ( L"IDirectInput8::CreateDevice",
+                           vftable [3],
+                           IDirectInput8_CreateDevice_Detour,
+                 (LPVOID*)&IDirectInput8_CreateDevice_Original );
+
+      UNX_EnableHook (vftable [3]);
+
+      pDInput8->Release ();
+    }
   }
 
 
@@ -1151,7 +1117,7 @@ UNX_ParseButtonCombo (std::wstring combo, int* out)
       out [state.buttons++] = button;
     }
 
-    //dll_log.Log (L"Button%lu: %s", state.buttons-1, wszTok);
+    //dll_log->Log (L"Button%lu: %s", state.buttons-1, wszTok);
     wszTok = wcstok (nullptr, L"+");
 
     if (state.buttons > 1)

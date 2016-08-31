@@ -25,60 +25,65 @@
 #include <map>
 #include <vector>
 
-namespace unx {
-namespace INI {
-  class File
-  {
-  public:
-             File (wchar_t* filename);
-    virtual ~File (void);
+#include <Unknwnbase.h>
 
-    void parse  (void);
-    void import (std::wstring import_data);
-    void write  (std::wstring fname);
+// {B526D074-2F4D-4BAE-B6EC-11CB3779B199}
+static const GUID IID_SK_INISection = 
+{ 0xb526d074, 0x2f4d, 0x4bae, { 0xb6, 0xec, 0x11, 0xcb, 0x37, 0x79, 0xb1, 0x99 } };
 
-    class Section
-    {
-    public:
-      Section (void) {
-      }
+interface iSK_INISection : public IUnknown
+{
+public:
+  iSK_INISection (void) {
+    AddRef ();
+  }
 
-      Section (std::wstring section_name) {
-        name = section_name;
-      }
+  iSK_INISection (std::wstring section_name) {
+    Release ();
+  }
 
-      std::wstring& get_value     (std::wstring key);
-      bool          contains_key  (std::wstring key);
-      void          add_key_value (std::wstring key, std::wstring value);
+  /*** IUnknown methods ***/
+  STDMETHOD  (       QueryInterface)(THIS_ REFIID riid, void** ppvObj) = 0;
+  STDMETHOD_ (ULONG, AddRef)        (THIS)                             = 0;
+  STDMETHOD_ (ULONG, Release)       (THIS)                             = 0;
 
-      //protected:
-      //private:
-      std::wstring                              name;
-      std::map     <std::wstring, std::wstring> pairs;
-      std::vector  <std::wstring>               ordered_keys;
-    };
+  STDMETHOD_ (std::wstring&, get_value)    (std::wstring key)  = 0;
+  STDMETHOD_ (void,          set_name)     (std::wstring name) = 0;
+  STDMETHOD_ (bool,          contains_key) (std::wstring key)  = 0;
+  STDMETHOD_ (void,          add_key_value)(std::wstring key, std::wstring value) = 0;
+};
 
-    const std::map <std::wstring, Section>& get_sections (void);
+// {DD2B1E00-6C14-4659-8B45-FCEF1BC2C724}
+static const GUID IID_SK_INI = 
+{ 0xdd2b1e00, 0x6c14, 0x4659, { 0x8b, 0x45, 0xfc, 0xef, 0x1b, 0xc2, 0xc7, 0x24 } };
 
-    Section& get_section      (std::wstring section);
-    bool     contains_section (std::wstring section);
+interface iSK_INI : public IUnknown
+{
+  typedef const std::map <std::wstring, iSK_INISection> _TSectionMap;
 
-  protected:
-  private:
-    FILE*     fINI;
-
-    wchar_t*  wszName;
-    wchar_t*  wszData;
-
-    std::map <std::wstring, Section>
-              sections;
-
-    // Preserve insertion order so that we write the INI file in the
-    //   same order we read it. Otherwise things get jumbled around
-    //     arbitrarily as the map is re-hashed.
-    std::vector <std::wstring>
-              ordered_sections;
+           iSK_INI (const wchar_t* filename) {
+    AddRef ();
   };
-}}
+
+  virtual ~iSK_INI (void) {
+    Release ();
+  }
+
+  /*** IUnknown methods ***/
+  STDMETHOD  (       QueryInterface)(THIS_ REFIID riid, void** ppvObj) = 0;
+  STDMETHOD_ (ULONG, AddRef)        (THIS)                             = 0;
+  STDMETHOD_ (ULONG, Release)       (THIS)                             = 0;
+
+  STDMETHOD_ (void, parse)  (THIS)                           = 0;
+  STDMETHOD_ (void, import) (THIS_ std::wstring import_data) = 0;
+  STDMETHOD_ (void, write)  (THIS_ std::wstring fname)       = 0;
+
+  STDMETHOD_ (_TSectionMap&,   get_sections)    (THIS)                 = 0;
+  STDMETHOD_ (iSK_INISection&, get_section)     (std::wstring section) = 0;
+  STDMETHOD_ (bool,            contains_section)(std::wstring section) = 0;
+};
+
+iSK_INI*
+UNX_CreateINI (const wchar_t* const wszName);
 
 #endif

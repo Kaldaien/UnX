@@ -28,17 +28,17 @@
 #include <string>
 
 static
-  unx::INI::File*
+  iSK_INI*
              dll_ini         = nullptr;
 static
-  unx::INI::File*
+  iSK_INI*
              language_ini    = nullptr;
 
 static
-  unx::INI::File*
+  iSK_INI*
              booster_ini     = nullptr;
 
-std::wstring UNX_VER_STR = L"0.6.2";
+std::wstring UNX_VER_STR = L"0.6.3";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)      (bool);
@@ -232,19 +232,30 @@ UNX_SetupTexMgmt (void)
   return false;
 }
 
+typedef std::wstring (__stdcall *SK_GetConfigPath_pfn)(void);
+SK_GetConfigPath_pfn SK_GetConfigPath = nullptr;
+
 bool
-UNX_LoadConfig (std::wstring name) {
+UNX_LoadConfig (std::wstring name)
+{
+  SK_GetConfigPath =
+    (SK_GetConfigPath_pfn)
+      GetProcAddress (
+        GetModuleHandle ( L"dxgi.dll" ),
+          "SK_GetConfigPath"
+      );
+
   // Load INI File
-  std::wstring full_name = name + L".ini";
-  dll_ini = new unx::INI::File ((wchar_t *)full_name.c_str ());
+  std::wstring full_name = SK_GetConfigPath () + name + L".ini";
+  dll_ini = UNX_CreateINI ((wchar_t *)full_name.c_str ());
 
   bool empty = dll_ini->get_sections ().empty ();
 
-  std::wstring language_file = name + L"_Language.ini";
-  language_ini = new unx::INI::File ((wchar_t *)language_file.c_str ());
+  std::wstring language_file = SK_GetConfigPath () + name + L"_Language.ini";
+  language_ini = UNX_CreateINI ((wchar_t *)language_file.c_str ());
 
-  std::wstring booster_file = name + L"_Booster.ini";
-  booster_ini = new unx::INI::File ((wchar_t *)booster_file.c_str ());
+  std::wstring booster_file = SK_GetConfigPath () + name + L"_Booster.ini";
+  booster_ini = UNX_CreateINI ((wchar_t *)booster_file.c_str ());
 
   //
   // Create Parameters
@@ -803,9 +814,9 @@ UNX_SaveConfig (std::wstring name, bool close_config) {
   sys.version->store      (UNX_VER_STR);
   sys.injector->store     (config.system.injector);
 
-  dll_ini->write      (name + L".ini");
-  language_ini->write (name + L"_Language.ini");
-  booster_ini->write  (name + L"_Booster.ini");
+  dll_ini->write      (SK_GetConfigPath () + name + L".ini");
+  language_ini->write (SK_GetConfigPath () + name + L"_Language.ini");
+  booster_ini->write  (SK_GetConfigPath () + name + L"_Booster.ini");
 
   if (close_config) {
     if (dll_ini != nullptr) {

@@ -169,11 +169,11 @@ namespace unx
     void Init     ();
     void Shutdown ();
 
-    class CommandProcessor : public eTB_iVariableListener {
+    class CommandProcessor : public SK_IVariableListener {
     public:
       CommandProcessor (void);
 
-      virtual bool OnVarChange (eTB_Variable* var, void* val = NULL);
+      virtual bool OnVarChange (SK_IVariable* var, void* val = NULL);
 
       static CommandProcessor* getInstance (void)
       {
@@ -184,8 +184,8 @@ namespace unx
       }
 
     protected:
-      eTB_Variable* foreground_fps_;
-      eTB_Variable* background_fps_;
+      SK_IVariable* foreground_fps_;
+      SK_IVariable* background_fps_;
 
     private:
       static CommandProcessor* pCommProc;

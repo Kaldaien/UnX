@@ -171,7 +171,7 @@ UNX_SetFullscreenState (unx_fullscreen_op_t op)
 
   if (op == Fullscreen) {
     if (fs != TRUE) {
-      dll_log.Log (L"[Fullscreen] Transition: Window -> Full");
+      dll_log->Log (L"[Fullscreen] Transition: Window -> Full");
 
       last_fullscreen = fs;
 
@@ -179,14 +179,14 @@ UNX_SetFullscreenState (unx_fullscreen_op_t op)
     }
   } else {
     if (op == Restore) {
-      dll_log.Log (L"[Fullscreen] Operation: *Restore");
+      dll_log->Log (L"[Fullscreen] Operation: *Restore");
       UNX_SetFullscreenState (last_fullscreen ? Fullscreen : Window);
       last_fullscreen = fs;
     }
 
     if (op == Window) {
       if (fs == TRUE) {
-        dll_log.Log (L"[Fullscreen] Transition: Full -> Window");
+        dll_log->Log (L"[Fullscreen] Transition: Full -> Window");
 
         last_fullscreen = fs;
 
@@ -349,9 +349,9 @@ DetourWindowProc ( _In_  HWND   hWnd,
       UNX_SetGameMute (bMute);
     }
 
-    dll_log.Log ( L"[Window Mgr] Activation: %s",
-                    unx::window.active ? L"ACTIVE" :
-                                         L"INACTIVE" );
+    dll_log->Log ( L"[Window Mgr] Activation: %s",
+                     unx::window.active ? L"ACTIVE" :
+                                          L"INACTIVE" );
 
     //
     // Allow Alt+Tab to work
@@ -540,11 +540,11 @@ UNX_MWA_Thread (LPVOID pUser)
            SUCCEEDED (pDevDXGI->GetAdapter                     (&pAdapter)  )&&
            SUCCEEDED (      pAdapter->GetParent  (IID_PPV_ARGS (&pFactory)) ) )
       {
-        dll_log.Log( L"[Fullscreen] Setting DXGI Window Association "
-                     L"(HWND: Game=%X,SwapChain=%X)",
-                       SK_GetGameWindow (), desc.OutputWindow );
-        dll_log.Log( L"[Fullscreen]   >> flags: "
-                     L"DXGI_MWA_NO_WINDOW_CHANGES | DXGI_MWA_NO_ALT_ENTER" );
+        dll_log->Log( L"[Fullscreen] Setting DXGI Window Association "
+                      L"(HWND: Game=%X,SwapChain=%X)",
+                        SK_GetGameWindow (), desc.OutputWindow );
+        dll_log->Log( L"[Fullscreen]   >> flags: "
+                      L"DXGI_MWA_NO_WINDOW_CHANGES | DXGI_MWA_NO_ALT_ENTER" );
 
         pFactory->MakeWindowAssociation ( desc.OutputWindow,
                                             DXGI_MWA_NO_WINDOW_CHANGES |
@@ -693,16 +693,16 @@ unx::WindowManager::
 
 bool
   unx::WindowManager::
-    CommandProcessor::OnVarChange (eTB_Variable* var, void* val)
+    CommandProcessor::OnVarChange (SK_IVariable* var, void* val)
 {
-  eTB_CommandProcessor* pCommandProc = SK_GetCommandProcessor ();
+  SK_ICommandProcessor* pCommandProc = SK_GetCommandProcessor ();
 
   bool known = false;
 
   if (! known) {
-    dll_log.Log ( L"[Window Mgr] UNKNOWN Variable Changed (%p --> %p)",
-                    var,
-                      val );
+    dll_log->Log ( L"[Window Mgr] UNKNOWN Variable Changed (%p --> %p)",
+                     var,
+                       val );
   }
 
   return false;

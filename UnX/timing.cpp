@@ -84,7 +84,7 @@ int
 __cdecl
 VSYNCEmulation_Detour (int x)
 {
-  dll_log.Log (L"[   Time   ] VSYNC Emulation Thread Created By Game", x);
+  dll_log->Log (L"[   Time   ] VSYNC Emulation Thread Created By Game", x);
 
   return (VSYNCEmulation_Original (x));
 }
@@ -128,11 +128,11 @@ unx::TimingFix::Init (void)
         NtSetTimerResolution   != nullptr) {
       ULONG min, max, cur;
       NtQueryTimerResolution (&min, &max, &cur);
-      dll_log.Log ( L"[  Timing  ] Kernel resolution.: %f ms",
-                      (float)(cur * 100)/1000000.0f );
+      dll_log->Log ( L"[  Timing  ] Kernel resolution.: %f ms",
+                       (float)(cur * 100)/1000000.0f );
       NtSetTimerResolution   (max, TRUE,  &cur);
-      dll_log.Log ( L"[  Timing  ] New resolution....: %f ms",
-                      (float)(cur * 100)/1000000.0f );
+      dll_log->Log ( L"[  Timing  ] New resolution....: %f ms",
+                       (float)(cur * 100)/1000000.0f );
 
     }
   }

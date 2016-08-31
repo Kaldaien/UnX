@@ -55,14 +55,14 @@ DllThread (LPVOID user)
   //     until initial DLL startup finishes and threads are allowed
   //       to start.
   //
-  dll_log.init  ( "logs/UnX.log",
-                    "w" );
-  dll_log.LogEx ( false, L"--------------- [Untitled X] "
-                         L"---------------\n" );
-  dll_log.Log   (        L"Untitled X Plug-In\n"
-                         L"============ (Version: v %s) "
-                         L"============",
-                           UNX_VER_STR.c_str () );
+  dll_log = UNX_CreateLog (L"logs/UnX.log");
+
+  dll_log->LogEx ( false, L"--------------- [Untitled X] "
+                          L"---------------\n" );
+  dll_log->Log   (        L"Untitled X Plug-In\n"
+                          L"============ (Version: v %s) "
+                          L"============",
+                            UNX_VER_STR.c_str () );
 
   if (! UNX_LoadConfig ()) {
     // Save a new config if none exists
@@ -76,17 +76,15 @@ DllThread (LPVOID user)
     (SK_SetPluginName_pfn)
       GetProcAddress (hInjectorDLL, "SK_SetPluginName");
 
+  SK_GetCommandProcessor =
+    (SK_GetCommandProcessor_pfn)
+      GetProcAddress (hInjectorDLL, "SK_GetCommandProcessor");
+
   //
   // If this is NULL, the injector system isn't working right!!!
   //
   if (SK_SetPluginName != nullptr)
     SK_SetPluginName (plugin_name);
-
-  //
-  // Kill Raptr instead of it killing us!
-  //
-  extern void UNX_InitCompatBlacklist (void);
-  UNX_InitCompatBlacklist ();
 
   // Plugin State
   if (UNX_Init_MinHook () == MH_OK) {
@@ -135,14 +133,14 @@ DllMain (HMODULE hModule,
       UNX_UnInit_MinHook ();
       UNX_SaveConfig     ();
 
-      dll_log.LogEx ( false, L"============ (Version: v %s) "
-                             L"============\n",
-                               UNX_VER_STR.c_str () );
-      dll_log.LogEx ( true,  L"End unx.dll\n" );
-      dll_log.LogEx ( false, L"--------------- [Untitled X] "
-                             L"---------------" );
+      dll_log->LogEx ( false, L"============ (Version: v %s) "
+                              L"============\n",
+                                UNX_VER_STR.c_str () );
+      dll_log->LogEx ( true,  L"End unx.dll\n" );
+      dll_log->LogEx ( false, L"--------------- [Untitled X] "
+                              L"---------------" );
 
-      dll_log.close ();
+      dll_log->close ();
     } break;
   }
 

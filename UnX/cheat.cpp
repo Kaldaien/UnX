@@ -438,8 +438,8 @@ float
 __cdecl
 UNX_FFX_GameTick (float x)
 {
-//  dll_log.Log ( L"[ FFXEvent ] Tick (%f)",
-//s                  x );
+//  dll_log->Log ( L"[ FFXEvent ] Tick (%f)",
+//s                   x );
 
   float tick = __UNX_speed_mod * x;
 
@@ -461,7 +461,7 @@ UNX_LoadLevel (char* szName)
           pushfd
   }
 
-  dll_log.Log ( L"[ FFXLevel ] FFX_LoadLevel (%hs)",
+  dll_log->Log ( L"[ FFXLevel ] FFX_LoadLevel (%hs)",
                    szName );
 
   __asm { popfd
@@ -469,147 +469,9 @@ UNX_LoadLevel (char* szName)
           jmp FFX_LoadLevel_Original }
 }
 
-class unxMemCmd : public eTB_Command {
-public:
-  eTB_CommandResult execute (const char* szArgs);
-
-  int         getNumArgs         (void) { return 2; }
-  int         getNumOptionalArgs (void) { return 1; }
-  int         getNumRequiredArgs (void) {
-    return getNumArgs () - getNumOptionalArgs ();
-  }
-
-protected:
-private:
-};
-
-eTB_CommandResult
-unxMemCmd::execute (const char* szArgs)
-{
-  if (szArgs == nullptr)
-    return eTB_CommandResult ("mem", szArgs);
-
-  intptr_t addr;
-  char     type;
-  char     val [256] = { '\0' };
-
-  sscanf (szArgs, "%c %x %s", &type, &addr, val);
-
-  static uint8_t* base_addr = nullptr;
-
-  if (base_addr == nullptr) {
-    base_addr = (uint8_t *)GetModuleHandle (nullptr);
-
-    MEMORY_BASIC_INFORMATION mem_info;
-    VirtualQuery (base_addr, &mem_info, sizeof mem_info);
-
-    base_addr = (uint8_t *)mem_info.BaseAddress;
-
-    //IMAGE_DOS_HEADER* pDOS =
-      //(IMAGE_DOS_HEADER *)mem_info.AllocationBase;
-    //IMAGE_NT_HEADERS* pNT  =
-      //(IMAGE_NT_HEADERS *)((intptr_t)(pDOS + pDOS->e_lfanew));
-  }
-
-  addr += (intptr_t)base_addr;
-
-  char result [512];
-
-  switch (type) {
-    case 'b':
-      if (strlen (val)) {
-        DWORD dwOld;
-
-        VirtualProtect ((LPVOID)addr, 1, PAGE_READWRITE, &dwOld);
-          uint8_t out;
-          sscanf (val, "%hhx", &out);
-          *(uint8_t *)addr = out;
-        VirtualProtect ((LPVOID)addr, 1, dwOld, &dwOld);
-      }
-
-      sprintf (result, "%u", *(uint8_t *)addr);
-
-      return eTB_CommandResult ("mem", szArgs, result, 1);
-      break;
-    case 's':
-      if (strlen (val)) {
-        DWORD dwOld;
-
-        VirtualProtect ((LPVOID)addr, 2, PAGE_READWRITE, &dwOld);
-          uint16_t out;
-          sscanf (val, "%hx", &out);
-          *(uint16_t *)addr = out;
-        VirtualProtect ((LPVOID)addr, 2, dwOld, &dwOld);
-      }
-
-      sprintf (result, "%u", *(uint16_t *)addr);
-      return eTB_CommandResult ("mem", szArgs, result, 1);
-      break;
-    case 'i':
-      if (strlen (val)) {
-        DWORD dwOld;
-
-        VirtualProtect ((LPVOID)addr, 4, PAGE_READWRITE, &dwOld);
-          uint32_t out;
-          sscanf (val, "%x", &out);
-          *(uint32_t *)addr = out;
-        VirtualProtect ((LPVOID)addr, 4, dwOld, &dwOld);
-      }
-
-      sprintf (result, "%u", *(uint32_t *)addr);
-      return eTB_CommandResult ("mem", szArgs, result, 1);
-      break;
-    case 'd':
-      if (strlen (val)) {
-        DWORD dwOld;
-
-        VirtualProtect ((LPVOID)addr, 8, PAGE_READWRITE, &dwOld);
-          double out;
-          sscanf (val, "%lf", &out);
-          *(double *)addr = out;
-        VirtualProtect ((LPVOID)addr, 8, dwOld, &dwOld);
-      }
-
-      sprintf (result, "%f", *(double *)addr);
-      return eTB_CommandResult ("mem", szArgs, result, 1);
-      break;
-    case 'f':
-      if (strlen (val)) {
-        DWORD dwOld;
-
-        VirtualProtect ((LPVOID)addr, 4, PAGE_READWRITE, &dwOld);
-          float out;
-          sscanf (val, "%f", &out);
-          *(float *)addr = out;
-        VirtualProtect ((LPVOID)addr, 4, dwOld, &dwOld);
-      }
-
-      sprintf (result, "%f", *(float *)addr);
-      return eTB_CommandResult ("mem", szArgs, result, 1);
-      break;
-    case 't':
-      if (strlen (val)) {
-        DWORD dwOld;
-
-        VirtualProtect ((LPVOID)addr, 256, PAGE_READWRITE, &dwOld);
-          strcpy ((char *)addr, val);
-        VirtualProtect ((LPVOID)addr, 256, dwOld, &dwOld);
-      }
-      sprintf (result, "%s", (char *)addr);
-      return eTB_CommandResult ("mem", szArgs, result, 1);
-      break;
-  }
-
-  return eTB_CommandResult ("mem", szArgs);
-}
-
 void
 unx::CheatManager::Init (void)
 {
-  unxMemCmd* mem = new unxMemCmd ();
-
-  SK_GetCommandProcessor ()->AddCommand ("mem", mem);
-
   wchar_t* pwszShortName =
     UNX_GetExecutableName ();
 
@@ -645,11 +507,13 @@ unx::CheatManager::Init (void)
                   (LPVOID *)&UNX_FFX_GameTick_Original );
     UNX_EnableHook ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x420C00));
 
+#if 0
     UNX_CreateFuncHook ( L"FFX_LoadLevel",
         (LPVOID)((intptr_t)__UNX_base_img_addr + 0x241F60),
                              UNX_LoadLevel,
                   (LPVOID *)&FFX_LoadLevel_Original);
     UNX_EnableHook ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x241F60));
+#endif
 
     UNX_SetSensor (config.cheat.ffx.permanent_sensor);
 
@@ -803,11 +667,15 @@ UNX_KillMeNow (void)
       if (UNX_IsInBattle ()) {
         uint8_t* inst = (uint8_t*)((intptr_t)__UNX_base_img_addr + 0x392930);
 
-        const uint8_t die  [] = { 0xEB, 0x1D, 0 };
-              uint8_t live [] = { 0x75, 0x1D, 0 };
+        static const uint8_t die  [] = { 0xEB, 0x1D, 0 };
+              static uint8_t live [] = { 0x75, 0x1D, 0 };
+        static bool first = true;
 
-        // Backup the original instructions
-        memcpy (live, inst, 2);
+        if (first) {
+          // Backup the original instructions
+          memcpy (live, inst, 2);
+          first = false;
+        }
 
         std::queue <DWORD> suspended_tids =
           UNX_SuspendAllOtherThreads ();
@@ -917,10 +785,10 @@ UNX_FFX2_UnitTest (void)
   //ffx2.party->exp.current != 0;
   //ffx2.party->vitals.current.HP <= ffx2.party_stats->vitals.max.HP;
   for (int i = 0; i < 3; i++) {
-    dll_log.Log ( L"[UnitTest] %lu / %lu HP :: %lu / %lu MP",
-                    ffx2.party [i].vitals.current.HP,
-                    ffx2.party [i].vitals.max.HP,
-                      ffx2.party [i].vitals.current.MP,
-                      ffx2.party [i].vitals.max.MP );
+    dll_log->Log ( L"[UnitTest] %lu / %lu HP :: %lu / %lu MP",
+                     ffx2.party [i].vitals.current.HP,
+                     ffx2.party [i].vitals.max.HP,
+                       ffx2.party [i].vitals.current.MP,
+                       ffx2.party [i].vitals.max.MP );
   }
 }

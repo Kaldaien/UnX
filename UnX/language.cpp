@@ -76,10 +76,10 @@ UNX_PatchLanguageRef (asset_type_t type, int idx, const char* jp, const char* us
   DWORD dwOld;
 
   if (dst != nullptr) {
-    dll_log.LogEx (true, L"[ Language ] %s%lu: %42hs ==> ", wszType, idx, dst);
+    dll_log->LogEx (true, L"[ Language ] %s%lu: %42hs ==> ", wszType, idx, dst);
     VirtualProtect (dst, strlen ((const char *)dst)+1, PAGE_READWRITE, &dwOld);
     strcpy ((char *)dst, (const char *)src);
-    dll_log.LogEx (false, L"%hs\n", dst);
+    dll_log->LogEx (false, L"%hs\n", dst);
 #if 0
     extern LPVOID __UNX_base_img_addr;
 
@@ -88,7 +88,7 @@ UNX_PatchLanguageRef (asset_type_t type, int idx, const char* jp, const char* us
       __UNX_base_img_addr = (LPVOID)(src-expected);
     }
 
-    dll_log.Log (L"[ Language ]   >> SRC addr: %ph :: Base addr: %ph, File addr: %ph", src, __UNX_base_img_addr, (uintptr_t)src-(uintptr_t)__UNX_base_img_addr);
+    dll_log->Log (L"[ Language ]   >> SRC addr: %ph :: Base addr: %ph, File addr: %ph", src, __UNX_base_img_addr, (uintptr_t)src-(uintptr_t)__UNX_base_img_addr);
 #endif
   }
 }
