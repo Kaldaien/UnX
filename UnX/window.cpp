@@ -54,6 +54,12 @@ extern SK_GetGameWindow_pfn SK_GetGameWindow;
 
 IDXGISwapChain* pGameSwapChain = nullptr;
 
+extern BOOL
+APIENTRY
+DllMain (HMODULE hModule,
+         DWORD   ul_reason_for_call,
+         LPVOID  /* lpReserved */);
+
 enum unx_fullscreen_op_t {
   Fullscreen,
   Window,
@@ -318,7 +324,24 @@ DetourWindowProc ( _In_  HWND   hWnd,
     //   in fullscreen mode
     unx::window.active = last_active;
 
+    DetourWindowProc_Original (hWnd, uMsg, wParam, lParam);
+
+#if 0
+    DllMain ( GetModuleHandle (config.system.injector.c_str ()),
+                DLL_PROCESS_DETACH,
+                  nullptr );
+
+    typedef void (WINAPI *SK_SelfDestruct_pfn)(void);
+    static SK_SelfDestruct_pfn
+      SK_SelfDestruct =
+        (SK_SelfDestruct_pfn)
+          GetProcAddress ( GetModuleHandle (config.system.injector.c_str ()),
+                             "SK_SelfDestruct" );
+
+    SK_SelfDestruct ();
+
     ExitProcess (0);
+#endif
   }
 
   //
