@@ -678,20 +678,22 @@ UNX_InstallWindowHook (HWND hWnd)
 {
   unx::window.hwnd = hWnd;
 
-  UNX_CreateDLLHook ( config.system.injector.c_str (),
-                        "SK_BeginBufferSwap",
-                         SK_BeginBufferSwap_Detour,
-              (LPVOID *)&SK_BeginBufferSwap_Original );
+  UNX_CreateDLLHook2 ( config.system.injector.c_str (),
+                         "SK_BeginBufferSwap",
+                          SK_BeginBufferSwap_Detour,
+               (LPVOID *)&SK_BeginBufferSwap_Original );
 
-  UNX_CreateDLLHook ( config.system.injector.c_str (),
-                      "SK_DetourWindowProc",
-                       DetourWindowProc,
-            (LPVOID *)&DetourWindowProc_Original );
+  UNX_CreateDLLHook2 ( config.system.injector.c_str (),
+                       "SK_DetourWindowProc",
+                        DetourWindowProc,
+             (LPVOID *)&DetourWindowProc_Original );
 
-  UNX_CreateDLLHook ( config.system.injector.c_str (),
-                      "DXGISwap_ResizeBuffers_Override",
-                       DXGISwap_ResizeBuffers_Detour,
-            (LPVOID *)&DXGISwap_ResizeBuffers_Original );
+  UNX_CreateDLLHook2 ( config.system.injector.c_str (),
+                       "DXGISwap_ResizeBuffers_Override",
+                        DXGISwap_ResizeBuffers_Detour,
+             (LPVOID *)&DXGISwap_ResizeBuffers_Original );
+
+  UNX_ApplyQueuedHooks ();
 }
 
 

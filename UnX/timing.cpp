@@ -146,15 +146,17 @@ unx::TimingFix::Init (void)
   if (config.stutter.reduce) {
     //SK_GetCommandProcessor ()->ProcessCommandFormatted ("MaxDeltaTime 0");
 
-    UNX_CreateDLLHook ( config.system.injector.c_str (),
-                        "Sleep_Detour",
-                        UNX_SE_FixFramerateLimiter,
-             (LPVOID *)&SK_Sleep );
+    UNX_CreateDLLHook2 ( config.system.injector.c_str (),
+                         "Sleep_Detour",
+                         UNX_SE_FixFramerateLimiter,
+              (LPVOID *)&SK_Sleep );
 
-    UNX_CreateDLLHook ( L"kernel32.dll",
-                        "SleepEx",
-                        SleepEx_Detour,
-             (LPVOID *)&SleepEx_Original );
+    UNX_CreateDLLHook2 ( L"kernel32.dll",
+                         "SleepEx",
+                         SleepEx_Detour,
+              (LPVOID *)&SleepEx_Original );
+
+    UNX_ApplyQueuedHooks ();
   }
 
   HMODULE hModKernel32 = LoadLibrary (L"kernel32.dll");

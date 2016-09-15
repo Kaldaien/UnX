@@ -38,7 +38,7 @@ static
   iSK_INI*
              booster_ini     = nullptr;
 
-std::wstring UNX_VER_STR = L"0.6.4";
+std::wstring UNX_VER_STR = L"0.6.5";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)      (bool);
@@ -156,16 +156,15 @@ unx::ParameterFactory g_ParameterFactory;
 bool
 UNX_SetupLowLevelRender (void)
 {
-  HMODULE hInjector =
-    LoadLibrary (config.system.injector.c_str ());
+  extern HMODULE hInjectorDLL;
 
   SK_DXGI_EnableFlipMode =
     (SK_DXGI_EnableFlipMode_pfn)
-      GetProcAddress (hInjector, "SK_DXGI_EnableFlipMode");
+      GetProcAddress (hInjectorDLL, "SK_DXGI_EnableFlipMode");
 
   SK_DXGI_SetPreferredAdapter =
     (SK_DXGI_SetPreferredAdapter_pfn)
-      GetProcAddress (hInjector, "SK_DXGI_SetPreferredAdapter");
+      GetProcAddress (hInjectorDLL, "SK_DXGI_SetPreferredAdapter");
 
   if ( SK_DXGI_EnableFlipMode      != nullptr &&
        SK_DXGI_SetPreferredAdapter != nullptr )
@@ -177,12 +176,11 @@ UNX_SetupLowLevelRender (void)
 bool
 UNX_SetupWindowMgmt (void)
 {
-  HMODULE hInjector =
-    LoadLibrary (config.system.injector.c_str ());
+  extern HMODULE hInjectorDLL;
 
   SKX_D3D11_EnableFullscreen =
     (SKX_D3D11_EnableFullscreen_pfn)
-      GetProcAddress (hInjector, "SKX_D3D11_EnableFullscreen");
+      GetProcAddress (hInjectorDLL, "SKX_D3D11_EnableFullscreen");
 
   return (SKX_D3D11_EnableFullscreen != nullptr);
 }
@@ -190,36 +188,35 @@ UNX_SetupWindowMgmt (void)
 bool
 UNX_SetupTexMgmt (void)
 {
-  HMODULE hInjector =
-    LoadLibrary (config.system.injector.c_str ());
+  extern HMODULE hInjectorDLL;
 
   SK_D3D11_SetResourceRoot =
     (SK_D3D11_SetResourceRoot_pfn)
-      GetProcAddress (hInjector, "SK_D3D11_SetResourceRoot");
+      GetProcAddress (hInjectorDLL, "SK_D3D11_SetResourceRoot");
 
   SK_D3D11_EnableTexDump =
     (SK_D3D11_EnableTexDump_pfn)
-      GetProcAddress (hInjector, "SK_D3D11_EnableTexDump");
+      GetProcAddress (hInjectorDLL, "SK_D3D11_EnableTexDump");
 
   SK_D3D11_EnableTexInject =
     (SK_D3D11_EnableTexInjectFFX_pfn)
-      GetProcAddress (hInjector, "SK_D3D11_EnableTexInject_FFX");
+      GetProcAddress (hInjectorDLL, "SK_D3D11_EnableTexInject_FFX");
 
   SK_D3D11_EnableTexCache =
     (SK_D3D11_EnableTexCache_pfn)
-      GetProcAddress (hInjector, "SK_D3D11_EnableTexCache");
+      GetProcAddress (hInjectorDLL, "SK_D3D11_EnableTexCache");
 
   SK_D3D11_AddTexHash =
     (SK_D3D11_AddTexHash_pfn)
-      GetProcAddress (hInjector, "SK_D3D11_AddTexHash");
+      GetProcAddress (hInjectorDLL, "SK_D3D11_AddTexHash");
 
   SK_D3D11_RemoveTexHash =
     (SK_D3D11_RemoveTexHash_pfn)
-      GetProcAddress (hInjector, "SK_D3D11_RemoveTexHash");
+      GetProcAddress (hInjectorDLL, "SK_D3D11_RemoveTexHash");
 
   SKX_D3D11_MarkTextures =
     (SKX_D3D11_MarkTextures_pfn)
-      GetProcAddress (hInjector, "SKX_D3D11_MarkTextures");
+      GetProcAddress (hInjectorDLL, "SKX_D3D11_MarkTextures");
 
   // Ignore SKX_..., these are experimental things and the software
   //   must work even if SpecialK removes the function.
@@ -238,10 +235,12 @@ SK_GetConfigPath_pfn SK_GetConfigPath = nullptr;
 bool
 UNX_LoadConfig (std::wstring name)
 {
+  extern HMODULE hInjectorDLL;
+
   SK_GetConfigPath =
     (SK_GetConfigPath_pfn)
       GetProcAddress (
-        GetModuleHandle ( L"dxgi.dll" ),
+        hInjectorDLL,
           "SK_GetConfigPath"
       );
 

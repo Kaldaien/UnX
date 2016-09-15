@@ -976,36 +976,38 @@ unx::InputManager::Init (void)
   //HookRawInput ();
 
   if (config.input.fix_bg_input) {
-    UNX_CreateDLLHook ( config.system.injector.c_str (),
-                       "GetRawInputData_Detour",
-                        GetRawInputData_Detour,
-              (LPVOID*)&GetRawInputData_Original );
+    UNX_CreateDLLHook2 ( config.system.injector.c_str (),
+                        "GetRawInputData_Detour",
+                         GetRawInputData_Detour,
+               (LPVOID*)&GetRawInputData_Original );
 
-    UNX_CreateDLLHook ( config.system.injector.c_str (),
-                       "GetAsyncKeyState_Detour",
-                        GetAsyncKeyState_Detour,
-              (LPVOID*)&GetAsyncKeyState_Original );
+    UNX_CreateDLLHook2 ( config.system.injector.c_str (),
+                        "GetAsyncKeyState_Detour",
+                         GetAsyncKeyState_Detour,
+               (LPVOID*)&GetAsyncKeyState_Original );
   }
 
-  UNX_CreateDLLHook ( L"user32.dll",
-                      "ClipCursor",
-                      ClipCursor_Detour,
-           (LPVOID *)&ClipCursor_Original );
+  UNX_CreateDLLHook2 ( L"user32.dll",
+                       "ClipCursor",
+                       ClipCursor_Detour,
+            (LPVOID *)&ClipCursor_Original );
 
-  UNX_CreateDLLHook ( L"XInput9_1_0.dll",
-                       "XInputGetState",
-                        XInputGetState_Detour,
-             (LPVOID *)&XInputGetState_Original );
+  UNX_CreateDLLHook2 ( L"XInput9_1_0.dll",
+                        "XInputGetState",
+                         XInputGetState_Detour,
+              (LPVOID *)&XInputGetState_Original );
 
-  UNX_CreateDLLHook ( config.system.injector.c_str (),
-                      "SK_PluginKeyPress",
-                        SK_UNX_PluginKeyPress,
-             (LPVOID *)&SK_PluginKeyPress_Original );
+  UNX_CreateDLLHook2 ( config.system.injector.c_str (),
+                       "SK_PluginKeyPress",
+                         SK_UNX_PluginKeyPress,
+              (LPVOID *)&SK_PluginKeyPress_Original );
 
   unx::InputManager::Hooker* pHook =
     unx::InputManager::Hooker::getInstance ();
 
   UNX_InstallWindowHook (NULL);
+
+  UNX_ApplyQueuedHooks ();
 
   pHook->Start ();
 }

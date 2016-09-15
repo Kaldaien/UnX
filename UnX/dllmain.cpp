@@ -43,6 +43,8 @@ HMODULE hInjectorDLL = { 0 }; // Handle to Special K
 typedef void (__stdcall *SK_SetPluginName_pfn)(std::wstring name);
 SK_SetPluginName_pfn SK_SetPluginName = nullptr;
 
+std::wstring injector_name;
+
 unsigned int
 __stdcall
 DllThread (LPVOID user)
@@ -65,12 +67,13 @@ DllThread (LPVOID user)
                             UNX_VER_STR.c_str () );
 
   if (! UNX_LoadConfig ()) {
+    config.system.injector = injector_name;
+
     // Save a new config if none exists
     UNX_SaveConfig ();
   }
 
-  hInjectorDLL =
-    GetModuleHandle (config.system.injector.c_str ());
+  config.system.injector = injector_name;
 
   SK_SetPluginName = 
     (SK_SetPluginName_pfn)
@@ -101,6 +104,26 @@ DllThread (LPVOID user)
   return 0;
 }
 
+__declspec (dllexport)
+BOOL
+WINAPI
+SKPlugIn_Init (HMODULE hModSpecialK)
+{
+  wchar_t wszSKFileName [MAX_PATH];
+          wszSKFileName [MAX_PATH - 1] = L'\0';
+
+  GetModuleFileName (hModSpecialK, wszSKFileName, MAX_PATH - 1);
+
+  injector_name = wszSKFileName;
+
+  hInjectorDLL = hModSpecialK;
+
+  // Not really a thread now is it? :P
+  DllThread (nullptr);
+
+  return TRUE;
+}
+
 BOOL
 APIENTRY
 DllMain (HMODULE hModule,
@@ -112,35 +135,30 @@ DllMain (HMODULE hModule,
     case DLL_PROCESS_ATTACH:
     {
       hDLLMod = hModule;
-
-      _beginthreadex ( nullptr,
-                         0,
-                           DllThread,
-                             nullptr,
-                               0x00,
-                                 nullptr );
     } break;
 
     case DLL_PROCESS_DETACH:
     {
-      unx::LanguageManager::Shutdown ();
-      unx::WindowManager::Shutdown   ();
-      //unx::RenderFix::Shutdown       ();
-      unx::InputManager::Shutdown    ();
-      unx::TimingFix::Shutdown       ();
-      unx::DisplayFix::Shutdown      ();
+      if (dll_log != nullptr) {
+        unx::LanguageManager::Shutdown ();
+        unx::WindowManager::Shutdown   ();
+        //unx::RenderFix::Shutdown       ();
+        unx::InputManager::Shutdown    ();
+        unx::TimingFix::Shutdown       ();
+        unx::DisplayFix::Shutdown      ();
 
-      UNX_UnInit_MinHook ();
-      UNX_SaveConfig     ();
+        UNX_UnInit_MinHook ();
+        UNX_SaveConfig     ();
 
-      dll_log->LogEx ( false, L"============ (Version: v %s) "
-                              L"============\n",
-                                UNX_VER_STR.c_str () );
-      dll_log->LogEx ( true,  L"End unx.dll\n" );
-      dll_log->LogEx ( false, L"--------------- [Untitled X] "
-                              L"---------------" );
+        dll_log->LogEx ( false, L"============ (Version: v %s) "
+                                L"============\n",
+                                  UNX_VER_STR.c_str () );
+        dll_log->LogEx ( true,  L"End unx.dll\n" );
+        dll_log->LogEx ( false, L"--------------- [Untitled X] "
+                                L"---------------" );
 
-      dll_log->close ();
+        dll_log->close ();
+      }
     } break;
   }
 

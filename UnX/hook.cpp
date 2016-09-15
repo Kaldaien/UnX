@@ -66,6 +66,40 @@ UNX_CreateDLLHook ( LPCWSTR pwszModule, LPCSTR  pszProcName,
     SK_CreateDLLHook (pwszModule,pszProcName,pDetour,ppOriginal,ppFuncAddr);
 }
 
+MH_STATUS
+WINAPI
+UNX_CreateDLLHook2 ( LPCWSTR pwszModule, LPCSTR  pszProcName,
+                     LPVOID  pDetour,    LPVOID *ppOriginal,
+                     LPVOID *ppFuncAddr )
+{
+  static HMODULE hParent =
+    GetModuleHandle (config.system.injector.c_str ());
+
+  typedef MH_STATUS (WINAPI *SK_CreateDLLHook2_pfn)(
+        LPCWSTR pwszModule, LPCSTR  pszProcName,
+        LPVOID  pDetour,    LPVOID *ppOriginal, 
+        LPVOID *ppFuncAddr );
+  static SK_CreateDLLHook2_pfn SK_CreateDLLHook2 =
+    (SK_CreateDLLHook2_pfn)GetProcAddress (hParent, "SK_CreateDLLHook2");
+
+  return
+    SK_CreateDLLHook2 (pwszModule,pszProcName,pDetour,ppOriginal,ppFuncAddr);
+}
+
+MH_STATUS
+WINAPI
+UNX_ApplyQueuedHooks (void)
+{
+  static HMODULE hParent =
+    GetModuleHandle (config.system.injector.c_str ());
+
+  typedef MH_STATUS (WINAPI *SK_ApplyQueuedHooks_pfn)();
+  static SK_ApplyQueuedHooks_pfn SK_ApplyQueuedHooks =
+    (SK_ApplyQueuedHooks_pfn)GetProcAddress (hParent, "SK_ApplyQueuedHooks");
+
+  return SK_ApplyQueuedHooks ();
+}
+
 
 
 
