@@ -47,10 +47,10 @@ public:
   STDMETHOD_ (ULONG, AddRef)        (THIS)                             = 0;
   STDMETHOD_ (ULONG, Release)       (THIS)                             = 0;
 
-  STDMETHOD_ (std::wstring&, get_value)    (std::wstring key)  = 0;
-  STDMETHOD_ (void,          set_name)     (std::wstring name) = 0;
-  STDMETHOD_ (bool,          contains_key) (std::wstring key)  = 0;
-  STDMETHOD_ (void,          add_key_value)(std::wstring key, std::wstring value) = 0;
+  STDMETHOD_ (std::wstring&, get_value)    (const wchar_t* key)  = 0;
+  STDMETHOD_ (void,          set_name)     (const wchar_t* name) = 0;
+  STDMETHOD_ (bool,          contains_key) (const wchar_t* key)  = 0;
+  STDMETHOD_ (void,          add_key_value)(const wchar_t* key, const wchar_t* value) = 0;
 };
 
 // {DD2B1E00-6C14-4659-8B45-FCEF1BC2C724}
@@ -74,13 +74,13 @@ interface iSK_INI : public IUnknown
   STDMETHOD_ (ULONG, AddRef)        (THIS)                             = 0;
   STDMETHOD_ (ULONG, Release)       (THIS)                             = 0;
 
-  STDMETHOD_ (void, parse)  (THIS)                           = 0;
-  STDMETHOD_ (void, import) (THIS_ std::wstring import_data) = 0;
-  STDMETHOD_ (void, write)  (THIS_ std::wstring fname)       = 0;
+  STDMETHOD_ (void, parse)  (THIS)                             = 0;
+  STDMETHOD_ (void, import) (THIS_ const wchar_t* import_data) = 0;
+  STDMETHOD_ (void, write)  (THIS_ const wchar_t* fname)       = 0;
 
-  STDMETHOD_ (_TSectionMap&,   get_sections)    (THIS)                 = 0;
-  STDMETHOD_ (iSK_INISection&, get_section)     (std::wstring section) = 0;
-  STDMETHOD_ (bool,            contains_section)(std::wstring section) = 0;
+  STDMETHOD_ (_TSectionMap&,   get_sections)    (THIS)                   = 0;
+  STDMETHOD_ (iSK_INISection&, get_section)     (const wchar_t* section) = 0;
+  STDMETHOD_ (bool,            contains_section)(const wchar_t* section) = 0;
 };
 
 iSK_INI*

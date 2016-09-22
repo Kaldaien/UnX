@@ -38,7 +38,7 @@ static
   iSK_INI*
              booster_ini     = nullptr;
 
-std::wstring UNX_VER_STR = L"0.6.5";
+std::wstring UNX_VER_STR = L"0.6.6";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)      (bool);
@@ -47,11 +47,11 @@ typedef void (WINAPI *SK_DXGI_SetPreferredAdapter_pfn) (int);
 SK_DXGI_EnableFlipMode_pfn      SK_DXGI_EnableFlipMode      = nullptr;
 SK_DXGI_SetPreferredAdapter_pfn SK_DXGI_SetPreferredAdapter = nullptr;
 
-typedef void (WINAPI *SK_D3D11_SetResourceRoot_pfn)    (std::wstring);
+typedef void (WINAPI *SK_D3D11_SetResourceRoot_pfn)    (const wchar_t*);
 typedef void (WINAPI *SK_D3D11_EnableTexDump_pfn)      (bool);
 typedef void (WINAPI *SK_D3D11_EnableTexInjectFFX_pfn) (bool);
 typedef void (WINAPI *SK_D3D11_EnableTexCache_pfn)     (bool);
-typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)         (std::wstring, uint32_t, uint32_t);
+typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)         (const wchar_t*, uint32_t, uint32_t);
 typedef void (WINAPI *SK_D3D11_RemoveTexHash_pfn)      (uint32_t);
 
 typedef void (WINAPI *SKX_D3D11_MarkTextures_pfn)      (bool,bool,bool);
@@ -229,7 +229,7 @@ UNX_SetupTexMgmt (void)
   return false;
 }
 
-typedef std::wstring (__stdcall *SK_GetConfigPath_pfn)(void);
+typedef const wchar_t* (__stdcall *SK_GetConfigPath_pfn)(void);
 SK_GetConfigPath_pfn SK_GetConfigPath = nullptr;
 
 bool
@@ -245,16 +245,29 @@ UNX_LoadConfig (std::wstring name)
       );
 
   // Load INI File
-  std::wstring full_name = SK_GetConfigPath () + name + L".ini";
-  dll_ini = UNX_CreateINI ((wchar_t *)full_name.c_str ());
+  wchar_t wszFullName [ MAX_PATH + 2 ] = { L'\0' };
+  wchar_t wszLanguage [ MAX_PATH + 2 ] = { L'\0' };
+  wchar_t wszBooster  [ MAX_PATH + 2 ] = { L'\0' };
+
+  lstrcatW (wszFullName, SK_GetConfigPath ());
+  lstrcatW (wszFullName,       name.c_str ());
+  lstrcatW (wszFullName,             L".ini");
+
+  dll_ini = UNX_CreateINI (wszFullName);
 
   bool empty = dll_ini->get_sections ().empty ();
 
-  std::wstring language_file = SK_GetConfigPath () + name + L"_Language.ini";
-  language_ini = UNX_CreateINI ((wchar_t *)language_file.c_str ());
+  lstrcatW (wszLanguage, SK_GetConfigPath ());
+  lstrcatW (wszLanguage,       name.c_str ());
+  lstrcatW (wszLanguage,    L"_Language.ini");
 
-  std::wstring booster_file = SK_GetConfigPath () + name + L"_Booster.ini";
-  booster_ini = UNX_CreateINI ((wchar_t *)booster_file.c_str ());
+  language_ini = UNX_CreateINI (wszLanguage);
+
+  lstrcatW (wszBooster, SK_GetConfigPath ());
+  lstrcatW (wszBooster,       name.c_str ());
+  lstrcatW (wszBooster,     L"_Booster.ini");
+
+  booster_ini = UNX_CreateINI (wszBooster);
 
   //
   // Create Parameters
@@ -761,7 +774,7 @@ UNX_LoadConfig (std::wstring name)
     textures.inject->load        (config.textures.inject);
     textures.cache->load         (config.textures.cache);
 
-    SK_D3D11_SetResourceRoot (config.textures.resource_root);
+    SK_D3D11_SetResourceRoot (config.textures.resource_root.c_str ());
     SK_D3D11_EnableTexDump   (config.textures.dump);
     SK_D3D11_EnableTexInject (config.textures.inject);
     SK_D3D11_EnableTexCache  (config.textures.cache);
@@ -813,11 +826,31 @@ UNX_SaveConfig (std::wstring name, bool close_config) {
   sys.version->store      (UNX_VER_STR);
   sys.injector->store     (config.system.injector);
 
-  dll_ini->write      (SK_GetConfigPath () + name + L".ini");
-  language_ini->write (SK_GetConfigPath () + name + L"_Language.ini");
-  booster_ini->write  (SK_GetConfigPath () + name + L"_Booster.ini");
+  wchar_t wszFullName [ MAX_PATH + 2 ] = { L'\0' };
+  wchar_t wszLanguage [ MAX_PATH + 2 ] = { L'\0' };
+  wchar_t wszBooster  [ MAX_PATH + 2 ] = { L'\0' };
+
+  lstrcatW (wszFullName, SK_GetConfigPath ());
+  lstrcatW (wszFullName,       name.c_str ());
+  lstrcatW (wszFullName,             L".ini");
+
+  dll_ini->write (wszFullName);
+
+  lstrcatW (wszLanguage, SK_GetConfigPath ());
+  lstrcatW (wszLanguage,       name.c_str ());
+  lstrcatW (wszLanguage,    L"_Language.ini");
+
+  language_ini->write (wszLanguage);
+
+  lstrcatW (wszBooster, SK_GetConfigPath ());
+  lstrcatW (wszBooster,       name.c_str ());
+  lstrcatW (wszBooster,     L"_Booster.ini");
+
+  booster_ini->write (wszBooster);
 
   if (close_config) {
+    // Actually, this is somewhat invalid -- DO NOT FREE MEMORY THAT WAS
+    //                                       ALLOCATED IN A DIFFERENT DLL!
     if (dll_ini != nullptr) {
       delete dll_ini;
       dll_ini = nullptr;

@@ -43,7 +43,7 @@
 
 #include <process.h>
 
-typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)(std::wstring, uint32_t, uint32_t);
+typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)(const wchar_t*, uint32_t, uint32_t);
 extern SK_D3D11_AddTexHash_pfn SK_D3D11_AddTexHash;
 
 typedef HWND (WINAPI *SK_GetGameWindow_pfn)(void);
@@ -580,7 +580,12 @@ SK_UNX_PluginKeyPress ( BOOL Control,
     SK_ICommandResult result = 
       SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval");
 
-    if (result.getVariable ()->getValueString () != "0")
+    uint32_t dwLen = 4;
+    char szPresent [4];
+
+    result.getVariable ()->getValueString (szPresent, &dwLen);
+
+    if (strcmp (szPresent, "0"))
       SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval 0");
     else
       SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval 1");
@@ -589,7 +594,7 @@ SK_UNX_PluginKeyPress ( BOOL Control,
   //SK_PluginKeyPress_Original (Control, Shift, Alt, vkCode);
 }
 
-typedef std::wstring (__stdcall *SK_GetConfigPath_pfn)(void);
+typedef const wchar_t* (__stdcall *SK_GetConfigPath_pfn)(void);
 extern SK_GetConfigPath_pfn SK_GetConfigPath;
 
 void
@@ -604,7 +609,7 @@ unx::InputManager::Init (void)
   iSK_INI* pad_cfg =
     UNX_CreateINI (
       std::wstring (
-        SK_GetConfigPath () + L"UnX_Gamepad.ini"
+        std::wstring (SK_GetConfigPath ()) + L"UnX_Gamepad.ini"
       ).c_str ()
     );
   pad_cfg->parse ();
@@ -928,7 +933,7 @@ unx::InputManager::Init (void)
     );
   }
 
-  pad_cfg->write (SK_GetConfigPath () + L"UnX_Gamepad.ini");
+  pad_cfg->write ((std::wstring (SK_GetConfigPath ()) + L"UnX_Gamepad.ini").c_str ());
   delete pad_cfg;
 
   if (config.input.remap_dinput8) {
@@ -957,6 +962,8 @@ unx::InputManager::Init (void)
 
       pDInput8->Release ();
     }
+
+    CoUninitialize ();
   }
 
 

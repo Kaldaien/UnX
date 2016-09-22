@@ -42,10 +42,10 @@ public:
   bool load (void)
   {
     if (ini != nullptr) {
-      iSK_INISection& section = ini->get_section (ini_section);
+      iSK_INISection& section = ini->get_section (ini_section.c_str ());
 
-      if (section.contains_key (ini_key)) {
-        set_value_str (section.get_value (ini_key));
+      if (section.contains_key (ini_key.c_str ())) {
+        set_value_str (section.get_value (ini_key.c_str ()));
         return true;
       }
     }
@@ -59,20 +59,20 @@ public:
     bool ret = false;
 
     if (ini != nullptr) {
-      iSK_INISection& section = ini->get_section (ini_section);
+      iSK_INISection& section = ini->get_section (ini_section.c_str ());
 
       // If this operation actually creates a section, we need to make sure
       //   that section has a name!
-      section.set_name (ini_section);
+      section.set_name (ini_section.c_str ());
 
-      if (section.contains_key (ini_key)) {
-        section.get_value (ini_key) = get_value_str ().c_str ();
+      if (section.contains_key (ini_key.c_str ())) {
+        section.get_value (ini_key.c_str ()) = get_value_str ().c_str ();
         ret = true;
       }
 
       // Add this key/value if it doesn't already exist.
       else {
-        section.add_key_value (ini_key, get_value_str ().c_str ());
+        section.add_key_value (ini_key.c_str (), get_value_str ().c_str ());
         ret = true;// +1;
       }
     }

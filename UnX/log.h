@@ -72,13 +72,13 @@ interface iSK_Logger : public IUnknown
   STDMETHOD_ (void, LogEx)(THIS_ bool                 _Timestamp,
                               _In_z_ _Printf_format_string_
                                  wchar_t const* const _Format,
-                                                      ... ) = 0;
+                                                           ... ) = 0;
   STDMETHOD_ (void, Log)  (THIS_ _In_z_ _Printf_format_string_
                                  wchar_t const* const _Format,
-                                                      ... ) = 0;
+                                                           ... ) = 0;
   STDMETHOD_ (void, Log)  (THIS_ _In_z_ _Printf_format_string_
                                  char const* const    _Format,
-                                                      ... ) = 0;
+                                                           ... ) = 0;
 };
 
 extern iSK_Logger* dll_log;
