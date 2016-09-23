@@ -425,8 +425,10 @@ GetRawInputData_Detour (
                      cbSizeHeader );
   }
 
-  if (pData != nullptr && pcbSize != nullptr) {
-    memset (pData, 0, *pcbSize);
+  if (pcbSize != nullptr) {
+    if (pData != nullptr)
+      memset (pData, 0, *pcbSize);
+
     *pcbSize = 0;
   }
 
@@ -592,6 +594,34 @@ SK_UNX_PluginKeyPress ( BOOL Control,
   }
 
   //SK_PluginKeyPress_Original (Control, Shift, Alt, vkCode);
+}
+
+typedef HRESULT (WINAPI *DirectInput8Create_pfn)(
+ HINSTANCE hinst,
+ DWORD     dwVersion,
+ REFIID    riidltf,
+ LPVOID*   ppvOut,
+ LPUNKNOWN punkOuter
+);
+
+DirectInput8Create_pfn DirectInput8Create_Original = nullptr;
+
+HRESULT
+WINAPI
+DirectInput8Create_Detour (
+  HINSTANCE hinst,
+  DWORD     dwVersion,
+  REFIID    riidltf,
+  LPVOID*   ppvOut,
+  LPUNKNOWN punkOuter
+)
+{
+  try {
+    return DirectInput8Create_Original (hinst, dwVersion, riidltf, ppvOut, punkOuter);
+  } catch (...) {
+    dll_log->Log (L"[CrashPrvnt] Raptr tried and failed to initialize DInput8...");
+    return E_FAIL;
+  }
 }
 
 typedef const wchar_t* (__stdcall *SK_GetConfigPath_pfn)(void);
@@ -937,6 +967,16 @@ unx::InputManager::Init (void)
   delete pad_cfg;
 
   if (config.input.remap_dinput8) {
+    HMODULE hModDontCare;
+
+    // Fix problems with Raptr by pinning this DLL into memory constantly
+    LoadLibrary (L"dinput8.dll");
+
+    GetModuleHandleEx (
+      GET_MODULE_HANDLE_EX_FLAG_PIN,
+        L"dinput8.dll", 
+          &hModDontCare );
+
     CoInitializeEx (nullptr, COINIT_MULTITHREADED);
 
     IDirectInput8W* pDInput8 = nullptr;
@@ -959,6 +999,13 @@ unx::InputManager::Init (void)
                  (LPVOID*)&IDirectInput8_CreateDevice_Original );
 
       UNX_EnableHook (vftable [3]);
+
+#if 0
+      UNX_CreateDLLHook ( L"dinput8.dll",
+                          "DirectInput8Create",
+                          DirectInput8Create_Detour,
+               (LPVOID *)&DirectInput8Create_Original );
+#endif
 
       pDInput8->Release ();
     }

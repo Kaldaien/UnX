@@ -228,6 +228,19 @@ DetourWindowProc_pfn DetourWindowProc_Original = nullptr;
 bool schedule_load = false;
 bool queue_death   = false;
 
+bool shutting_down = false;
+bool last_active   = unx::window.active;
+
+// Avoid static storage in the callback function
+struct {
+  POINTS pos      = { 0 }; // POINT (Short) - Not POINT plural ;)
+  DWORD  sampled  = 0UL;
+  bool   cursor   = true;
+
+  int    init     = false;
+  int    timer_id = 0x68992;
+} last_mouse;
+
 LRESULT
 CALLBACK
 DetourWindowProc ( _In_  HWND   hWnd,
@@ -273,11 +286,6 @@ DetourWindowProc ( _In_  HWND   hWnd,
 //    LoadSave2 (2);
 //    LoadSave3 ();
   }
-
-
-
-  static bool shutting_down = false;
-  static bool last_active   = unx::window.active;
 
 
   if (GetForegroundWindow () == hWnd)
@@ -390,9 +398,7 @@ DetourWindowProc ( _In_  HWND   hWnd,
     }
   }
 
-  const bool fix_background_input = true;
-
-  if (fix_background_input) {
+  if (config.input.trap_alt_tab) {
     if ( uMsg == WM_NCACTIVATE ) {
       return 0;
     }
@@ -422,7 +428,6 @@ DetourWindowProc ( _In_  HWND   hWnd,
 
   // Block the menu key from messing with stuff*
   if ((uMsg == WM_SYSKEYDOWN || uMsg == WM_SYSKEYUP)) {
-
     // Alt + Enter (Fullscreen toggle)
     if (uMsg == WM_SYSKEYDOWN && wParam == VK_RETURN) {
       if (pGameSwapChain && config.display.enable_fullscreen) {
@@ -431,23 +436,16 @@ DetourWindowProc ( _In_  HWND   hWnd,
       }
     }
 
-    // Actually, just block Alt+F4
-    if (config.input.fast_exit || wParam != VK_F4)
-      return DefWindowProc (hWnd, uMsg, wParam, lParam);
+    if (wParam != VK_TAB || (! config.input.trap_alt_tab)) {
+      // Actually, just block Alt+F4
+      if (config.input.fast_exit || wParam != VK_F4)
+        return DefWindowProc (hWnd, uMsg, wParam, lParam);
+    }
   }
 
   // What an ugly mess, this is crazy :)
   if (config.input.cursor_mgmt) {
     extern bool IsControllerPluggedIn (INT iJoyID);
-
-    struct {
-      POINTS pos      = { 0 }; // POINT (Short) - Not POINT plural ;)
-      DWORD  sampled  = 0UL;
-      bool   cursor   = true;
-
-      int    init     = false;
-      int    timer_id = 0x68992;
-    } static last_mouse;
 
    auto ActivateCursor = [](bool changed = false)->
     bool

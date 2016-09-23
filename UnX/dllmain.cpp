@@ -37,6 +37,8 @@
 
 #pragma comment (lib, "kernel32.lib")
 
+extern "C" BOOL WINAPI _CRT_INIT (HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved);
+
 HMODULE hDLLMod      = { 0 }; // Handle to SELF
 HMODULE hInjectorDLL = { 0 }; // Handle to Special K
 
@@ -45,7 +47,7 @@ SK_SetPluginName_pfn SK_SetPluginName = nullptr;
 
 std::wstring injector_name;
 
-unsigned int
+DWORD
 __stdcall
 DllThread (LPVOID user)
 {
@@ -118,8 +120,7 @@ SKPlugIn_Init (HMODULE hModSpecialK)
 
   hInjectorDLL = hModSpecialK;
 
-  // Not really a thread now is it? :P
-  DllThread (nullptr);
+  CreateThread ( nullptr, 0, DllThread, nullptr, 0x00, nullptr );
 
   return TRUE;
 }
@@ -130,6 +131,8 @@ DllMain (HMODULE hModule,
          DWORD   ul_reason_for_call,
          LPVOID  /* lpReserved */)
 {
+  _CRT_INIT ((HINSTANCE)hModule, ul_reason_for_call, nullptr);
+
   switch (ul_reason_for_call)
   {
     case DLL_PROCESS_ATTACH:

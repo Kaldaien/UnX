@@ -38,7 +38,7 @@ static
   iSK_INI*
              booster_ini     = nullptr;
 
-std::wstring UNX_VER_STR = L"0.6.6";
+std::wstring UNX_VER_STR = L"0.6.7";
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)      (bool);
@@ -143,6 +143,7 @@ struct {
   unx::ParameterBool*    activate_on_kbd;
 
   unx::ParameterBool*    fast_exit;
+  unx::ParameterBool*    trap_alt_tab;
 } input;
 
 struct {
@@ -499,6 +500,16 @@ UNX_LoadConfig (std::wstring name)
       L"UnX.Input",
         L"FastExit" );
 
+  input.trap_alt_tab =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Prevent Game from Receiving Alt+Tab Info")
+      );
+  input.trap_alt_tab->register_to_ini (
+    dll_ini,
+      L"UnX.Input",
+        L"TrapAltTab" );
+
 
   textures.resource_root =
     static_cast <unx::ParameterStringW *>
@@ -717,7 +728,8 @@ UNX_LoadConfig (std::wstring name)
 
   input.activate_on_kbd->load (config.input.activate_on_kbd);
 
-  input.fast_exit->load (config.input.fast_exit);
+  input.fast_exit->load    (config.input.fast_exit);
+  input.trap_alt_tab->load (config.input.trap_alt_tab);
 
 
 #if 1
@@ -807,6 +819,8 @@ UNX_SaveConfig (std::wstring name, bool close_config) {
   input.activate_on_kbd->store      (config.input.activate_on_kbd);
   //input.block_windows->store        (config.input.block_windows);
   input.fix_bg_input->store         (config.input.fix_bg_input);
+
+  input.trap_alt_tab->store         (config.input.trap_alt_tab);
 
 
   ((unx::iParameter *)language.sfx)->store   ();

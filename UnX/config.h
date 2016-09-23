@@ -141,6 +141,8 @@ struct unx_config_s
     bool activate_on_kbd    = false;
     int  gamepad_slot       = -1;
 
+    bool trap_alt_tab       = true;
+
     bool fast_exit          = true;
   } input;
 
