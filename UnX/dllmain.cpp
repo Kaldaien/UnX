@@ -93,6 +93,8 @@ DllThread (LPVOID user)
 
   // Plugin State
   if (UNX_Init_MinHook () == MH_OK) {
+    CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+
     unx::LanguageManager::Init ();
     unx::DisplayFix::Init      ();
     //unx::RenderFix::Init       ();
@@ -120,7 +122,7 @@ SKPlugIn_Init (HMODULE hModSpecialK)
 
   hInjectorDLL = hModSpecialK;
 
-  CreateThread ( nullptr, 0, DllThread, nullptr, 0x00, nullptr );
+  DllThread (nullptr);
 
   return TRUE;
 }
@@ -131,14 +133,18 @@ DllMain (HMODULE hModule,
          DWORD   ul_reason_for_call,
          LPVOID  /* lpReserved */)
 {
-  _CRT_INIT ((HINSTANCE)hModule, ul_reason_for_call, nullptr);
-
   switch (ul_reason_for_call)
   {
     case DLL_PROCESS_ATTACH:
     {
+      _CRT_INIT ((HINSTANCE)hModule, ul_reason_for_call, nullptr);
       hDLLMod = hModule;
     } break;
+
+    case DLL_THREAD_ATTACH:
+    case DLL_THREAD_DETACH:
+      _CRT_INIT ((HINSTANCE)hModule, ul_reason_for_call, nullptr);
+      break;
 
     case DLL_PROCESS_DETACH:
     {
@@ -162,6 +168,7 @@ DllMain (HMODULE hModule,
 
         dll_log->close ();
       }
+      _CRT_INIT ((HINSTANCE)hModule, ul_reason_for_call, nullptr);
     } break;
   }
 
