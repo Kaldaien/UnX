@@ -5,6 +5,12 @@ VisualStudioVersion = 14.0.24720.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "UnX", "UnX\UnX.vcxproj", "{602D4E03-B60F-4F08-A836-C642BF5DDB37}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{0DF02FFE-D8AC-44BE-83BE-F35C5DB3BC0A}"
+	ProjectSection(SolutionItems) = preProject
+		installer.dll = installer.dll
+		version.ini = version.ini
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
