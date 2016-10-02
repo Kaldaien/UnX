@@ -42,6 +42,9 @@ extern "C" BOOL WINAPI _CRT_INIT (HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lp
 HMODULE hDLLMod      = { 0 }; // Handle to SELF
 HMODULE hInjectorDLL = { 0 }; // Handle to Special K
 
+typedef HRESULT (__stdcall *SK_UpdateSoftware_pfn)(const wchar_t* wszProduct);
+typedef bool    (__stdcall *SK_FetchVersionInfo_pfn)(const wchar_t* wszProduct);
+
 typedef void (__stdcall *SK_SetPluginName_pfn)(std::wstring name);
 SK_SetPluginName_pfn SK_SetPluginName = nullptr;
 
@@ -121,6 +124,26 @@ SKPlugIn_Init (HMODULE hModSpecialK)
   injector_name = wszSKFileName;
 
   hInjectorDLL = hModSpecialK;
+
+
+  SK_UpdateSoftware_pfn SK_UpdateSoftware =
+    (SK_UpdateSoftware_pfn)
+      GetProcAddress ( hInjectorDLL,
+                         "SK_UpdateSoftware" );
+
+  SK_FetchVersionInfo_pfn SK_FetchVersionInfo =
+    (SK_FetchVersionInfo_pfn)
+      GetProcAddress ( hInjectorDLL,
+                         "SK_FetchVersionInfo" );
+
+  if (! wcsstr (injector_name.c_str (), L"SpecialK")) {
+    if ( SK_FetchVersionInfo != nullptr &&
+         SK_UpdateSoftware   != nullptr ) {
+      if (SK_FetchVersionInfo (L"UnX")) {
+        SK_UpdateSoftware (L"UnX");
+      }
+    }
+  }
 
   DllThread (nullptr);
 
