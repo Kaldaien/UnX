@@ -25,6 +25,8 @@
 #include "ini.h"
 #include "log.h"
 
+#include "DLL_VERSION.H"
+
 #include <string>
 
 static
@@ -38,7 +40,7 @@ static
   iSK_INI*
              booster_ini     = nullptr;
 
-std::wstring UNX_VER_STR = L"0.7.0";
+std::wstring UNX_VER_STR = UNX_VERSION_STR_W;
 unx_config_s config;
 
 typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)      (bool);

@@ -90,6 +90,9 @@
     <ClInclude Include="cheat.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="DLL_VERSION.H">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Header Files">

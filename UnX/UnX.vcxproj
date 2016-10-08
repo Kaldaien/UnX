@@ -241,6 +241,7 @@
     <ClInclude Include="command.h" />
     <ClInclude Include="config.h" />
     <ClInclude Include="display.h" />
+    <ClInclude Include="DLL_VERSION.H" />
     <ClInclude Include="hook.h" />
     <ClInclude Include="ini.h" />
     <ClInclude Include="input.h" />
