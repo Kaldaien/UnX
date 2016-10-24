@@ -599,7 +599,7 @@ UNX_TimeStop (void)
 void
 UNX_Quickie (void)
 {
-#if 1
+#if 0
       DWORD     dwProtect;
 #if 0
       uint32_t* skip = (uint32_t *)((intptr_t)__UNX_base_img_addr + 0x12FB7C0 - 0x400000);
@@ -634,8 +634,8 @@ UNX_Quickie (void)
     (sub_7C8650_pfn)((intptr_t)__UNX_base_img_addr + 0x3C8650);
   Menu (0x6);
 
-  //extern bool schedule_load;
-  //schedule_load = true;
+  extern bool schedule_load;
+  schedule_load = true;
 #endif
 }
 

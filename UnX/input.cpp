@@ -546,51 +546,61 @@ SK_UNX_PluginKeyPress ( BOOL Control,
                         BOOL Alt,
                         BYTE vkCode )
 {
-  if (Control && Shift && vkCode == 'H') {
-    extern void UNX_SpeedStep (); 
-    UNX_SpeedStep ();
-  }
+  if (Control && Shift) {
+    if (vkCode == 'H') {
+      extern void UNX_SpeedStep (); 
+      UNX_SpeedStep ();
+    }
 
-  if (Control && Shift && vkCode == 'P') {
-    extern void UNX_TimeStop (void);
-    UNX_TimeStop ();
-  }
+    else if (vkCode == 'P') {
+      extern void UNX_TimeStop (void);
+      UNX_TimeStop ();
+    }
 
-  if (Control && Shift && vkCode == 'U') {
-    extern void UNX_FFX2_UnitTest (void);
-    UNX_FFX2_UnitTest ();
-  }
+    else if (vkCode == 'U') {
+      extern void UNX_FFX2_UnitTest (void);
+      UNX_FFX2_UnitTest ();
+    }
 
-  if (Control && Shift && vkCode == 'Q') {
-    extern void UNX_Quickie (void);
-    UNX_Quickie ();
-  }
+    else if (vkCode == 'Q') {
+      extern void UNX_Quickie (void);
+      UNX_Quickie ();
+    }
 
-  if (Control && Shift && vkCode == 'F') {
-    extern void UNX_ToggleFreeLook (void);
-    UNX_ToggleFreeLook ();
-  }
-  if (Control && Shift && vkCode == 'S') {
-    extern void UNX_ToggleSensor (void);
-    UNX_ToggleSensor ();
-  }
-  if (Control && Shift && vkCode == 'A') {
-    config.cheat.ffx.entire_party_earns_ap = (! config.cheat.ffx.entire_party_earns_ap);
-  }
+    else if (vkCode == 'F') {
+      extern void UNX_ToggleFreeLook (void);
+      UNX_ToggleFreeLook ();
+    }
 
-  if (Control && Shift && vkCode == 'V') {
-    SK_ICommandResult result = 
-      SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval");
+    else if (vkCode == 'S') {
+      extern void UNX_ToggleSensor (void);
+      UNX_ToggleSensor ();
+    }
 
-    uint32_t dwLen = 4;
-    char szPresent [4];
+    else if (vkCode == 'A') {
+      config.cheat.ffx.entire_party_earns_ap = (! config.cheat.ffx.entire_party_earns_ap);
+    }
 
-    result.getVariable ()->getValueString (szPresent, &dwLen);
+    else if (vkCode == 'V') {
+      SK_ICommandResult result = 
+        SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval");
 
-    if (strcmp (szPresent, "0"))
-      SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval 0");
-    else
-      SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval 1");
+      uint32_t dwLen = 4;
+      char szPresent [4];
+
+      result.getVariable ()->getValueString (szPresent, &dwLen);
+
+      if (strcmp (szPresent, "0"))
+        SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval 0");
+      else
+        SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval 1");
+    }
+
+    // FFX Soft Reset
+    else if (vkCode == VK_BACK) {
+      extern bool UNX_KillMeNow (void);
+      UNX_KillMeNow ();
+    }
   }
 
   //SK_PluginKeyPress_Original (Control, Shift, Alt, vkCode);
