@@ -518,21 +518,6 @@ SpinOrSleep (DWORD dwMilliseconds)
   }
 }
 
-typedef BOOL (WINAPI *ClipCursor_pfn)(
-  _In_opt_ const RECT *lpRect
-);
-
-ClipCursor_pfn ClipCursor_Original = nullptr;
-
-BOOL
-WINAPI
-ClipCursor_Detour (
-  _In_opt_ const RECT *lpRect
-)
-{
-  return TRUE;
-}
-
 typedef void (CALLBACK *SK_PluginKeyPress_pfn)( BOOL Control,
                         BOOL Shift,
                         BOOL Alt,
@@ -987,7 +972,10 @@ unx::InputManager::Init (void)
         L"dinput8.dll", 
           &hModDontCare );
 
-    CoInitializeEx (nullptr, COINIT_MULTITHREADED);
+    bool init = false;
+
+    HRESULT com_init_hr =
+      CoInitializeEx (nullptr, COINIT_MULTITHREADED);
 
     IDirectInput8W* pDInput8 = nullptr;
 
@@ -1020,7 +1008,8 @@ unx::InputManager::Init (void)
       pDInput8->Release ();
     }
 
-    CoUninitialize ();
+    if (com_init_hr == S_OK)
+      CoUninitialize ();
   }
 
 
@@ -1051,15 +1040,22 @@ unx::InputManager::Init (void)
                (LPVOID*)&GetAsyncKeyState_Original );
   }
 
-  UNX_CreateDLLHook2 ( L"user32.dll",
-                       "ClipCursor",
-                       ClipCursor_Detour,
-            (LPVOID *)&ClipCursor_Original );
-
-  UNX_CreateDLLHook2 ( L"XInput9_1_0.dll",
-                        "XInputGetState",
-                         XInputGetState_Detour,
-              (LPVOID *)&XInputGetState_Original );
+  if (GetModuleHandle (L"XInput9_1_0.dll")) {
+    UNX_CreateDLLHook2 ( L"XInput9_1_0.dll",
+                          "XInputGetState",
+                           XInputGetState_Detour,
+                (LPVOID *)&XInputGetState_Original );
+  } else if (GetModuleHandle (L"XInput1_4.dll")) {
+    UNX_CreateDLLHook2 ( L"XInput1_4.dll",
+                          "XInputGetState",
+                           XInputGetState_Detour,
+                (LPVOID *)&XInputGetState_Original );
+  } else {
+    UNX_CreateDLLHook2 ( L"XInput1_3.dll",
+                          "XInputGetState",
+                           XInputGetState_Detour,
+                (LPVOID *)&XInputGetState_Original );
+  }
 
   UNX_CreateDLLHook2 ( config.system.injector.c_str (),
                        "SK_PluginKeyPress",

@@ -231,16 +231,6 @@ bool queue_death   = false;
 bool shutting_down = false;
 bool last_active   = unx::window.active;
 
-// Avoid static storage in the callback function
-struct {
-  POINTS pos      = { 0 }; // POINT (Short) - Not POINT plural ;)
-  DWORD  sampled  = 0UL;
-  bool   cursor   = true;
-
-  int    init     = false;
-  int    timer_id = 0x68992;
-} last_mouse;
-
 LRESULT
 CALLBACK
 DetourWindowProc ( _In_  HWND   hWnd,
@@ -334,22 +324,20 @@ DetourWindowProc ( _In_  HWND   hWnd,
 
     DetourWindowProc_Original (hWnd, uMsg, wParam, lParam);
 
-#if 0
-    DllMain ( GetModuleHandle (config.system.injector.c_str ()),
-                DLL_PROCESS_DETACH,
-                  nullptr );
+    //DllMain ( GetModuleHandle (config.system.injector.c_str ()),
+                //DLL_PROCESS_DETACH,
+                  //nullptr );
 
-    typedef void (WINAPI *SK_SelfDestruct_pfn)(void);
-    static SK_SelfDestruct_pfn
-      SK_SelfDestruct =
-        (SK_SelfDestruct_pfn)
-          GetProcAddress ( GetModuleHandle (config.system.injector.c_str ()),
-                             "SK_SelfDestruct" );
+    //typedef void (WINAPI *SK_SelfDestruct_pfn)(void);
+    //static SK_SelfDestruct_pfn
+      //SK_SelfDestruct =
+        //(SK_SelfDestruct_pfn)
+          //GetProcAddress ( GetModuleHandle (config.system.injector.c_str ()),
+                             //"SK_SelfDestruct" );
 
-    SK_SelfDestruct ();
+    //SK_SelfDestruct ();
 
-    ExitProcess (0);
-#endif
+    //ExitProcess (0);
   }
 
   //
@@ -373,15 +361,6 @@ DetourWindowProc ( _In_  HWND   hWnd,
 
     last_active = unx::window.active;
 
-    if (config.audio.mute_in_background) {
-      BOOL bMute = FALSE;
-
-      if (deactivate)
-        bMute = TRUE;
-
-      UNX_SetGameMute (bMute);
-    }
-
     dll_log->Log ( L"[Window Mgr] Activation: %s",
                      unx::window.active ? L"ACTIVE" :
                                           L"INACTIVE" );
@@ -403,7 +382,6 @@ DetourWindowProc ( _In_  HWND   hWnd,
       return 0;
     }
   }
-
 
   if (uMsg == WM_TIMER) {
     if (wParam == unx::CHEAT_TIMER_FFX)
@@ -443,84 +421,6 @@ DetourWindowProc ( _In_  HWND   hWnd,
     }
   }
 
-  // What an ugly mess, this is crazy :)
-  if (config.input.cursor_mgmt) {
-    extern bool IsControllerPluggedIn (INT iJoyID);
-
-   auto ActivateCursor = [](bool changed = false)->
-    bool
-     {
-       bool was_active = last_mouse.cursor;
-
-       if (! last_mouse.cursor) {
-         while (ShowCursor (TRUE) < 0) ;
-         last_mouse.cursor = true;
-       }
-
-       if (changed)
-         last_mouse.sampled = timeGetTime ();
-
-       return (last_mouse.cursor != was_active);
-     };
-
-   auto DeactivateCursor = []()->
-    bool
-     {
-       if (! last_mouse.cursor)
-         return false;
-
-       bool was_active = last_mouse.cursor;
-
-       if (last_mouse.sampled <= timeGetTime () - config.input.cursor_timeout) {
-         while (ShowCursor (FALSE) >= 0) ;
-         last_mouse.cursor = false;
-       }
-
-       return (last_mouse.cursor != was_active);
-     };
-
-    if (! last_mouse.init) {
-      if (config.input.cursor_timeout != 0)
-        SetTimer (hWnd, last_mouse.timer_id, config.input.cursor_timeout / 2, nullptr);
-      else
-        SetTimer (hWnd, last_mouse.timer_id, 250/*USER_TIMER_MINIMUM*/, nullptr);
-
-      last_mouse.init = true;
-    }
-
-    bool activation_event =
-      (uMsg == WM_MOUSEMOVE);
-
-    // Don't blindly accept that WM_MOUSEMOVE actually means the mouse moved...
-    if (activation_event) {
-      const short threshold = 2;
-
-      // Filter out small movements
-      if ( abs (last_mouse.pos.x - GET_X_LPARAM (lParam)) < threshold &&
-           abs (last_mouse.pos.y - GET_Y_LPARAM (lParam)) < threshold )
-        activation_event = false;
-
-      last_mouse.pos = MAKEPOINTS (lParam);
-    }
-
-    if (config.input.activate_on_kbd)
-      activation_event |= ( uMsg == WM_CHAR       ||
-                            uMsg == WM_SYSKEYDOWN ||
-                            uMsg == WM_SYSKEYUP );
-
-    // If timeout is 0, just hide the thing indefinitely
-    if (activation_event && config.input.cursor_timeout != 0)
-      ActivateCursor (true);
-
-    else if (uMsg == WM_TIMER && wParam == last_mouse.timer_id) {
-      if (IsControllerPluggedIn (config.input.gamepad_slot))
-        DeactivateCursor ();
-
-      else
-        ActivateCursor ();
-    }
-  }
-
   return DetourWindowProc_Original (hWnd, uMsg, wParam, lParam);
 }
 
@@ -529,7 +429,6 @@ WINAPI
 UNX_MWA_Thread (LPVOID pUser)
 {
   DXGI_SWAP_CHAIN_DESC desc;
-  BOOL                 should_center = config.window.center;
 
   if (config.display.enable_fullscreen) {
     BOOL fullscreen = FALSE;
@@ -540,9 +439,7 @@ UNX_MWA_Thread (LPVOID pUser)
                               nullptr                     )
                      )
          )
-      { // Moving the window in fullscreen mode is bad mojo
-        if (fullscreen)
-          should_center = false;
+      {
       }
     }
   }
@@ -572,29 +469,6 @@ UNX_MWA_Thread (LPVOID pUser)
         pFactory->MakeWindowAssociation ( desc.OutputWindow,
                                             DXGI_MWA_NO_WINDOW_CHANGES |
                                             DXGI_MWA_NO_ALT_ENTER );
-      }
-    }
-
-    if (should_center && desc.Windowed) {
-      MONITORINFO moninfo;
-      moninfo.cbSize = sizeof MONITORINFO;
-
-      GetMonitorInfo ( MonitorFromWindow ( SK_GetGameWindow (),
-                                             MONITOR_DEFAULTTONEAREST ),
-                         &moninfo );
-
-      UINT Width  = desc.BufferDesc.Width;
-      UINT Height = desc.BufferDesc.Height;
-
-      unsigned int mon_width  = moninfo.rcMonitor.right  - moninfo.rcMonitor.left;
-      unsigned int mon_height = moninfo.rcMonitor.bottom - moninfo.rcMonitor.top;
-
-      if (Width <= mon_width && Height <= mon_height) {
-        SetWindowPos ( SK_GetGameWindow (), HWND_TOP,
-                        (mon_width  - Width)  / 2,
-                        (mon_height - Height) / 2,
-                            Width, Height,
-                              SWP_NOSIZE | SWP_ASYNCWINDOWPOS );
       }
     }
   }
@@ -633,9 +507,9 @@ DXGISwap_ResizeBuffers_Detour (
                                             NewFormat,
                                               SwapChainFlags );
 
-  if ( UNX_IsWindowThread () || UNX_IsRenderThread () )
-    CreateThread (nullptr, 0, UNX_MWA_Thread, nullptr, 0, nullptr);
-  else
+  //if ( UNX_IsWindowThread () || UNX_IsRenderThread () )
+    //CreateThread (nullptr, 0, UNX_MWA_Thread, nullptr, 0, nullptr);
+  //else
     UNX_MWA_Thread (nullptr);
 
   return hr;

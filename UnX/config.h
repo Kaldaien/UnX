@@ -40,10 +40,6 @@ struct unx_config_s
   } display;
 
   struct {
-    bool    mute_in_background  = false;
-  } audio;
-
-  struct {
     struct {
       bool  entire_party_earns_ap = false;
       bool  playable_seymour      = false;
@@ -56,10 +52,6 @@ struct unx_config_s
 
   struct {
   } compatibility;
-
-  struct {
-    bool    center              = true;
-  } window;
 
   struct {
     bool    reduce              = false;
@@ -135,10 +127,6 @@ struct unx_config_s
     bool block_all_keys     = false;
 
     bool four_finger_salute = true;
-
-    bool cursor_mgmt        = true;
-    int  cursor_timeout     = 0;
-    bool activate_on_kbd    = false;
     int  gamepad_slot       = -1;
 
     bool trap_alt_tab       = true;

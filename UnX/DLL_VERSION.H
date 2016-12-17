@@ -2,8 +2,8 @@
 
 
 #define UNX_MAJOR 0
-#define UNX_MINOR 7
-#define UNX_BUILD 3
+#define UNX_MINOR 8
+#define UNX_BUILD 0
 #define UNX_REV   0
 
 

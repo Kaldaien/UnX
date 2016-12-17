@@ -95,10 +95,6 @@ struct {
 } booster;
 
 struct {
-  unx::ParameterBool*    center;
-} window;
-
-struct {
   unx::ParameterBool*    disable_dpi_scaling;
   unx::ParameterBool*    enable_fullscreen;
 } display;
@@ -139,10 +135,6 @@ struct {
   unx::ParameterBool*    block_all_keys;
 
   unx::ParameterBool*    four_finger_salute;
-
-  unx::ParameterBool*    manage_cursor;
-  unx::ParameterFloat*   cursor_timeout;
-  unx::ParameterBool*    activate_on_kbd;
 
   unx::ParameterBool*    fast_exit;
   unx::ParameterBool*    trap_alt_tab;
@@ -296,17 +288,6 @@ UNX_LoadConfig (std::wstring name)
         L"EnableFullscreen" );
 
 
-  window.center =
-    static_cast <unx::ParameterBool *>
-      (g_ParameterFactory.create_parameter <bool> (
-        L"Center the Render Window")
-      );
-  window.center->register_to_ini (
-    dll_ini,
-      L"UnX.Window",
-        L"Center" );
-
-
   render.bypass_intel =
     static_cast <unx::ParameterBool *>
       (g_ParameterFactory.create_parameter <bool> (
@@ -452,26 +433,6 @@ UNX_LoadConfig (std::wstring name)
       L"UnX.Input",
         L"FourFingerSalute" );
 
-  input.manage_cursor = 
-    static_cast <unx::ParameterBool *>
-      (g_ParameterFactory.create_parameter <bool> (
-        L"Hide the mouse cursor after a period of inactivity")
-      );
-  input.manage_cursor->register_to_ini (
-    dll_ini,
-      L"UnX.Input",
-        L"ManageCursor" );
-
-  input.cursor_timeout = 
-    static_cast <unx::ParameterFloat *>
-      (g_ParameterFactory.create_parameter <float> (
-        L"Hide the mouse cursor after a period of inactivity")
-      );
-  input.cursor_timeout->register_to_ini (
-    dll_ini,
-      L"UnX.Input",
-        L"CursorTimeout" );
-
   input.gamepad_slot =
     static_cast <unx::ParameterInt *>
       (g_ParameterFactory.create_parameter <int> (
@@ -481,16 +442,6 @@ UNX_LoadConfig (std::wstring name)
     dll_ini,
       L"UnX.Input",
         L"GamepadSlot" );
-
-  input.activate_on_kbd =
-    static_cast <unx::ParameterBool *>
-      (g_ParameterFactory.create_parameter <bool> (
-        L"Keyboard activates mouse cursor")
-      );
-  input.activate_on_kbd->register_to_ini (
-    dll_ini,
-      L"UnX.Input",
-        L"KeysActivateCursor" );
 
   input.fast_exit =
     static_cast <unx::ParameterBool *>
@@ -703,12 +654,7 @@ UNX_LoadConfig (std::wstring name)
     fmv_override->store (L"");
   }
 
-
-  audio.mute_in_background->load (config.audio.mute_in_background);
-
   stutter.reduce->load (config.stutter.reduce);
-
-  window.center->load   (config.window.center);
 
   input.remap_dinput8->load (config.input.remap_dinput8);
   input.gamepad_slot->load  (config.input.gamepad_slot);
@@ -720,15 +666,6 @@ UNX_LoadConfig (std::wstring name)
   //input.block_all_keys->load  (config.input.block_all_keys);
 
   input.four_finger_salute->load (config.input.four_finger_salute);
-  input.manage_cursor->load      (config.input.cursor_mgmt);
-
-  float timeout;
-
-  if (input.cursor_timeout->load (timeout))
-    config.input.cursor_timeout = 
-      static_cast <int>(timeout * 1000UL);
-
-  input.activate_on_kbd->load (config.input.activate_on_kbd);
 
   input.fast_exit->load    (config.input.fast_exit);
   input.trap_alt_tab->load (config.input.trap_alt_tab);
@@ -805,20 +742,10 @@ UNX_LoadConfig (std::wstring name)
 
 void
 UNX_SaveConfig (std::wstring name, bool close_config) {
-  audio.mute_in_background->store   (config.audio.mute_in_background);
-
-  window.center->store              (config.window.center);
-
   stutter.reduce->store             (config.stutter.reduce);
 
   input.remap_dinput8->store        (config.input.remap_dinput8);
-  input.manage_cursor->store        (config.input.cursor_mgmt);
 
-  input.cursor_timeout->store       ( (float)config.input.cursor_timeout /
-                                      1000.0f );
-
-//input.gamepad_slot->store         (config.input.gamepad_slot);
-  input.activate_on_kbd->store      (config.input.activate_on_kbd);
   //input.block_windows->store        (config.input.block_windows);
   input.fix_bg_input->store         (config.input.fix_bg_input);
 

@@ -115,7 +115,11 @@ UNX_Scan (const uint8_t* pattern, size_t len, const uint8_t* mask)
     if ( (! (mem_info.Type    & MEM_IMAGE))  ||
          (! (mem_info.State   & MEM_COMMIT)) ||
              mem_info.Protect & PAGE_NOACCESS ) {
-      it    = next_rgn;
+      if (next_rgn > it)
+        it = next_rgn;
+      else
+        break;
+
       idx   = 0;
       begin = it;
       continue;
