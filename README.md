@@ -11,4 +11,4 @@ This mod is derived partially from work done on language selection by the Steam 
 <hr>
 
 **NOTE:** _The code in this repository pertains only to ***unx.dll***._
->The source code for the ***dxgi.dll*** is in my [Fallout 4 "Works" repository](https://github.com/Kaldaien/FO4W/). Compiling and distributing that project is complicated and I have not had time to simplify the process. If you wish to contribute to this project, you will have to contact me on Steam and I can walk you through getting that all done. It seems unlikely that anyone would need to work on that part of the project to contribute, it only handles non-game specific render stuff. 
+>The source code for the ***dxgi.dll*** is in my [Special K repository](https://github.com/Kaldaien/SpecialK/). Compiling and distributing that project is complicated and I have not had time to simplify the process. If you wish to contribute to this project, you will have to contact me on Steam and I can walk you through getting that all done. It seems unlikely that anyone would need to work on that part of the project to contribute, it only handles non-game specific render stuff.
