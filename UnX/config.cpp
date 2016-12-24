@@ -716,7 +716,7 @@ UNX_LoadConfig (std::wstring name)
     //
     //   This isn't dangerous, my DXGI DLL prevents overriding to select
     //     either Intel or Microsoft adapters.
-    SK_DXGI_SetPreferredAdapter (config.render.bypass_intel ? 1 : 0);
+    SK_DXGI_SetPreferredAdapter (config.render.bypass_intel ? 1 : -1);
   }
 
   if (UNX_SetupTexMgmt ()) {
