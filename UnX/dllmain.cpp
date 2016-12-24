@@ -106,6 +106,40 @@ DllThread (LPVOID user)
     unx::TimingFix::Init       ();
 
     unx::WindowManager::Init   ();
+
+    CreateThread (
+      nullptr, 0,
+        [](LPVOID user)->
+          DWORD
+            {
+              SK_UpdateSoftware_pfn SK_UpdateSoftware =
+                (SK_UpdateSoftware_pfn)
+                  GetProcAddress ( hInjectorDLL,
+                                     "SK_UpdateSoftware" );
+
+              SK_FetchVersionInfo_pfn SK_FetchVersionInfo =
+                (SK_FetchVersionInfo_pfn)
+                  GetProcAddress ( hInjectorDLL,
+                                     "SK_FetchVersionInfo" );
+
+              if (! wcsstr (injector_name.c_str (), L"SpecialK")) {
+                if ( SK_FetchVersionInfo != nullptr &&
+                     SK_UpdateSoftware   != nullptr ) {
+                  if (SK_FetchVersionInfo (L"UnX")) {
+                    SK_UpdateSoftware (L"UnX");
+                  }
+                }
+              }
+
+              CloseHandle (GetCurrentThread ());
+
+              return 0;
+            },
+
+          nullptr,
+        0x00,
+      nullptr
+    );
   }
 
   return 0;
@@ -124,26 +158,6 @@ SKPlugIn_Init (HMODULE hModSpecialK)
   injector_name = wszSKFileName;
 
   hInjectorDLL = hModSpecialK;
-
-
-  SK_UpdateSoftware_pfn SK_UpdateSoftware =
-    (SK_UpdateSoftware_pfn)
-      GetProcAddress ( hInjectorDLL,
-                         "SK_UpdateSoftware" );
-
-  SK_FetchVersionInfo_pfn SK_FetchVersionInfo =
-    (SK_FetchVersionInfo_pfn)
-      GetProcAddress ( hInjectorDLL,
-                         "SK_FetchVersionInfo" );
-
-  if (! wcsstr (injector_name.c_str (), L"SpecialK")) {
-    if ( SK_FetchVersionInfo != nullptr &&
-         SK_UpdateSoftware   != nullptr ) {
-      if (SK_FetchVersionInfo (L"UnX")) {
-        SK_UpdateSoftware (L"UnX");
-      }
-    }
-  }
 
   DllThread (nullptr);
 
