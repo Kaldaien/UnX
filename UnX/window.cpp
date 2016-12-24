@@ -323,21 +323,6 @@ DetourWindowProc ( _In_  HWND   hWnd,
     unx::window.active = last_active;
 
     DetourWindowProc_Original (hWnd, uMsg, wParam, lParam);
-
-    //DllMain ( GetModuleHandle (config.system.injector.c_str ()),
-                //DLL_PROCESS_DETACH,
-                  //nullptr );
-
-    //typedef void (WINAPI *SK_SelfDestruct_pfn)(void);
-    //static SK_SelfDestruct_pfn
-      //SK_SelfDestruct =
-        //(SK_SelfDestruct_pfn)
-          //GetProcAddress ( GetModuleHandle (config.system.injector.c_str ()),
-                             //"SK_SelfDestruct" );
-
-    //SK_SelfDestruct ();
-
-    //ExitProcess (0);
   }
 
   //
