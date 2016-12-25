@@ -734,6 +734,8 @@ UNX_LoadConfig (std::wstring name)
       SK_D3D11_AddTexHash (L"Title.dds", 0xA4FFC068, 0x00);
   }
 
+  UNX_SaveConfig (name);
+
   if (empty)
     return false;
 
