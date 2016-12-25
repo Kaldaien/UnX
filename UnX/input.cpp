@@ -1040,22 +1040,10 @@ unx::InputManager::Init (void)
                (LPVOID*)&GetAsyncKeyState_Original );
   }
 
-  if (GetModuleHandle (L"XInput9_1_0.dll")) {
-    UNX_CreateDLLHook2 ( L"XInput9_1_0.dll",
-                          "XInputGetState",
-                           XInputGetState_Detour,
-                (LPVOID *)&XInputGetState_Original );
-  } else if (GetModuleHandle (L"XInput1_4.dll")) {
-    UNX_CreateDLLHook2 ( L"XInput1_4.dll",
-                          "XInputGetState",
-                           XInputGetState_Detour,
-                (LPVOID *)&XInputGetState_Original );
-  } else {
-    UNX_CreateDLLHook2 ( L"XInput1_3.dll",
-                          "XInputGetState",
-                           XInputGetState_Detour,
-                (LPVOID *)&XInputGetState_Original );
-  }
+  UNX_CreateDLLHook2 ( L"XInput9_1_0.dll",
+                        "XInputGetState",
+                         XInputGetState_Detour,
+              (LPVOID *)&XInputGetState_Original );
 
   UNX_CreateDLLHook2 ( config.system.injector.c_str (),
                        "SK_PluginKeyPress",

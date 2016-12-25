@@ -500,10 +500,10 @@ DXGISwap_ResizeBuffers_Detour (
   return hr;
 }
 
-typedef HRESULT (WINAPI *SK_BeginBufferSwap_pfn)(void);
+typedef void (WINAPI *SK_BeginBufferSwap_pfn)(void);
 SK_BeginBufferSwap_pfn SK_BeginBufferSwap_Original = nullptr;
 
-HRESULT
+void
 WINAPI
 SK_BeginBufferSwap_Detour (void)
 {
@@ -519,15 +519,13 @@ SK_BeginBufferSwap_Detour (void)
   }
 #endif
 
-  HRESULT hr = SK_BeginBufferSwap_Original ();
+  SK_BeginBufferSwap_Original ();
 
   if (queue_death) {
     queue_death = false;
 
     SK_GetCommandProcessor ()->ProcessCommandLine ("mem b D2A8E2 2");
   }
-
-  return hr;
 }
 
 void
