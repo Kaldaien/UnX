@@ -38,7 +38,11 @@ public:
     AddRef ();
   }
 
-  iSK_INISection (std::wstring section_name) {
+  iSK_INISection (const wchar_t* section_name) {
+    AddRef ();
+  }
+
+  ~iSK_INISection (void) {
     Release ();
   }
 
@@ -51,6 +55,7 @@ public:
   STDMETHOD_ (void,          set_name)     (const wchar_t* name) = 0;
   STDMETHOD_ (bool,          contains_key) (const wchar_t* key)  = 0;
   STDMETHOD_ (void,          add_key_value)(const wchar_t* key, const wchar_t* value) = 0;
+  STDMETHOD_ (bool,          remove_key)   (const wchar_t* key)  = 0;
 };
 
 // {DD2B1E00-6C14-4659-8B45-FCEF1BC2C724}
@@ -81,6 +86,11 @@ interface iSK_INI : public IUnknown
   STDMETHOD_ (_TSectionMap&,   get_sections)    (THIS)                   = 0;
   STDMETHOD_ (iSK_INISection&, get_section)     (const wchar_t* section) = 0;
   STDMETHOD_ (bool,            contains_section)(const wchar_t* section) = 0;
+  STDMETHOD_ (bool,            remove_section)  (const wchar_t* section) = 0;
+
+  STDMETHOD_ (iSK_INISection&, get_section_f)   ( THIS_ _In_z_ _Printf_format_string_
+                                                  wchar_t const* const _Format,
+                                                                       ... ) = 0;
 };
 
 iSK_INI*
