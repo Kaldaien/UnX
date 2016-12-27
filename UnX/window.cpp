@@ -205,8 +205,6 @@ UNX_SetFullscreenState (unx_fullscreen_op_t op)
 
 unx::window_state_s unx::window;
 
-SetWindowLongA_pfn      SetWindowLongA_Original      = nullptr;
-
 LRESULT
 CALLBACK
 DetourWindowProc ( _In_  HWND   hWnd,
@@ -322,7 +320,7 @@ DetourWindowProc ( _In_  HWND   hWnd,
     //   in fullscreen mode
     unx::window.active = last_active;
 
-    DetourWindowProc_Original (hWnd, uMsg, wParam, lParam);
+    return DetourWindowProc_Original (hWnd, uMsg, wParam, lParam);
   }
 
   //
@@ -413,6 +411,8 @@ DWORD
 WINAPI
 UNX_MWA_Thread (LPVOID pUser)
 {
+  return 0;
+
   DXGI_SWAP_CHAIN_DESC desc;
 
   if (config.display.enable_fullscreen) {
@@ -510,16 +510,11 @@ SK_BeginBufferSwap_Detour (void)
   if (unx::window.render_thread == 0)
     unx::window.render_thread = GetCurrentThreadId ();
 
-#if 0
-  CComPtr <IDXGIOutput> pOut;
-
-  if (            pGameSwapChain != nullptr &&
-       SUCCEEDED (pGameSwapChain->GetContainingOutput (&pOut)) ) {
-    pOut->WaitForVBlank ();
+  if (SK_BeginBufferSwap_Original != nullptr)
+    SK_BeginBufferSwap_Original ();
+  else {
+    dll_log->Log (L" !!! Unexpected Lack of SK_BufferSwap_Override in dxgi.dll !!! ");
   }
-#endif
-
-  SK_BeginBufferSwap_Original ();
 
   if (queue_death) {
     queue_death = false;
