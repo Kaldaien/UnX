@@ -1479,7 +1479,7 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
    if (xi_state.Gamepad.bRightTrigger < 130)
      xi_state.Gamepad.bRightTrigger = 0;
 
-    SetFocus (SK_GetGameWindow ());
+    //SetFocus (SK_GetGameWindow ());
 
     bool four_finger = (
         xi_ret == 0                          &&
