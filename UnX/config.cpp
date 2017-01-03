@@ -49,22 +49,24 @@ typedef void (WINAPI *SK_DXGI_SetPreferredAdapter_pfn) (int);
 SK_DXGI_EnableFlipMode_pfn      SK_DXGI_EnableFlipMode      = nullptr;
 SK_DXGI_SetPreferredAdapter_pfn SK_DXGI_SetPreferredAdapter = nullptr;
 
-typedef void (WINAPI *SK_D3D11_SetResourceRoot_pfn)    (const wchar_t*);
-typedef void (WINAPI *SK_D3D11_EnableTexDump_pfn)      (bool);
-typedef void (WINAPI *SK_D3D11_EnableTexInjectFFX_pfn) (bool);
-typedef void (WINAPI *SK_D3D11_EnableTexCache_pfn)     (bool);
-typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)         (const wchar_t*, uint32_t, uint32_t);
-typedef void (WINAPI *SK_D3D11_RemoveTexHash_pfn)      (uint32_t);
+typedef void (WINAPI *SK_D3D11_SetResourceRoot_pfn)      (const wchar_t*);
+typedef void (WINAPI *SK_D3D11_EnableTexDump_pfn)        (bool);
+typedef void (WINAPI *SK_D3D11_EnableTexInjectFFX_pfn)   (bool);
+typedef void (WINAPI *SK_D3D11_EnableTexCache_pfn)       (bool);
+typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)           (const wchar_t*, uint32_t, uint32_t);
+typedef void (WINAPI *SK_D3D11_RemoveTexHash_pfn)        (uint32_t);
+typedef void (WINAPI *SK_D3D11_PopulateResourceList_pfn) (void);
 
 typedef void (WINAPI *SKX_D3D11_MarkTextures_pfn)      (bool,bool,bool);
 typedef void (WINAPI *SKX_D3D11_EnableFullscreen_pfn)  (bool);
 
-SK_D3D11_SetResourceRoot_pfn    SK_D3D11_SetResourceRoot   = nullptr;
-SK_D3D11_EnableTexDump_pfn      SK_D3D11_EnableTexDump     = nullptr;
-SK_D3D11_EnableTexInjectFFX_pfn SK_D3D11_EnableTexInject   = nullptr;
-SK_D3D11_EnableTexCache_pfn     SK_D3D11_EnableTexCache    = nullptr;
-SK_D3D11_AddTexHash_pfn         SK_D3D11_AddTexHash        = nullptr;
-SK_D3D11_RemoveTexHash_pfn      SK_D3D11_RemoveTexHash     = nullptr;
+SK_D3D11_SetResourceRoot_pfn      SK_D3D11_SetResourceRoot      = nullptr;
+SK_D3D11_EnableTexDump_pfn        SK_D3D11_EnableTexDump        = nullptr;
+SK_D3D11_EnableTexInjectFFX_pfn   SK_D3D11_EnableTexInject      = nullptr;
+SK_D3D11_EnableTexCache_pfn       SK_D3D11_EnableTexCache       = nullptr;
+SK_D3D11_AddTexHash_pfn           SK_D3D11_AddTexHash           = nullptr;
+SK_D3D11_RemoveTexHash_pfn        SK_D3D11_RemoveTexHash        = nullptr;
+SK_D3D11_PopulateResourceList_pfn SK_D3D11_PopulateResourceList = nullptr;
 
 SKX_D3D11_MarkTextures_pfn      SKX_D3D11_MarkTextures     = nullptr;
 SKX_D3D11_EnableFullscreen_pfn  SKX_D3D11_EnableFullscreen = nullptr;
@@ -209,15 +211,16 @@ UNX_SetupTexMgmt (void)
     (SK_D3D11_RemoveTexHash_pfn)
       GetProcAddress (hInjectorDLL, "SK_D3D11_RemoveTexHash");
 
-  SKX_D3D11_MarkTextures =
-    (SKX_D3D11_MarkTextures_pfn)
-      GetProcAddress (hInjectorDLL, "SKX_D3D11_MarkTextures");
+  SK_D3D11_PopulateResourceList =
+    (SK_D3D11_PopulateResourceList_pfn)
+      GetProcAddress (hInjectorDLL, "SK_D3D11_PopulateResourceList");
 
   // Ignore SKX_..., these are experimental things and the software
   //   must work even if SpecialK removes the function.
-  if ( SK_D3D11_SetResourceRoot != nullptr && SK_D3D11_EnableTexDump   != nullptr &&
-       SK_D3D11_EnableTexInject != nullptr && SK_D3D11_EnableTexCache  != nullptr &&
-       SK_D3D11_AddTexHash      != nullptr && SK_D3D11_RemoveTexHash   != nullptr ) {
+  if ( SK_D3D11_SetResourceRoot      != nullptr && SK_D3D11_EnableTexDump   != nullptr &&
+       SK_D3D11_EnableTexInject      != nullptr && SK_D3D11_EnableTexCache  != nullptr &&
+       SK_D3D11_AddTexHash           != nullptr && SK_D3D11_RemoveTexHash   != nullptr &&
+       SK_D3D11_PopulateResourceList != nullptr ) {
     return true;
   }
 
@@ -732,6 +735,9 @@ UNX_LoadConfig (std::wstring name)
 
     if (config.textures.inject)
       SK_D3D11_AddTexHash (L"Title.dds", 0xA4FFC068, 0x00);
+
+    if (config.textures.inject || config.textures.dump)
+      SK_D3D11_PopulateResourceList ();
   }
 
   UNX_SaveConfig (name);
