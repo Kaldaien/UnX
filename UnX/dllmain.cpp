@@ -45,8 +45,8 @@ HMODULE hInjectorDLL = { 0 }; // Handle to Special K
 typedef HRESULT (__stdcall *SK_UpdateSoftware_pfn)(const wchar_t* wszProduct);
 typedef bool    (__stdcall *SK_FetchVersionInfo_pfn)(const wchar_t* wszProduct);
 
-typedef void (__stdcall *SK_SetPluginName_pfn)(std::wstring name);
-SK_SetPluginName_pfn SK_SetPluginName = nullptr;
+typedef void (__stdcall *SKX_SetPluginName_pfn)(const wchar_t* name);
+SKX_SetPluginName_pfn SKX_SetPluginName = nullptr;
 
 std::wstring injector_name;
 
@@ -80,9 +80,9 @@ DllThread (LPVOID user)
 
   config.system.injector = injector_name;
 
-  SK_SetPluginName = 
-    (SK_SetPluginName_pfn)
-      GetProcAddress (hInjectorDLL, "SK_SetPluginName");
+  SKX_SetPluginName = 
+    (SKX_SetPluginName_pfn)
+      GetProcAddress (hInjectorDLL, "SKX_SetPluginName");
 
   SK_GetCommandProcessor =
     (SK_GetCommandProcessor_pfn)
@@ -91,8 +91,8 @@ DllThread (LPVOID user)
   //
   // If this is NULL, the injector system isn't working right!!!
   //
-  if (SK_SetPluginName != nullptr)
-    SK_SetPluginName (plugin_name);
+  if (SKX_SetPluginName != nullptr)
+    SKX_SetPluginName (plugin_name.c_str ());
 
   // Plugin State
   if (UNX_Init_MinHook () == MH_OK) {
@@ -102,9 +102,7 @@ DllThread (LPVOID user)
     unx::DisplayFix::Init      ();
     //unx::RenderFix::Init       ();
     unx::InputManager::Init    ();
-
     unx::TimingFix::Init       ();
-
     unx::WindowManager::Init   ();
 
     CreateThread (

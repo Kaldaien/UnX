@@ -27,14 +27,8 @@ namespace unx {
   }
 }
 
-typedef BOOL (WINAPI *QueryPerformanceCounter_pfn)(
-  _Out_ LARGE_INTEGER *lpPerformanceCount
-);
-
 typedef void (WINAPI *Sleep_pfn)(
   _In_  DWORD          dwMilliseconds
 );
 
-
-extern QueryPerformanceCounter_pfn QueryPerformanceCounter_Original;
 extern Sleep_pfn                   SK_Sleep;

@@ -236,6 +236,8 @@ DetourWindowProc ( _In_  HWND   hWnd,
                    _In_  WPARAM wParam,
                    _In_  LPARAM lParam )
 {
+  unx::window.hwnd = hWnd;
+
   extern LPVOID __UNX_base_img_addr;
 
   if (schedule_load) {
@@ -286,14 +288,22 @@ DetourWindowProc ( _In_  HWND   hWnd,
   // Setup the Cheat Manager on the first message received
   //   while the render window is active
   //
-  static bool init_cheats = false;
-  if (unx::window.active && (! init_cheats)) {
-    unx::window.hwnd = hWnd;
+  static volatile ULONG init_cheats = FALSE;
+  if ( unx::window.active &&
+     (! InterlockedCompareExchange (&init_cheats, TRUE, FALSE)) )
+  {
     unx::CheatManager::Init ();
-    init_cheats      = true;
   }
 
 
+  if (config.input.filter_ime) {
+    if ( (uMsg >= WM_IME_SETCONTEXT        && uMsg <= WM_IME_KEYUP) ||
+         (uMsg >= WM_DWMCOMPOSITIONCHANGED && uMsg <= WM_DWMSENDICONICLIVEPREVIEWBITMAP) ) {
+      //dll_log->Log ( L"[IME Fix-Up]  Ignoring IME Message (%x)",
+                     //uMsg );
+      return DefWindowProc (hWnd, uMsg, wParam, lParam);
+    }
+  }
 
   // This state is persistent and we do not want Alt+F4 to remember
   //   a muted state.
@@ -374,6 +384,8 @@ DetourWindowProc ( _In_  HWND   hWnd,
   }
 
 
+
+
   if (config.input.fix_bg_input) {
     // Block keyboard input to the game while the console is visible
     if (! (unx::window.active)/* || background_render*/) {
@@ -399,7 +411,7 @@ DetourWindowProc ( _In_  HWND   hWnd,
 
     if (wParam != VK_TAB || (! config.input.trap_alt_tab)) {
       // Actually, just block Alt+F4
-      if (config.input.fast_exit || wParam != VK_F4)
+      if (config.input.fast_exit && wParam == VK_F4)
         return DefWindowProc (hWnd, uMsg, wParam, lParam);
     }
   }
@@ -528,22 +540,20 @@ UNX_InstallWindowHook (HWND hWnd)
 {
   unx::window.hwnd = hWnd;
 
-  UNX_CreateDLLHook2 ( config.system.injector.c_str (),
-                         "SK_BeginBufferSwap",
-                          SK_BeginBufferSwap_Detour,
-               (LPVOID *)&SK_BeginBufferSwap_Original );
+  UNX_CreateDLLHook ( config.system.injector.c_str (),
+                      "SK_BeginBufferSwap",
+                       SK_BeginBufferSwap_Detour,
+            (LPVOID *)&SK_BeginBufferSwap_Original );
 
-  UNX_CreateDLLHook2 ( config.system.injector.c_str (),
-                       "SK_DetourWindowProc",
-                        DetourWindowProc,
-             (LPVOID *)&DetourWindowProc_Original );
+  UNX_CreateDLLHook ( config.system.injector.c_str (),
+                      "SK_DetourWindowProc",
+                       DetourWindowProc,
+            (LPVOID *)&DetourWindowProc_Original );
 
-  UNX_CreateDLLHook2 ( config.system.injector.c_str (),
-                       "DXGISwap_ResizeBuffers_Override",
-                        DXGISwap_ResizeBuffers_Detour,
-             (LPVOID *)&DXGISwap_ResizeBuffers_Original );
-
-  UNX_ApplyQueuedHooks ();
+  UNX_CreateDLLHook ( config.system.injector.c_str (),
+                      "DXGISwap_ResizeBuffers_Override",
+                       DXGISwap_ResizeBuffers_Detour,
+            (LPVOID *)&DXGISwap_ResizeBuffers_Original );
 }
 
 

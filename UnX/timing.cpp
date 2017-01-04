@@ -26,15 +26,6 @@
 #include <Windows.h>
 
 Sleep_pfn                   SK_Sleep                         = nullptr;
-QueryPerformanceCounter_pfn QueryPerformanceCounter_Original = nullptr;
-
-BOOL
-WINAPI
-QueryPerformanceCounter_Detour (
-  _Out_ LARGE_INTEGER *lpPerformanceCount
-){
-  return QueryPerformanceCounter_Original (lpPerformanceCount);
-}
 
 typedef LONG NTSTATUS;
 
@@ -67,8 +58,8 @@ SleepEx_pfn SleepEx_Original = nullptr;
 DWORD
 SleepEx_Detour (DWORD dwMilliseconds, BOOL bAlertable)
 {
-  if (dwMilliseconds > 5)
-    dwMilliseconds = 5;
+  //if (dwMilliseconds > 5)
+    //dwMilliseconds = 5;
 
   return SleepEx_Original (dwMilliseconds, bAlertable);
 }
@@ -137,11 +128,15 @@ unx::TimingFix::Init (void)
     }
   }
 
+  HMODULE hModKernel32 = LoadLibrary (L"kernel32.dll");
+
+#if 0
    UNX_CreateFuncHook ( L"VSYNCEmulation",
        (LPVOID)((intptr_t)__UNX_base_img_addr + 0x27A010),
                        VSYNCEmulation_Detour,
             (LPVOID *)&VSYNCEmulation_Original );
   UNX_EnableHook ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x27A010));
+#endif
 
   if (config.stutter.reduce) {
     //SK_GetCommandProcessor ()->ProcessCommandFormatted ("MaxDeltaTime 0");
@@ -158,12 +153,6 @@ unx::TimingFix::Init (void)
 
     UNX_ApplyQueuedHooks ();
   }
-
-  HMODULE hModKernel32 = LoadLibrary (L"kernel32.dll");
-
-  QueryPerformanceCounter_Original =
-    (QueryPerformanceCounter_pfn)
-      GetProcAddress (hModKernel32, "QueryPerformanceCounter");
 }
 
 void

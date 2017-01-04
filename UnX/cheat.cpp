@@ -563,7 +563,7 @@ UNX_SetSensor (bool state)
   config.cheat.ffx.permanent_sensor = state;
 
   ffx.debug_flags->permanent_sensor =
-    config.cheat.ffx.permanent_sensor;
+    (uint8_t)config.cheat.ffx.permanent_sensor;
 }
 
 void

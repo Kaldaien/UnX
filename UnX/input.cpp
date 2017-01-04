@@ -61,7 +61,7 @@ struct unx_gamepad_s {
     int          button2  = 0xffffffff;
     bool         lt       = false;
     bool         rt       = false;
-  } f1, f2, f3, f4, f5, screenshot, fullscreen, esc, speedboost;
+  } f1, f2, f3, f4, f5, screenshot, fullscreen, esc, speedboost, kickstart;
 
   struct remap_s {
     struct buttons_s {
@@ -380,64 +380,6 @@ IDirectInput8_CreateDevice_Detour ( IDirectInput8       *This,
   return hr;
 }
 
-typedef SHORT (WINAPI *GetAsyncKeyState_pfn)(
-  _In_ int vKey
-);
-
-typedef UINT (WINAPI *GetRawInputData_pfn)(
-  _In_      HRAWINPUT hRawInput,
-  _In_      UINT      uiCommand,
-  _Out_opt_ LPVOID    pData,
-  _Inout_   PUINT     pcbSize,
-  _In_      UINT      cbSizeHeader
-);
-
-GetAsyncKeyState_pfn GetAsyncKeyState_Original = nullptr;
-GetRawInputData_pfn  GetRawInputData_Original  = nullptr;
-
-SHORT
-WINAPI
-GetAsyncKeyState_Detour ( _In_ int vKey )
-{
-  if (unx::window.active)
-    return GetAsyncKeyState_Original (vKey);
-
-  GetAsyncKeyState_Original (vKey);
-
-  return 0x00;
-}
-
-UINT
-WINAPI
-GetRawInputData_Detour (
-  _In_      HRAWINPUT hRawInput,
-  _In_      UINT      uiCommand,
-  _Out_opt_ LPVOID    pData,
-  _Inout_   PUINT     pcbSize,
-  _In_      UINT      cbSizeHeader )
-{
-  if (unx::window.active) {
-    return GetRawInputData_Original (
-             hRawInput,
-               uiCommand,
-                 pData,
-                   pcbSize,
-                     cbSizeHeader );
-  }
-
-  if (pcbSize != nullptr) {
-    if (pData != nullptr)
-      memset (pData, 0, *pcbSize);
-
-    *pcbSize = 0;
-  }
-
-  return 0;
-}
-
-
-
-
 typedef struct _XINPUT_GAMEPAD {
   WORD  wButtons;
   BYTE  bLeftTrigger;
@@ -524,6 +466,30 @@ typedef void (CALLBACK *SK_PluginKeyPress_pfn)( BOOL Control,
                         BYTE vkCode );
 SK_PluginKeyPress_pfn SK_PluginKeyPress_Original = nullptr;
 
+
+void
+UNX_KickStart (void)
+{
+  SK_ICommandResult result = 
+    SK_GetCommandProcessor ()->ProcessCommandLine ("Window.OverrideRes");
+
+  if (result.getVariable () != nullptr) {
+    RECT client;
+    GetClientRect (unx::window.hwnd, &client);
+
+    SK_GetCommandProcessor ()->ProcessCommandLine (
+      "Window.OverrideRes 640x480"
+    );
+    SK_GetCommandProcessor ()->ProcessCommandFormatted (
+      "Window.OverrideRes %lux%lu",
+        client.right  - client.left,
+        client.bottom - client.top );
+    SK_GetCommandProcessor ()->ProcessCommandLine (
+      "Window.OverrideRes 0x0"
+    );
+  }
+}
+
 void
 CALLBACK
 SK_UNX_PluginKeyPress ( BOOL Control,
@@ -532,7 +498,11 @@ SK_UNX_PluginKeyPress ( BOOL Control,
                         BYTE vkCode )
 {
   if (Control && Shift) {
-    if (vkCode == 'H') {
+    if (Alt && vkCode == 'K') {
+      UNX_KickStart ();
+    }
+
+    else if (vkCode == 'H') {
       extern void UNX_SpeedStep (); 
       UNX_SpeedStep ();
     }
@@ -869,6 +839,17 @@ unx::InputManager::Init (void)
     );
   }
 
+  unx::ParameterStringW* combo_Kickstart =
+    (unx::ParameterStringW *)
+      factory.create_parameter <std::wstring> (L"KickStart");
+  combo_Kickstart->register_to_ini (pad_cfg, L"Gamepad.PC", L"KickStart");
+
+  if (! combo_Kickstart->load (gamepad.kickstart.unparsed)) {
+    combo_Kickstart->store (
+      (gamepad.kickstart.unparsed = L"L1+L2+Up")
+    );
+  }
+
 
   unx::ParameterStringW* combo_F1 =
     (unx::ParameterStringW *)
@@ -1008,8 +989,8 @@ unx::InputManager::Init (void)
       pDInput8->Release ();
     }
 
-    if (com_init_hr == S_OK)
-      CoUninitialize ();
+    //if (com_init_hr == S_OK)
+      //CoUninitialize ();
   }
 
 
@@ -1028,18 +1009,6 @@ unx::InputManager::Init (void)
 
   //HookRawInput ();
 
-  if (config.input.fix_bg_input) {
-    UNX_CreateDLLHook2 ( config.system.injector.c_str (),
-                        "GetRawInputData_Detour",
-                         GetRawInputData_Detour,
-               (LPVOID*)&GetRawInputData_Original );
-
-    UNX_CreateDLLHook2 ( config.system.injector.c_str (),
-                        "GetAsyncKeyState_Detour",
-                         GetAsyncKeyState_Detour,
-               (LPVOID*)&GetAsyncKeyState_Original );
-  }
-
   UNX_CreateDLLHook2 ( L"XInput9_1_0.dll",
                         "XInputGetState",
                          XInputGetState_Detour,
@@ -1050,12 +1019,12 @@ unx::InputManager::Init (void)
                          SK_UNX_PluginKeyPress,
               (LPVOID *)&SK_PluginKeyPress_Original );
 
+  UNX_ApplyQueuedHooks ();
+
   unx::InputManager::Hooker* pHook =
     unx::InputManager::Hooker::getInstance ();
 
   UNX_InstallWindowHook (NULL);
-
-  UNX_ApplyQueuedHooks ();
 
   pHook->Start ();
 }
@@ -1135,29 +1104,38 @@ UNX_ParseButtonCombo (std::wstring combo, int* out)
 
     if ((! lstrcmpiW (wszTok, L"LB"))   || (! lstrcmpiW (wszTok, L"L1")))
       button = XINPUT_GAMEPAD_LEFT_SHOULDER;
-    if ((! lstrcmpiW (wszTok, L"RB"))   || (! lstrcmpiW (wszTok, L"R1")))
+    else if ((! lstrcmpiW (wszTok, L"RB"))   || (! lstrcmpiW (wszTok, L"R1")))
       button = XINPUT_GAMEPAD_RIGHT_SHOULDER;
-    if ((! lstrcmpiW (wszTok, L"LT"))   || (! lstrcmpiW (wszTok, L"L2")))
+    else if ((! lstrcmpiW (wszTok, L"LT"))   || (! lstrcmpiW (wszTok, L"L2")))
       button = XINPUT_GAMEPAD_LEFT_TRIGGER;
-    if ((! lstrcmpiW (wszTok, L"RT"))   || (! lstrcmpiW (wszTok, L"R2")))
+    else if ((! lstrcmpiW (wszTok, L"RT"))   || (! lstrcmpiW (wszTok, L"R2")))
       button = XINPUT_GAMEPAD_RIGHT_TRIGGER;
-    if ((! lstrcmpiW (wszTok, L"LS"))   || (! lstrcmpiW (wszTok, L"L3")))
+    else if ((! lstrcmpiW (wszTok, L"LS"))   || (! lstrcmpiW (wszTok, L"L3")))
       button = XINPUT_GAMEPAD_LEFT_THUMB;
-    if ((! lstrcmpiW (wszTok, L"RS"))   || (! lstrcmpiW (wszTok, L"R3")))
+    else if ((! lstrcmpiW (wszTok, L"RS"))   || (! lstrcmpiW (wszTok, L"R3")))
       button = XINPUT_GAMEPAD_RIGHT_THUMB;
 
-    if ((! lstrcmpiW (wszTok, L"Start")))
+    else if ((! lstrcmpiW (wszTok, L"Start")))
       button = XINPUT_GAMEPAD_START;
-    if ((! lstrcmpiW (wszTok, L"Back")) || (! lstrcmpiW (wszTok, L"Select")))
+    else if ((! lstrcmpiW (wszTok, L"Back")) || (! lstrcmpiW (wszTok, L"Select")))
       button = XINPUT_GAMEPAD_BACK;
-    if ((! lstrcmpiW (wszTok, L"A"))    || (! lstrcmpiW (wszTok, L"Cross")))
+    else if ((! lstrcmpiW (wszTok, L"A"))    || (! lstrcmpiW (wszTok, L"Cross")))
       button = XINPUT_GAMEPAD_A;
-    if ((! lstrcmpiW (wszTok, L"B"))    || (! lstrcmpiW (wszTok, L"Circle")))
+    else if ((! lstrcmpiW (wszTok, L"B"))    || (! lstrcmpiW (wszTok, L"Circle")))
       button = XINPUT_GAMEPAD_B;
-    if ((! lstrcmpiW (wszTok, L"X"))    || (! lstrcmpiW (wszTok, L"Square")))
+    else if ((! lstrcmpiW (wszTok, L"X"))    || (! lstrcmpiW (wszTok, L"Square")))
       button = XINPUT_GAMEPAD_X;
-    if ((! lstrcmpiW (wszTok, L"Y"))    || (! lstrcmpiW (wszTok, L"Triangle")))
+    else if ((! lstrcmpiW (wszTok, L"Y"))    || (! lstrcmpiW (wszTok, L"Triangle")))
       button = XINPUT_GAMEPAD_Y;
+
+    else if ((! lstrcmpiW (wszTok, L"Up")))
+      button = XINPUT_GAMEPAD_DPAD_UP;
+    else if ((! lstrcmpiW (wszTok, L"Down")))
+      button = XINPUT_GAMEPAD_DPAD_DOWN;
+    else if ((! lstrcmpiW (wszTok, L"Left")))
+      button = XINPUT_GAMEPAD_DPAD_LEFT;
+    else if ((! lstrcmpiW (wszTok, L"Right")))
+      button = XINPUT_GAMEPAD_DPAD_RIGHT;
 
     if (button == XINPUT_GAMEPAD_LEFT_TRIGGER)
       state.lt = true;
@@ -1258,6 +1236,14 @@ UNX_SetupSpecialButtons (void)
   gamepad.speedboost.rt      = state.rt;
   gamepad.speedboost.buttons = state.buttons;
 
+  state =
+    UNX_ParseButtonCombo ( gamepad.kickstart.unparsed,
+                             &gamepad.kickstart.button0 );
+
+  gamepad.kickstart.lt      = state.lt;
+  gamepad.kickstart.rt      = state.rt;
+  gamepad.kickstart.buttons = state.buttons;
+
 }
 
 #include "ini.h"
@@ -1340,8 +1326,10 @@ unsigned int
 __stdcall
 unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 {
-  if ( ((! XInputGetState_Original) && (! gamepad.legacy)) )
+  if ( ((! XInputGetState_Original) && (! gamepad.legacy)) ) {
+    CloseHandle (GetCurrentThread ());
     return 0;
+  }
 
   UNX_SetupSpecialButtons ();
 
@@ -1354,6 +1342,7 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
   combo_button_s full       ( &gamepad.fullscreen );
   combo_button_s sshot      ( &gamepad.screenshot );
   combo_button_s speedboost ( &gamepad.speedboost );
+  combo_button_s kickstart  ( &gamepad.kickstart  );
 
 #define XI_POLL_INTERVAL 500UL
 
@@ -1501,6 +1490,7 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
     full.poll       (xi_ret, xi_state.Gamepad);
     sshot.poll      (xi_ret, xi_state.Gamepad);
     speedboost.poll (xi_ret, xi_state.Gamepad);
+    kickstart.poll  (xi_ret, xi_state.Gamepad);
 
     WORD scancode = 0;
 
@@ -1572,6 +1562,10 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
       full_sleep = false;
     }
 
+    else if (kickstart.wasJustPressed ()) {
+      UNX_KickStart ();
+    }
+
     else if (sshot.wasJustPressed ()) {
       typedef bool (__stdcall *SK_SteamAPI_TakeScreenshot_pfn)(void);
 
@@ -1594,7 +1588,7 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 
     int i = 1;
 
-    SetFocus (SK_GetGameWindow ());
+    //SetFocus (SK_GetGameWindow ());
 
     while (pressed_scancodes.size ()) {
       keys [i++].ki.wScan = pressed_scancodes.front     ();
@@ -1609,7 +1603,7 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
     if (i > 1)
       SendInput (i-1, &keys [1], sizeof INPUT);
 
-    SetFocus (SK_GetGameWindow ());
+    //SetFocus (SK_GetGameWindow ());
   }
 
   return 0;

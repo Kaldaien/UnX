@@ -132,6 +132,7 @@ struct unx_config_s
     bool trap_alt_tab       = false;
 
     bool fast_exit          = true;
+    bool filter_ime         = true;
   } input;
 
   struct {

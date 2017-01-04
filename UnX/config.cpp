@@ -140,6 +140,8 @@ struct {
 
   unx::ParameterBool*    fast_exit;
   unx::ParameterBool*    trap_alt_tab;
+
+  unx::ParameterBool*    filter_ime;
 } input;
 
 struct {
@@ -466,6 +468,16 @@ UNX_LoadConfig (std::wstring name)
       L"UnX.Input",
         L"TrapAltTab" );
 
+  input.filter_ime =
+    static_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Disable IME Messages, which appear to be the cause of some crashes.")
+      );
+  input.filter_ime->register_to_ini (
+    dll_ini,
+      L"UnX.Input",
+        L"FilterIME" );
+
 
   textures.resource_root =
     static_cast <unx::ParameterStringW *>
@@ -672,6 +684,7 @@ UNX_LoadConfig (std::wstring name)
 
   input.fast_exit->load    (config.input.fast_exit);
   input.trap_alt_tab->load (config.input.trap_alt_tab);
+  input.filter_ime->load   (config.input.filter_ime);
 
 
 #if 1
@@ -700,18 +713,20 @@ UNX_LoadConfig (std::wstring name)
   }
 
   sys.version->load  (config.system.version);
-  sys.injector->load (config.system.injector);
+  //sys.injector->load (config.system.injector);
 
-  if (UNX_SetupWindowMgmt ()) {
-    display.enable_fullscreen->load (config.display.enable_fullscreen);
+  display.enable_fullscreen->load (config.display.enable_fullscreen);
 
+  if (config.display.enable_fullscreen && UNX_SetupWindowMgmt ()) {
     SKX_D3D11_EnableFullscreen (config.display.enable_fullscreen);
   }
 
-  if (UNX_SetupLowLevelRender ()) {
-    render.bypass_intel->load (config.render.bypass_intel);
-    render.flip_mode->load    (config.render.flip_mode);
+  render.bypass_intel->load (config.render.bypass_intel);
+  render.flip_mode->load    (config.render.flip_mode);
 
+  if ( (config.render.bypass_intel || config.render.flip_mode) &&
+       UNX_SetupLowLevelRender () )
+  {
     SK_DXGI_EnableFlipMode ( config.render.flip_mode       &&
                           (! config.display.enable_fullscreen ) );
 
@@ -758,6 +773,7 @@ UNX_SaveConfig (std::wstring name, bool close_config) {
   input.fix_bg_input->store         (config.input.fix_bg_input);
 
   input.trap_alt_tab->store         (config.input.trap_alt_tab);
+  input.filter_ime->store           (config.input.filter_ime);
 
 
   ((unx::iParameter *)language.sfx)->store   ();

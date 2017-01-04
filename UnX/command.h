@@ -119,22 +119,22 @@ interface SK_ICommandProcessor
   {
   }
 
-  virtual SK_ICommand*       FindCommand   (const char* szCommand) const;
+  virtual SK_ICommand*       FindCommand   (const char* szCommand) const = 0;
 
   virtual const SK_ICommand* AddCommand    ( const char*  szCommand,
-                                             SK_ICommand* pCommand );
-  virtual bool               RemoveCommand ( const char* szCommand );
+                                             SK_ICommand* pCommand ) = 0;
+  virtual bool               RemoveCommand ( const char* szCommand ) = 0;
 
 
-  virtual const SK_IVariable* FindVariable  (const char* szVariable) const;
+  virtual const SK_IVariable* FindVariable  (const char* szVariable) const = 0;
 
   virtual const SK_IVariable* AddVariable    ( const char*   szVariable,
-                                               SK_IVariable* pVariable  );
-  virtual bool                RemoveVariable ( const char*   szVariable );
+                                               SK_IVariable* pVariable  ) = 0;
+  virtual bool                RemoveVariable ( const char*   szVariable ) = 0;
 
 
-  virtual SK_ICommandResult ProcessCommandLine      (const char* szCommandLine);
-  virtual SK_ICommandResult ProcessCommandFormatted (const char* szCommandFormat, ...);
+  virtual SK_ICommandResult ProcessCommandLine      (const char* szCommandLine)        = 0;
+  virtual SK_ICommandResult ProcessCommandFormatted (const char* szCommandFormat, ...) = 0;
 };
 
 typedef SK_ICommandProcessor* (__stdcall *SK_GetCommandProcessor_pfn)(void);
