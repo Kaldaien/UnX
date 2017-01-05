@@ -483,6 +483,8 @@ unx::CheatManager::Init (void)
   if (! lstrcmpiW (pwszShortName, L"ffx.exe")) {
     dll_log->LogEx (true, L"[Cheat Code]  Setting up FFX Cheat Engine...");
 
+    game_type = GAME_FFX;
+
     ffx.debug_flags =
       (unx_ffx_memory_s::debug_s *)
         ((intptr_t)__UNX_base_img_addr + ffx.offsets.Debug);
