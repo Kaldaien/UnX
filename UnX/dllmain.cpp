@@ -37,8 +37,6 @@
 
 #pragma comment (lib, "kernel32.lib")
 
-extern "C" BOOL WINAPI _CRT_INIT (HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpReserved);
-
 HMODULE hDLLMod      = { 0 }; // Handle to SELF
 HMODULE hInjectorDLL = { 0 }; // Handle to Special K
 
@@ -172,13 +170,12 @@ DllMain (HMODULE hModule,
   {
     case DLL_PROCESS_ATTACH:
     {
-      _CRT_INIT ((HINSTANCE)hModule, ul_reason_for_call, nullptr);
+      DisableThreadLibraryCalls (hModule);
       hDLLMod = hModule;
     } break;
 
     case DLL_THREAD_ATTACH:
     case DLL_THREAD_DETACH:
-      _CRT_INIT ((HINSTANCE)hModule, ul_reason_for_call, nullptr);
       break;
 
     case DLL_PROCESS_DETACH:
@@ -203,7 +200,6 @@ DllMain (HMODULE hModule,
 
         dll_log->close ();
       }
-      _CRT_INIT ((HINSTANCE)hModule, ul_reason_for_call, nullptr);
     } break;
   }
 
