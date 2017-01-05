@@ -348,9 +348,6 @@ UNX_PatchLanguage (void)
 void
 unx::LanguageManager::Init (void)
 {
-  // Initialize memory addresses
-  UNX_Scan ((const uint8_t *)"XYZ123", strlen ("XYZ123"), nullptr);
-
   UNX_PatchLanguage ();
 }
 

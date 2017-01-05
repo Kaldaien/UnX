@@ -443,10 +443,12 @@ UNX_FFX_GameTick (float x)
 
   float tick = __UNX_speed_mod * x;
 
-  //if (isinf (tick) || isnan (tick))
-    //tick = last_tick;
+  static float last_tick = tick;
 
-  //last_tick = tick;
+  if (isinf (tick) || isnan (tick))
+    tick = last_tick;
+
+  last_tick = tick;
 
   return UNX_FFX_GameTick_Original (tick);
 }
@@ -479,7 +481,7 @@ unx::CheatManager::Init (void)
   // FFX
   //
   if (! lstrcmpiW (pwszShortName, L"ffx.exe")) {
-    game_type = GAME_FFX;
+    dll_log->LogEx (true, L"[Cheat Code]  Setting up FFX Cheat Engine...");
 
     ffx.debug_flags =
       (unx_ffx_memory_s::debug_s *)
@@ -518,12 +520,16 @@ unx::CheatManager::Init (void)
     UNX_SetSensor (config.cheat.ffx.permanent_sensor);
 
     SetTimer (unx::window.hwnd, CHEAT_TIMER_FFX, 33, nullptr);
+
+    dll_log->LogEx (false, L" done!\n");
   }
 
   //
   // FFX-2
   //
   else if (! lstrcmpiW (pwszShortName, L"ffx-2.exe")) {
+    dll_log->LogEx (true, L"[Cheat Code]  Setting up FFX-2 Cheat Engine...");
+
     game_type = GAME_FFX2;
 
     ffx2.debug_flags =
@@ -534,9 +540,11 @@ unx::CheatManager::Init (void)
       (unx_ffx2_memory_s::party_s *)
         ((intptr_t)__UNX_base_img_addr + ffx2.offsets.PartyStats);
 
+    ffx2.debug_flags->debug_output = true;
+
     SetTimer (unx::window.hwnd, CHEAT_TIMER_FFX2, 33, nullptr);
 
-    ffx2.debug_flags->debug_output = true;
+    dll_log->LogEx (false, L" done!\n");
   }
 }
 
@@ -669,12 +677,12 @@ UNX_KillMeNow (void)
 
         static const uint8_t die  [] = { 0xEB, 0x1D, 0 };
               static uint8_t live [] = { 0x75, 0x1D, 0 };
-        static bool first = true;
 
-        if (first) {
+        static volatile LONG first = TRUE;
+
+        if (InterlockedCompareExchange (&first, FALSE, TRUE)) {
           // Backup the original instructions
           memcpy (live, inst, 2);
-          first = false;
         }
 
         std::queue <DWORD> suspended_tids =

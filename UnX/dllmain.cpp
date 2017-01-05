@@ -40,6 +40,9 @@
 HMODULE hDLLMod      = { 0 }; // Handle to SELF
 HMODULE hInjectorDLL = { 0 }; // Handle to Special K
 
+extern void*
+UNX_Scan (const uint8_t* pattern, size_t len, const uint8_t* mask);
+
 typedef HRESULT (__stdcall *SK_UpdateSoftware_pfn)(const wchar_t* wszProduct);
 typedef bool    (__stdcall *SK_FetchVersionInfo_pfn)(const wchar_t* wszProduct);
 
@@ -94,6 +97,9 @@ DllThread (LPVOID user)
 
   // Plugin State
   if (UNX_Init_MinHook () == MH_OK) {
+    // Initialize memory addresses
+    UNX_Scan ((const uint8_t *)"XYZ123", strlen ("XYZ123"), nullptr);
+
     CoInitializeEx (nullptr, COINIT_MULTITHREADED);
 
     unx::LanguageManager::Init ();
