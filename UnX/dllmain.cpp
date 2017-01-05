@@ -176,7 +176,7 @@ DllMain (HMODULE hModule,
   {
     case DLL_PROCESS_ATTACH:
     {
-      DisableThreadLibraryCalls (hModule);
+      //DisableThreadLibraryCalls (hModule);
       hDLLMod = hModule;
     } break;
 
