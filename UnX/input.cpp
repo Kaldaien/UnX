@@ -533,7 +533,8 @@ SK_UNX_PluginKeyPress ( BOOL Control,
     }
 
     else if (vkCode == 'A') {
-      config.cheat.ffx.entire_party_earns_ap = (! config.cheat.ffx.entire_party_earns_ap);
+      extern void UNX_TogglePartyAP (void);
+      UNX_TogglePartyAP ();
     }
 
     else if (vkCode == 'V') {

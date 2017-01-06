@@ -223,8 +223,8 @@ typedef LRESULT (CALLBACK *DetourWindowProc_pfn)( _In_  HWND   hWnd,
 
 DetourWindowProc_pfn DetourWindowProc_Original = nullptr;
 
-bool schedule_load = false;
-bool queue_death   = false;
+volatile ULONG schedule_load = FALSE;
+volatile ULONG queue_death   = FALSE;
 
 bool shutting_down = false;
 bool last_active   = unx::window.active;
@@ -515,6 +515,11 @@ DXGISwap_ResizeBuffers_Detour (
 typedef void (WINAPI *SK_BeginBufferSwap_pfn)(void);
 SK_BeginBufferSwap_pfn SK_BeginBufferSwap_Original = nullptr;
 
+typedef BOOL (WINAPI *SKX_DrawExternalOSD_pfn)(const char* szAppName, const char* szText);
+SKX_DrawExternalOSD_pfn SKX_DrawExternalOSD = nullptr;
+
+extern std::string UNX_SummarizeCheats (DWORD dwTime);
+
 void
 WINAPI
 SK_BeginBufferSwap_Detour (void)
@@ -528,10 +533,30 @@ SK_BeginBufferSwap_Detour (void)
     dll_log->Log (L" !!! Unexpected Lack of SK_BufferSwap_Override in dxgi.dll !!! ");
   }
 
-  if (queue_death) {
-    queue_death = false;
-
+  if (InterlockedCompareExchange (&queue_death, FALSE, TRUE)) {
     SK_GetCommandProcessor ()->ProcessCommandLine ("mem b D2A8E2 2");
+  }
+
+  if (SKX_DrawExternalOSD != nullptr) {
+    static bool  first_frame      = true;
+    static bool  draw_osd_toggle  = true;
+    static DWORD first_frame_time = timeGetTime ();
+
+    DWORD now = timeGetTime ();
+
+    std::string osd_out = "";
+
+    if (draw_osd_toggle) {
+      if (now - first_frame_time < 5000) {
+        osd_out += "Press Ctrl + Shift + O to toggle OSD\n\n";
+      } else {
+        draw_osd_toggle = false;
+      }
+    }
+
+    osd_out += UNX_SummarizeCheats (now);
+
+    SKX_DrawExternalOSD ("UnX Status", osd_out.c_str ());
   }
 }
 
@@ -554,6 +579,14 @@ UNX_InstallWindowHook (HWND hWnd)
                       "DXGISwap_ResizeBuffers_Override",
                        DXGISwap_ResizeBuffers_Detour,
             (LPVOID *)&DXGISwap_ResizeBuffers_Original );
+
+  HMODULE hModInject  = GetModuleHandleW (config.system.injector.c_str ());
+
+  SKX_DrawExternalOSD =
+   (SKX_DrawExternalOSD_pfn)GetProcAddress (
+     hModInject,
+       "SKX_DrawExternalOSD"
+   );
 }
 
 

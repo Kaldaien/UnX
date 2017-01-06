@@ -306,6 +306,12 @@ struct unx_ffx_memory_s {
   } *ap = nullptr;
 } ffx;
 
+struct {
+  DWORD sensor   = 0;
+  DWORD party_ap = 0;
+  DWORD speed    = 0;
+} last_changed;
+
 
 #include <windows.h>
 #include <tlhelp32.h>
@@ -378,7 +384,8 @@ UNX_ResumeThreads (std::queue <DWORD> threads)
 
 
 #include "log.h"
-float __UNX_speed_mod = 1.0f;
+float __UNX_speed_mod      = 1.0f;
+bool  __UNX_skip_cutscenes = false;
 
 extern LPVOID __UNX_base_img_addr;
 
@@ -411,6 +418,8 @@ UNX_FFX_AudioSkip (bool bSkip)
     //SK_GetCommandProcessor ()->ProcessCommandFormatted ("mem t %p %s", pFMODSyncAddr, orig_inst);
   }
 
+  __UNX_skip_cutscenes = bSkip;
+
   VirtualProtect ((LPVOID)pFMODSyncAddr, 3, dwProtect, &dwProtect);
 
   UNX_ResumeThreads (tids);
@@ -422,6 +431,8 @@ FFX_GameTick_pfn UNX_FFX_GameTick_Original = nullptr;
 void
 UNX_SpeedStep (void)
 {
+  last_changed.speed = timeGetTime ();
+
   if (__UNX_speed_mod < config.cheat.ffx.max_speed)
     __UNX_speed_mod *= config.cheat.ffx.speed_step;
   else
@@ -558,6 +569,14 @@ unx::CheatManager::Shutdown (void)
 #include "log.h"
 
 void
+UNX_TogglePartyAP (void)
+{
+  last_changed.party_ap = timeGetTime ();
+
+  config.cheat.ffx.entire_party_earns_ap = (! config.cheat.ffx.entire_party_earns_ap);
+}
+
+void
 UNX_ToggleFreeLook (void)
 {
   if (game_type != GAME_FFX)
@@ -570,6 +589,9 @@ UNX_ToggleFreeLook (void)
 void
 UNX_SetSensor (bool state)
 {
+  if (config.cheat.ffx.permanent_sensor != state)
+    last_changed.sensor = timeGetTime ();
+
   config.cheat.ffx.permanent_sensor = state;
 
   ffx.debug_flags->permanent_sensor =
@@ -582,10 +604,7 @@ UNX_ToggleSensor (void)
   if (game_type != GAME_FFX)
     return;
 
-  config.cheat.ffx.permanent_sensor =
-    (! config.cheat.ffx.permanent_sensor);
-
-  UNX_SetSensor (config.cheat.ffx.permanent_sensor);
+  UNX_SetSensor (! config.cheat.ffx.permanent_sensor);
 }
 
 void
@@ -644,8 +663,8 @@ UNX_Quickie (void)
     (sub_7C8650_pfn)((intptr_t)__UNX_base_img_addr + 0x3C8650);
   Menu (0x6);
 
-  extern bool schedule_load;
-  schedule_load = true;
+  extern volatile ULONG schedule_load;
+  InterlockedExchange (&schedule_load, TRUE);
 #endif
 }
 
@@ -687,6 +706,10 @@ UNX_KillMeNow (void)
           memcpy (live, inst, 2);
         }
 
+        for (int i = 0; i < 8; i++) {
+          ffx.party [i].vitals.current.HP = 0UL;
+        }
+
         std::queue <DWORD> suspended_tids =
           UNX_SuspendAllOtherThreads ();
         {
@@ -706,12 +729,8 @@ UNX_KillMeNow (void)
         return true;
       }
 
-      for (int i = 0; i < 8; i++) {
-        ffx.party [i].vitals.current.HP = 0UL;
-      }
-
-      extern bool queue_death;
-      queue_death = true;
+      extern volatile ULONG queue_death;
+      InterlockedExchange (&queue_death, TRUE);
 
       Sleep (33);
     } break;
@@ -801,4 +820,61 @@ UNX_FFX2_UnitTest (void)
                        ffx2.party [i].vitals.current.MP,
                        ffx2.party [i].vitals.max.MP );
   }
+}
+
+
+std::string
+UNX_SummarizeCheats (DWORD dwTime)
+{
+  std::string summary = "";
+
+  const DWORD status_duration = 2500UL;
+
+  switch (game_type)
+  {
+    case GAME_FFX:
+    {
+      if (last_changed.party_ap > dwTime - status_duration) {
+        summary += "Full Party AP:    ";
+        summary += config.cheat.ffx.entire_party_earns_ap ?
+                     "ON\n" : "OFF\n";
+      }
+
+      if (last_changed.sensor > dwTime - status_duration) {
+        summary += "Permanent Sensor: ";
+        summary += config.cheat.ffx.permanent_sensor ?
+                     "ON\n" : "OFF\n";
+      }
+
+      if (last_changed.speed > dwTime - (status_duration * 2)) {
+        char szGameSpeed [64] = { '\0' };
+
+        sprintf ( szGameSpeed, "Game Speed:       %4.1fx\n",
+                    __UNX_speed_mod );
+        summary += szGameSpeed;
+      }
+
+      uint8_t* skip = (uint8_t *)((intptr_t)__UNX_base_img_addr + 0x12FBB63 - 0x400000);
+
+      if (ffx.debug_flags->control.camera || *skip || __UNX_skip_cutscenes) {
+        summary += "SPECIAL MODE:     ";
+
+        if (ffx.debug_flags->control.camera)
+          summary += "(Free Look) ";
+
+        if (*skip)
+          summary += "(Timestop) ";
+
+        if (__UNX_skip_cutscenes)
+          summary += "(Cutscene Skip) ";
+
+        summary += "\n";
+      }
+    } break;
+
+    default:
+      break;
+  }
+
+  return summary;
 }
