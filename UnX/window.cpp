@@ -548,7 +548,12 @@ SK_BeginBufferSwap_Detour (void)
 
     if (draw_osd_toggle) {
       if (now - first_frame_time < 5000) {
-        osd_out += "Press Ctrl + Shift + O to toggle OSD\n\n";
+        osd_out +=
+                   "  Press Ctrl + Shift + O         to toggle In-Game OSD\n"
+                   "  Press Ctrl + Shift + Backspace to access In-Game Config Menu\n"
+                   "    ( Press and HOLD L2 + R2 + Select on Gamepads )\n"
+                   "      [Titlebar will colorcycle in gamepad mode]\n\n";
+        //osd_out += "Press Ctrl + Shift + O to toggle OSD\n\n";
       } else {
         draw_osd_toggle = false;
       }

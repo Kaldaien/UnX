@@ -126,77 +126,31 @@ extern void UNX_InstallWindowHook (HWND hWnd);
 // DirectInput 8
 //
 ///////////////////////////////////////////////////////////////////////////////
-typedef HRESULT (WINAPI *IDirectInput8_CreateDevice_pfn)(
-  IDirectInput8       *This,
-  REFGUID              rguid,
-  LPDIRECTINPUTDEVICE *lplpDirectInputDevice,
-  LPUNKNOWN            pUnkOuter
-);
-
 typedef HRESULT (WINAPI *IDirectInputDevice8_GetDeviceState_pfn)(
   LPDIRECTINPUTDEVICE  This,
   DWORD                cbData,
   LPVOID               lpvData
 );
 
-typedef HRESULT (WINAPI *IDirectInputDevice8_SetCooperativeLevel_pfn)(
-  LPDIRECTINPUTDEVICE  This,
-  HWND                 hwnd,
-  DWORD                dwFlags
-);
-
-IDirectInput8_CreateDevice_pfn
-        IDirectInput8_CreateDevice_Original              = nullptr;
-IDirectInputDevice8_GetDeviceState_pfn
-        IDirectInputDevice8_GetDeviceState_Original      = nullptr;
-IDirectInputDevice8_SetCooperativeLevel_pfn
-        IDirectInputDevice8_SetCooperativeLevel_Original = nullptr;
-
-
-
-#define DINPUT8_CALL(_Ret, _Call) {                                     \
-  dll_log->LogEx (true, L"[   Input  ]  Calling original function: ");  \
-  (_Ret) = (_Call);                                                     \
-  _com_error err ((_Ret));                                              \
-  if ((_Ret) != S_OK)                                                   \
-    dll_log->LogEx (false, L"(ret=0x%04x - %s)\n", err.WCode (),        \
-                                                  err.ErrorMessage ()); \
-  else                                                                  \
-    dll_log->LogEx (false, L"(ret=S_OK)\n");                            \
-}
-
-#define __PTR_SIZE   sizeof LPCVOID 
-#define __PAGE_PRIVS PAGE_EXECUTE_READWRITE 
- 
-#define DI8_VIRTUAL_OVERRIDE(_Base,_Index,_Name,_Override,_Original,_Type) {   \
-   void** vftable = *(void***)*_Base;                                          \
-                                                                               \
-   if (vftable [_Index] != _Override) {                                        \
-     DWORD dwProtect;                                                          \
-                                                                               \
-     VirtualProtect (&vftable [_Index], __PTR_SIZE, __PAGE_PRIVS, &dwProtect); \
-                                                                               \
-     if (_Original == NULL)                                                    \
-       _Original = (##_Type)vftable [_Index];                                  \
-                                                                               \
-     vftable [_Index] = _Override;                                             \
-                                                                               \
-     VirtualProtect (&vftable [_Index], __PTR_SIZE, dwProtect, &dwProtect);    \
-                                                                               \
-  }                                                                            \
- }
-
-
-
-struct di8_keyboard_s {
+struct SK_DI8_Keyboard {
   LPDIRECTINPUTDEVICE pDev = nullptr;
   uint8_t             state [512];
-} _dik;
+} *_dik;
 
-struct di8_mouse_s {
+typedef struct SK_DI8_Mouse {
   LPDIRECTINPUTDEVICE pDev = nullptr;
   DIMOUSESTATE2       state;
-} _dim;
+} *_dim;
+
+typedef SK_DI8_Mouse*    (WINAPI *SK_Input_GetDI8Mouse_pfn)   (void);
+typedef SK_DI8_Keyboard* (WINAPI *SK_Input_GetDI8Keyboard_pfn)(void);
+
+SK_Input_GetDI8Mouse_pfn    SK_Input_GetDI8Mouse      = nullptr;
+SK_Input_GetDI8Keyboard_pfn SK_Input_GetDI8Keyboard   = nullptr;
+
+IDirectInputDevice8_GetDeviceState_pfn
+        IDirectInputDevice8_GetDeviceState_Original   = nullptr;
+
 
 // I don't care about joysticks, let them continue working while
 //   the window does not have focus...
@@ -212,8 +166,10 @@ IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE        This,
                                                        cbData,
                                                          lpvData );
 
-  if (SUCCEEDED (hr)) {
-    if (cbData == sizeof DIJOYSTATE2) {
+  if (SUCCEEDED (hr))
+  {
+    if (cbData == sizeof DIJOYSTATE2)
+    {
       DIJOYSTATE2* out = (DIJOYSTATE2 *)lpvData;
 
       // Fix Wonky Input Behavior When Window is Not In Foreground
@@ -243,11 +199,12 @@ IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE        This,
   //
   // Keyboard
   //
-  if (This == _dik.pDev) {
+  if (This == SK_Input_GetDI8Keyboard ()->pDev)
+  {
     if (unx::window.active) {
-      memcpy (_dik.state, lpvData, cbData);
+      memcpy (SK_Input_GetDI8Keyboard ()->state, lpvData, cbData);
     } else {
-      memcpy (lpvData, _dik.state, cbData);
+      memcpy (lpvData, SK_Input_GetDI8Keyboard ()->state, cbData);
 
       ((uint8_t *)lpvData) [DIK_LALT]   = 0x0;
       ((uint8_t *)lpvData) [DIK_RALT]   = 0x0;
@@ -266,119 +223,18 @@ IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE        This,
   //
   // Mouse
   //
-  if (This == _dim.pDev) {
+  if (This == SK_Input_GetDI8Mouse ()->pDev)
+  {
     if (unx::window.active) {
-      memcpy (&_dim.state, lpvData, cbData);
+      memcpy (&SK_Input_GetDI8Mouse ()->state, lpvData, cbData);
     } else {
-      memcpy (lpvData, &_dim.state, cbData);
+      memcpy (lpvData, &SK_Input_GetDI8Mouse ()->state, cbData);
     }
   }
 
   return hr;
 }
 
-HRESULT
-WINAPI
-IDirectInputDevice8_SetCooperativeLevel_Detour ( LPDIRECTINPUTDEVICE  This,
-                                                 HWND                 hwnd,
-                                                 DWORD                dwFlags )
-{
-  if (config.input.block_windows)
-    dwFlags |= DISCL_NOWINKEY;
-
-#if 0
-  if (config.render.allow_background) {
-    dwFlags &= ~DISCL_EXCLUSIVE;
-    dwFlags &= ~DISCL_BACKGROUND;
-
-    dwFlags |= DISCL_NONEXCLUSIVE;
-    dwFlags |= DISCL_FOREGROUND;
-
-    return IDirectInputDevice8_SetCooperativeLevel_Original (This, hwnd, dwFlags);
-  }
-#endif
-
-  return IDirectInputDevice8_SetCooperativeLevel_Original (This, hwnd, dwFlags);
-}
-
-HRESULT
-WINAPI
-IDirectInput8_CreateDevice_Detour ( IDirectInput8       *This,
-                                    REFGUID              rguid,
-                                    LPDIRECTINPUTDEVICE *lplpDirectInputDevice,
-                                    LPUNKNOWN            pUnkOuter )
-{
-  const wchar_t* wszDevice = (rguid == GUID_SysKeyboard) ? L"Default System Keyboard" :
-                                (rguid == GUID_SysMouse) ? L"Default System Mouse" :
-                                                           L"Other Device";
-
-  dll_log->Log ( L"[   Input  ][!] IDirectInput8::CreateDevice (%08Xh, %s, %08Xh, %08Xh)",
-                   This,
-                     wszDevice,
-                       lplpDirectInputDevice,
-                         pUnkOuter );
-
-  HRESULT hr;
-  DINPUT8_CALL ( hr,
-                  IDirectInput8_CreateDevice_Original ( This,
-                                                         rguid,
-                                                          lplpDirectInputDevice,
-                                                           pUnkOuter ) );
-
-  static bool hooked = false;
-
-  if (rguid != GUID_SysMouse && rguid != GUID_SysKeyboard && SUCCEEDED (hr) && (! hooked)) {
-#if 1
-      hooked = true;
-
-      void** vftable = *(void***)*lplpDirectInputDevice;
-
-      UNX_CreateFuncHook ( L"IDirectInputDevice8::GetDeviceState",
-                           vftable [9],
-                           IDirectInputDevice8_GetDeviceState_Detour,
-                (LPVOID *)&IDirectInputDevice8_GetDeviceState_Original );
-
-      UNX_EnableHook (vftable [9]);
-
-      UNX_CreateFuncHook ( L"IDirectInputDevice8::SetCooperativeLevel",
-                           vftable [13],
-                           IDirectInputDevice8_SetCooperativeLevel_Detour,
-                 (LPVOID*)&IDirectInputDevice8_SetCooperativeLevel_Original );
-
-      UNX_EnableHook (vftable [13]);
-#else
-     DI8_VIRTUAL_OVERRIDE ( lplpDirectInputDevice, 9,
-                            L"IDirectInputDevice8::GetDeviceState",
-                            IDirectInputDevice8_GetDeviceState_Detour,
-                            IDirectInputDevice8_GetDeviceState_Original,
-                            IDirectInputDevice8_GetDeviceState_pfn );
-
-     DI8_VIRTUAL_OVERRIDE ( lplpDirectInputDevice, 13,
-                            L"IDirectInputDevice8::SetCooperativeLevel",
-                            IDirectInputDevice8_SetCooperativeLevel_Detour,
-                            IDirectInputDevice8_SetCooperativeLevel_Original,
-                            IDirectInputDevice8_SetCooperativeLevel_pfn );
-#endif
-
-    if (rguid == GUID_SysMouse)
-      _dim.pDev = *lplpDirectInputDevice;
-    else if (rguid == GUID_SysKeyboard)
-      _dik.pDev = *lplpDirectInputDevice;
-  }
-
-#if 0
-  if (SUCCEEDED (hr) && lplpDirectInputDevice != nullptr) {
-    DWORD dwFlag = DISCL_FOREGROUND | DISCL_NONEXCLUSIVE;
-
-    if (config.input.block_windows)
-      dwFlag |= DISCL_NOWINKEY;
-
-    (*lplpDirectInputDevice)->SetCooperativeLevel (SK_GetGameWindow (), dwFlag);
-  }
-#endif
-
-  return hr;
-}
 
 typedef struct _XINPUT_GAMEPAD {
   WORD  wButtons;
@@ -402,27 +258,6 @@ typedef DWORD (WINAPI *XInputGetState_pfn)(
 
 XInputGetState_pfn XInputGetState_Original = nullptr;
 
-bool
-IsControllerPluggedIn (INT iJoyID)
-{
-  if (iJoyID == -1)
-    return true;
-
-  XINPUT_STATE xstate;
-
-  static DWORD last_poll = timeGetTime ();
-  static DWORD dwRet     = XInputGetState_Original (iJoyID, &xstate);
-
-  // This function is actually a performance hazzard when no controllers
-  //   are plugged in, so ... throttle the sucker.
-  if (last_poll < timeGetTime () - 500UL)
-    dwRet = XInputGetState_Original (iJoyID, &xstate);
-
-  if (dwRet == ERROR_DEVICE_NOT_CONNECTED)
-    return false;
-
-  return true;
-}
 
 DWORD
 WINAPI
@@ -442,6 +277,21 @@ XInputGetState_Detour ( _In_  DWORD         dwUserIndex,
 
   return dwRet;
 }
+
+typedef bool (WINAPI *SK_XInput_PollController_pfn)( INT           iJoyID,
+                                                     XINPUT_STATE* pState );
+SK_XInput_PollController_pfn SK_XInput_PollController = nullptr;
+
+typedef bool (WINAPI *SK_ImGui_ToggleEx_pfn)(bool& toggle_ui, bool& toggle_nav);
+SK_ImGui_ToggleEx_pfn SK_ImGui_ToggleEx = nullptr;
+
+bool
+WINAPI
+SK_ImGui_ToggleEx_Bypass (bool& toggle_ui, bool& toggle_nav)
+{
+  return false;
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -560,34 +410,6 @@ SK_UNX_PluginKeyPress ( BOOL Control,
   }
 
   //SK_PluginKeyPress_Original (Control, Shift, Alt, vkCode);
-}
-
-typedef HRESULT (WINAPI *DirectInput8Create_pfn)(
- HINSTANCE hinst,
- DWORD     dwVersion,
- REFIID    riidltf,
- LPVOID*   ppvOut,
- LPUNKNOWN punkOuter
-);
-
-DirectInput8Create_pfn DirectInput8Create_Original = nullptr;
-
-HRESULT
-WINAPI
-DirectInput8Create_Detour (
-  HINSTANCE hinst,
-  DWORD     dwVersion,
-  REFIID    riidltf,
-  LPVOID*   ppvOut,
-  LPUNKNOWN punkOuter
-)
-{
-  try {
-    return DirectInput8Create_Original (hinst, dwVersion, riidltf, ppvOut, punkOuter);
-  } catch (...) {
-    dll_log->Log (L"[CrashPrvnt] Raptr tried and failed to initialize DInput8...");
-    return E_FAIL;
-  }
 }
 
 typedef const wchar_t* (__stdcall *SK_GetConfigPath_pfn)(void);
@@ -943,55 +765,21 @@ unx::InputManager::Init (void)
   pad_cfg->write ((std::wstring (SK_GetConfigPath ()) + L"UnX_Gamepad.ini").c_str ());
   delete pad_cfg;
 
-  if (config.input.remap_dinput8) {
-    HMODULE hModDontCare;
+  if (config.input.remap_dinput8)
+  {
+    SK_Input_GetDI8Keyboard =
+      (SK_Input_GetDI8Keyboard_pfn)
+        GetProcAddress ( GetModuleHandle (config.system.injector.c_str ()),
+                           "SK_Input_GetDI8Keyboard" );
+    SK_Input_GetDI8Mouse =
+      (SK_Input_GetDI8Mouse_pfn)
+        GetProcAddress ( GetModuleHandle (config.system.injector.c_str ()),
+                           "SK_Input_GetDI8Mouse" );
 
-    // Fix problems with Raptr by pinning this DLL into memory constantly
-    LoadLibrary (L"dinput8.dll");
-
-    GetModuleHandleEx (
-      GET_MODULE_HANDLE_EX_FLAG_PIN,
-        L"dinput8.dll", 
-          &hModDontCare );
-
-    bool init = false;
-
-    HRESULT com_init_hr =
-      CoInitializeEx (nullptr, COINIT_MULTITHREADED);
-
-    IDirectInput8W* pDInput8 = nullptr;
-
-    HRESULT hr =
-      CoCreateInstance ( CLSID_DirectInput8,
-                           nullptr,
-                             CLSCTX_INPROC_SERVER,
-                               IID_IDirectInput8,
-                                 (LPVOID *)&pDInput8 );
-
-    if (SUCCEEDED (hr)) {
-      void** vftable = *(void***)*&pDInput8;
-
-      pDInput8->Initialize (GetModuleHandle (nullptr), DIRECTINPUT_VERSION);
-
-      UNX_CreateFuncHook ( L"IDirectInput8::CreateDevice",
-                           vftable [3],
-                           IDirectInput8_CreateDevice_Detour,
-                 (LPVOID*)&IDirectInput8_CreateDevice_Original );
-
-      UNX_EnableHook (vftable [3]);
-
-#if 0
-      UNX_CreateDLLHook ( L"dinput8.dll",
-                          "DirectInput8Create",
-                          DirectInput8Create_Detour,
-               (LPVOID *)&DirectInput8Create_Original );
-#endif
-
-      pDInput8->Release ();
-    }
-
-    //if (com_init_hr == S_OK)
-      //CoUninitialize ();
+    UNX_CreateDLLHook2 ( config.system.injector.c_str (),
+                         "DI8_GetDeviceState_Override",
+                         IDirectInputDevice8_GetDeviceState_Detour,
+              (LPVOID *)&IDirectInputDevice8_GetDeviceState_Original );
   }
 
 
@@ -1003,17 +791,22 @@ unx::InputManager::Init (void)
       ) - 1;
   }
 
+  SK_XInput_PollController =
+    (SK_XInput_PollController_pfn)
+      GetProcAddress ( GetModuleHandle (config.system.injector.c_str ()),
+                         "SK_XInput_PollController" );
 
-  //
-  // Win32 API Input Hooks
-  //
-
-  //HookRawInput ();
-
-  UNX_CreateDLLHook2 ( L"XInput9_1_0.dll",
-                        "XInputGetState",
+#if 0
+  UNX_CreateDLLHook2 ( config.system.injector.c_str (),
+                        "XInputGetState9_1_0_Override",
                          XInputGetState_Detour,
               (LPVOID *)&XInputGetState_Original );
+#endif
+
+  UNX_CreateDLLHook2 ( config.system.injector.c_str (),
+                        "SK_ImGui_ToggleEx",
+                         SK_ImGui_ToggleEx_Bypass,
+              (LPVOID *)&SK_ImGui_ToggleEx );
 
   UNX_CreateDLLHook2 ( config.system.injector.c_str (),
                        "SK_PluginKeyPress",
@@ -1275,11 +1068,20 @@ struct combo_button_s {
        xi_gamepad.wButtons & (WORD)combo->button1   &&
        xi_gamepad.wButtons & (WORD)combo->button2);
 
+    if (wasJustPressed ())
+      time_activated = timeGetTime ();
+    else if (wasJustReleased ())
+      time_released  = timeGetTime ();
+
     return state;
   }
 
   bool wasJustPressed (void) {
     return state && (! last_state);
+  }
+
+  bool wasJustReleased (void) {
+    return last_state && (! state);
   }
 
 
@@ -1288,6 +1090,9 @@ struct combo_button_s {
 
   bool state;
   bool last_state;
+
+  DWORD time_activated;
+  DWORD time_released;
 };
 
 BYTE
@@ -1322,12 +1127,11 @@ UNX_PollAxis (int axis, const JOYINFOEX& joy_ex, const JOYCAPSW& caps)
 #pragma warning (pop)
 }
 
-
 unsigned int
 __stdcall
 unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 {
-  if ( ((! XInputGetState_Original) && (! gamepad.legacy)) ) {
+  if ( ((! SK_XInput_PollController) && (! gamepad.legacy)) ) {
     CloseHandle (GetCurrentThread ());
     return 0;
   }
@@ -1380,24 +1184,39 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
     }
 
     XINPUT_STATE xi_state = { 0 };
+    bool         success  = false;
 
-    if (XInputGetState_Original != nullptr && (! gamepad.legacy)) {
+    if (SK_XInput_PollController != nullptr && (! gamepad.legacy))
+    {
       // This function is actually a performance hazzard when no controllers
       //   are plugged in, so ... throttle the sucker.
       if (  xi_ret == 0 ||
-           (last_xi_poll < timeGetTime () - XI_POLL_INTERVAL) ) {
-        xi_ret       = XInputGetState_Original (slot, &xi_state);
+           (last_xi_poll < timeGetTime () - XI_POLL_INTERVAL) )
+      {
+             success = SK_XInput_PollController (slot, &xi_state);
         last_xi_poll = timeGetTime    ();
 
-        if (xi_ret != 0)
+        if (! success)
+        {
           xi_state = { 0 };
+          xi_ret   = ERROR_DEVICE_NOT_CONNECTED;
+        } else
+          xi_ret   =   0;
       }
-    } else {
+    }
+
+    else
+    {
       if (  xi_ret == 0 ||
-           (last_xi_poll < timeGetTime () - XI_POLL_INTERVAL) ) {
-        if (! joyGetNumDevs ()) {
+           (last_xi_poll < timeGetTime () - XI_POLL_INTERVAL) )
+      {
+        if (! joyGetNumDevs ())
+        {
           xi_ret = ERROR_DEVICE_NOT_CONNECTED;
-        } else {
+        }
+
+        else
+        {
           static JOYCAPSW caps = { 0 };
 
           if (! caps.wMaxButtons)
@@ -1456,6 +1275,7 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
           if (joy_ex.dwPOV & JOY_POVRIGHT)
             xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_DPAD_RIGHT;
         }
+
         last_xi_poll = timeGetTime    ();
       }
     }
@@ -1526,8 +1346,31 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
 
     bool full_sleep = true;
 
-    if (esc.state) {
-      UNX_SendScancode (0x01);
+    if (esc.state)
+    {
+      static bool long_press = false;
+
+      if (esc.wasJustPressed ())
+      {
+        long_press = false;
+
+        bool ui  = true;
+        bool nav = false;
+
+        SK_ImGui_ToggleEx (ui, nav);
+        ////UNX_SendScancode (0x01);
+      }
+
+      else if ( long_press == false &&
+                esc.time_activated < timeGetTime () - 850 )
+      {
+        long_press = true;
+
+        bool ui  = false;
+        bool nav = true;
+
+        SK_ImGui_ToggleEx (ui, nav);
+      }
     }
 
     else if (speedboost.state) {
