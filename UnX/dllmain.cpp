@@ -43,10 +43,14 @@ HMODULE hInjectorDLL = { 0 }; // Handle to Special K
 extern void*
 UNX_Scan (const uint8_t* pattern, size_t len, const uint8_t* mask);
 
-typedef HRESULT (__stdcall *SK_UpdateSoftware_pfn)(const wchar_t* wszProduct);
-typedef bool    (__stdcall *SK_FetchVersionInfo_pfn)(const wchar_t* wszProduct);
+typedef HRESULT (__stdcall *SK_UpdateSoftware_pfn)           (const wchar_t* wszProduct);
+typedef bool    (__stdcall *SK_FetchVersionInfo_pfn)         (const wchar_t* wszProduct);
+typedef void    (__stdcall *SKX_SetPluginName_pfn)           (const wchar_t* name);
+typedef void    (__stdcall *SK_PlugIn_ControlPanelWidget_pfn)(void);
 
-typedef void (__stdcall *SKX_SetPluginName_pfn)(const wchar_t* name);
+extern void __stdcall                         UNX_ControlPanelWidget (void);
+extern SK_PlugIn_ControlPanelWidget_pfn SK_PlugIn_ControlPanelWidget_Original;
+
 SKX_SetPluginName_pfn SKX_SetPluginName = nullptr;
 
 std::wstring injector_name;
@@ -72,7 +76,8 @@ DllThread (LPVOID user)
                           L"============",
                             UNX_VER_STR.c_str () );
 
-  if (! UNX_LoadConfig ()) {
+  if (! UNX_LoadConfig ())
+  {
     config.system.injector = injector_name;
 
     // Save a new config if none exists
@@ -96,7 +101,8 @@ DllThread (LPVOID user)
     SKX_SetPluginName (plugin_name.c_str ());
 
   // Plugin State
-  if (UNX_Init_MinHook () == MH_OK) {
+  if (UNX_Init_MinHook () == MH_OK)
+  {
     // Initialize memory addresses
     UNX_Scan ((const uint8_t *)"XYZ123", strlen ("XYZ123"), nullptr);
 
@@ -108,6 +114,11 @@ DllThread (LPVOID user)
     unx::InputManager::Init    ();
     unx::TimingFix::Init       ();
     unx::WindowManager::Init   ();
+
+    UNX_CreateDLLHook ( config.system.injector.c_str (),
+                        "SK_PlugIn_ControlPanelWidget",
+                         UNX_ControlPanelWidget,
+        (LPVOID *)&SK_PlugIn_ControlPanelWidget_Original );
 
     CreateThread (
       nullptr, 0,
@@ -176,7 +187,7 @@ DllMain (HMODULE hModule,
   {
     case DLL_PROCESS_ATTACH:
     {
-      //DisableThreadLibraryCalls (hModule);
+      DisableThreadLibraryCalls (hModule);
       hDLLMod = hModule;
     } break;
 

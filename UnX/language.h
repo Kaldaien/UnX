@@ -23,12 +23,21 @@
 
 #include "command.h"
 
+enum asset_type_t {
+  Voice       = 0x1,
+  SoundEffect = 0x2,
+  Video       = 0x4,
+  Any         = 0xf
+};
+
 namespace unx
 {
   namespace LanguageManager
   {
     void Init     ();
     void Shutdown ();
+
+    bool ApplyPatch (asset_type_t type = Any);
   }
 }
 

@@ -24,6 +24,7 @@
 
 #include "ini.h"
 iSK_INI*
+__stdcall
 UNX_CreateINI (const wchar_t* const wszName)
 {
   extern HMODULE hInjectorDLL;

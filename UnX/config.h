@@ -35,7 +35,6 @@ struct unx_config_s
 
   struct {
     bool    disable_dpi_scaling = true;
-    bool    enable_fullscreen   = true;
     bool    start_fullscreen    = true;
   } display;
 
@@ -52,10 +51,6 @@ struct unx_config_s
 
   struct {
   } compatibility;
-
-  struct {
-    bool    reduce              = false;
-  } stutter;
 
   struct textures_s {
     std::wstring resource_root = L"UnX_Res";

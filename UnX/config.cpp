@@ -24,6 +24,9 @@
 #include "parameter.h"
 #include "ini.h"
 #include "log.h"
+#include "language.h"
+#include "cheat.h"
+#include "input.h"
 
 #include "DLL_VERSION.H"
 
@@ -43,10 +46,10 @@ static
 std::wstring UNX_VER_STR = UNX_VERSION_STR_W;
 unx_config_s config;
 
-typedef bool (WINAPI *SK_DXGI_EnableFlipMode_pfn)      (bool);
+typedef void (__stdcall *SK_PlugIn_ControlPanelWidget_pfn)(void);
+
 typedef void (WINAPI *SK_DXGI_SetPreferredAdapter_pfn) (int);
 
-SK_DXGI_EnableFlipMode_pfn      SK_DXGI_EnableFlipMode      = nullptr;
 SK_DXGI_SetPreferredAdapter_pfn SK_DXGI_SetPreferredAdapter = nullptr;
 
 typedef void (WINAPI *SK_D3D11_SetResourceRoot_pfn)      (const wchar_t*);
@@ -59,6 +62,9 @@ typedef void (WINAPI *SK_D3D11_PopulateResourceList_pfn) (void);
 
 typedef void (WINAPI *SKX_D3D11_MarkTextures_pfn)      (bool,bool,bool);
 typedef void (WINAPI *SKX_D3D11_EnableFullscreen_pfn)  (bool);
+
+void __stdcall UNX_ControlPanelWidget (void);
+SK_PlugIn_ControlPanelWidget_pfn SK_PlugIn_ControlPanelWidget_Original = nullptr;
 
 SK_D3D11_SetResourceRoot_pfn      SK_D3D11_SetResourceRoot      = nullptr;
 SK_D3D11_EnableTexDump_pfn        SK_D3D11_EnableTexDump        = nullptr;
@@ -73,14 +79,24 @@ SKX_D3D11_EnableFullscreen_pfn  SKX_D3D11_EnableFullscreen = nullptr;
 
 extern wchar_t* UNX_GetExecutableName (void);
 
-struct {
-  unx::ParameterBool*    bypass_intel;
-  unx::ParameterBool*    flip_mode;
-} render;
+__declspec (dllimport) void __stdcall SK_ImGui_KeybindDialog (SK_Keybind* keybind);
+
+std::string
+UNX_WideCharToUTF8 (std::wstring in)
+{
+  int len = WideCharToMultiByte ( CP_UTF8, 0x00, in.c_str (), -1, nullptr, 0, nullptr, FALSE );
+
+  std::string out;
+              out.resize (len);
+
+  WideCharToMultiByte           ( CP_UTF8, 0x00, in.c_str (), static_cast <int> (in.length ()), const_cast <char *> (out.data ()), len, nullptr, FALSE );
+
+  return out;
+}
 
 struct {
-  unx::ParameterBool*    mute_in_background;
-} audio;
+  unx::ParameterBool*    bypass_intel;
+} render;
 
 struct {
 } compatibility;
@@ -98,12 +114,7 @@ struct {
 
 struct {
   unx::ParameterBool*    disable_dpi_scaling;
-  unx::ParameterBool*    enable_fullscreen;
 } display;
-
-struct {
-  unx::ParameterBool*    reduce;
-} stutter;
 
 struct {
 } colors;
@@ -157,16 +168,11 @@ UNX_SetupLowLevelRender (void)
 {
   extern HMODULE hInjectorDLL;
 
-  SK_DXGI_EnableFlipMode =
-    (SK_DXGI_EnableFlipMode_pfn)
-      GetProcAddress (hInjectorDLL, "SK_DXGI_EnableFlipMode");
-
   SK_DXGI_SetPreferredAdapter =
     (SK_DXGI_SetPreferredAdapter_pfn)
       GetProcAddress (hInjectorDLL, "SK_DXGI_SetPreferredAdapter");
 
-  if ( SK_DXGI_EnableFlipMode      != nullptr &&
-       SK_DXGI_SetPreferredAdapter != nullptr )
+  if ( SK_DXGI_SetPreferredAdapter != nullptr )
     return true;
 
   return false;
@@ -282,17 +288,6 @@ UNX_LoadConfig (std::wstring name)
       L"UnX.Display",
         L"DisableDPIScaling" );
 
-  display.enable_fullscreen =
-    static_cast <unx::ParameterBool *>
-      (g_ParameterFactory.create_parameter <bool> (
-        L"Enable Fullscreen Mode [Alt+Enter]")
-      );
-  display.enable_fullscreen->register_to_ini (
-    dll_ini,
-      L"UnX.Display",
-        L"EnableFullscreen" );
-
-
   render.bypass_intel =
     static_cast <unx::ParameterBool *>
       (g_ParameterFactory.create_parameter <bool> (
@@ -302,27 +297,6 @@ UNX_LoadConfig (std::wstring name)
     dll_ini,
       L"UnX.Render",
         L"BypassIntel" );
-
-  render.flip_mode =
-    static_cast <unx::ParameterBool *>
-      (g_ParameterFactory.create_parameter <bool> (
-        L"Allow Flip Mode Rendering")
-      );
-  render.flip_mode->register_to_ini (
-    dll_ini,
-      L"UnX.Render",
-        L"FlipMode" );
-
-
-  audio.mute_in_background =
-    static_cast <unx::ParameterBool *>
-      (g_ParameterFactory.create_parameter <bool> (
-        L"Mute When Game Window Is In Background")
-      );
-  audio.mute_in_background->register_to_ini (
-    dll_ini,
-      L"UnX.Audio",
-        L"BackgroundMute" );
 
 
   language.voice =
@@ -355,17 +329,6 @@ UNX_LoadConfig (std::wstring name)
       L"Language.Master",
         L"Video" );
 
-
-  stutter.reduce =
-    static_cast <unx::ParameterBool *>
-      (g_ParameterFactory.create_parameter <bool> (
-        L"Prevent Sleep (5) from killing performance")
-      );
-  stutter.reduce->register_to_ini (
-    dll_ini,
-      L"UnX.Stutter",
-        L"Reduce"
-  );
 
 
   input.remap_dinput8 =
@@ -669,8 +632,6 @@ UNX_LoadConfig (std::wstring name)
     fmv_override->store (L"");
   }
 
-  stutter.reduce->load (config.stutter.reduce);
-
   input.remap_dinput8->load (config.input.remap_dinput8);
   input.gamepad_slot->load  (config.input.gamepad_slot);
   input.fix_bg_input->load  (config.input.fix_bg_input);
@@ -715,21 +676,11 @@ UNX_LoadConfig (std::wstring name)
   sys.version->load  (config.system.version);
   //sys.injector->load (config.system.injector);
 
-  display.enable_fullscreen->load (config.display.enable_fullscreen);
-
-  if (config.display.enable_fullscreen && UNX_SetupWindowMgmt ()) {
-    SKX_D3D11_EnableFullscreen (config.display.enable_fullscreen);
-  }
-
   render.bypass_intel->load (config.render.bypass_intel);
-  render.flip_mode->load    (config.render.flip_mode);
 
-  if ( (config.render.bypass_intel || config.render.flip_mode) &&
+  if ( (config.render.bypass_intel) &&
        UNX_SetupLowLevelRender () )
   {
-    SK_DXGI_EnableFlipMode ( config.render.flip_mode       &&
-                          (! config.display.enable_fullscreen ) );
-
     // Rather dumb logic that assumes the Intel GPU will be Adapter 0.
     //
     //   This isn't dangerous, my DXGI DLL prevents overriding to select
@@ -737,7 +688,8 @@ UNX_LoadConfig (std::wstring name)
     SK_DXGI_SetPreferredAdapter (config.render.bypass_intel ? 1 : -1);
   }
 
-  if (UNX_SetupTexMgmt ()) {
+  if (UNX_SetupTexMgmt ())
+  {
     textures.resource_root->load (config.textures.resource_root);
     textures.dump->load          (config.textures.dump);
     textures.inject->load        (config.textures.inject);
@@ -763,10 +715,12 @@ UNX_LoadConfig (std::wstring name)
   return true;
 }
 
-void
-UNX_SaveConfig (std::wstring name, bool close_config) {
-  stutter.reduce->store             (config.stutter.reduce);
+#include <imgui/imgui.h>
+#pragma comment (lib, "F:\\SteamLibrary\\steamapps\\common\\FINAL FANTASY FFX&FFX-2 HD Remaster\\dxgi.lib")
 
+void
+UNX_SaveConfig (std::wstring name, bool close_config)
+{
   input.remap_dinput8->store        (config.input.remap_dinput8);
 
   //input.block_windows->store        (config.input.block_windows);
@@ -776,12 +730,19 @@ UNX_SaveConfig (std::wstring name, bool close_config) {
   input.filter_ime->store           (config.input.filter_ime);
 
 
-  ((unx::iParameter *)language.sfx)->store   ();
-  ((unx::iParameter *)language.voice)->store ();
-  ((unx::iParameter *)language.video)->store ();
+
+  ((unx::iParameter *)language.sfx)->set_value_str (config.language.sfx);
+  ((unx::iParameter *)language.sfx)->store         (                   );
+
+  ((unx::iParameter *)language.voice)->set_value_str (config.language.voice);
+  ((unx::iParameter *)language.voice)->store         (                     );
+
+  ((unx::iParameter *)language.video)->set_value_str (config.language.video);
+  ((unx::iParameter *)language.video)->store         (                     );
 
   extern wchar_t* UNX_GetExecutableName (void);
-  if (! lstrcmpiW (UNX_GetExecutableName (), L"ffx.exe")) {
+  if (! lstrcmpiW (UNX_GetExecutableName (), L"ffx.exe"))
+  {
     booster.ffx.entire_party_earns_ap->store (config.cheat.ffx.entire_party_earns_ap);
     booster.ffx.permanent_sensor->store      (config.cheat.ffx.permanent_sensor);
     booster.ffx.playable_seymour->store      (config.cheat.ffx.playable_seymour);
@@ -815,22 +776,269 @@ UNX_SaveConfig (std::wstring name, bool close_config) {
 
   booster_ini->write (wszBooster);
 
-  if (close_config) {
+  if (close_config)
+  {
     // Actually, this is somewhat invalid -- DO NOT FREE MEMORY THAT WAS
-    //                                       ALLOCATED IN A DIFFERENT DLL!
+    //                                       ALLOCATED IN A DIFFERENT DLL
+    //                             (unless compiled under the EXACT same environment)!
     if (dll_ini != nullptr) {
-      delete dll_ini;
+      //delete dll_ini;
       dll_ini = nullptr;
     }
 
     if (language_ini != nullptr) {
-      delete language_ini;
+      //delete language_ini;
       language_ini = nullptr;
     }
 
     if (booster_ini != nullptr) {
-      delete booster_ini;
+      //delete booster_ini;
       booster_ini = nullptr;
     }
   }
+}
+
+unx::ParameterStringW* unx_speedstep;
+unx::ParameterStringW* unx_kickstart;
+unx::ParameterStringW* unx_timestop;
+unx::ParameterStringW* unx_freelook;
+unx::ParameterStringW* unx_sensor;
+unx::ParameterStringW* unx_fullap;
+unx::ParameterStringW* unx_VSYNC;
+unx::ParameterStringW* unx_soft_reset;
+
+#include "cheat.h"
+
+void
+__stdcall
+UNX_ControlPanelWidget (void)
+{
+  static 
+    const char* szLabel = (game_type & GAME_FFX) ? "Final Fantasy X HD Remaster" :
+                                                   "Final Fantasy X-2 HD Remaster";
+
+  if (ImGui::CollapsingHeader (szLabel, ImGuiTreeNodeFlags_DefaultOpen))
+  {
+    ImGui::PushStyleColor (ImGuiCol_Header,        ImVec4 (0.90f, 0.40f, 0.40f, 0.45f));
+    ImGui::PushStyleColor (ImGuiCol_HeaderHovered, ImVec4 (0.90f, 0.45f, 0.45f, 0.80f));
+    ImGui::PushStyleColor (ImGuiCol_HeaderActive,  ImVec4 (0.87f, 0.53f, 0.53f, 0.80f));
+    ImGui::TreePush       ("");
+
+    if (ImGui::CollapsingHeader ("Language", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+      ImGui::TreePush ("");
+
+      const char* szLanguageOptions = "Game Default\0English\0Japanese\0\0";
+
+      int voice_lang = (config.language.voice == L"us" ? 1 : config.language.voice == L"jp" ? 2 : 0);
+      int sfx_lang   = (config.language.sfx   == L"us" ? 1 : config.language.sfx   == L"jp" ? 2 : 0);
+      int fmv_lang   = (config.language.video == L"us" ? 1 : config.language.video == L"jp" ? 2 : 0);
+
+      int orig_voice = voice_lang;
+      int orig_sfx   = sfx_lang;
+      int orig_fmv   = fmv_lang;
+
+      ImGui::PushItemWidth (ImGui::GetWindowWidth () * 0.7f);
+
+             bool changed_now = false;
+      static bool changed     = false;
+
+      if ( ImGui::Combo ( "Dialogue", &voice_lang,
+                          szLanguageOptions ) )
+      {
+             if (voice_lang == 1) config.language.voice = L"us";
+        else if (voice_lang == 2) config.language.voice = L"jp";
+        else                      config.language.voice = L"default";
+      
+        if (voice_lang != orig_voice)
+        {
+          changed_now = true;
+          unx::LanguageManager::ApplyPatch (Voice);
+        }
+      }
+
+      if ( ImGui::Combo ( "Sound Effects", &sfx_lang,
+                          szLanguageOptions ) )
+      {
+             if (sfx_lang == 1) config.language.sfx = L"us";
+        else if (sfx_lang == 2) config.language.sfx = L"jp";
+        else                    config.language.sfx = L"default";
+
+        if (sfx_lang != orig_sfx)
+        {
+          changed_now = true;
+          unx::LanguageManager::ApplyPatch (SoundEffect);
+        }
+      }
+
+      if ( ImGui::Combo ( "Full Motion Video", &fmv_lang,
+                          szLanguageOptions ) )
+      {
+             if (fmv_lang == 1) config.language.video = L"us";
+        else if (fmv_lang == 2) config.language.video = L"jp";
+        else                    config.language.video = L"default";
+      
+        if (fmv_lang != orig_fmv)
+        {
+          changed_now = true;
+          unx::LanguageManager::ApplyPatch (Video);
+        }
+      }
+
+      ImGui::PopItemWidth (  );
+
+      if (changed_now)
+      {
+        UNX_SaveConfig ();
+        changed = true;
+      }
+
+      if (changed)
+      {
+        ImGui::PushStyleColor (ImGuiCol_Text, ImColor::HSV (0.4f, 1.0f, 0.94f));
+        ImGui::BulletText     ("Game Restart Required");
+        ImGui::PopStyleColor  ();
+      }
+
+      ImGui::TreePop      (  );
+    }
+
+    if (ImGui::CollapsingHeader ("Keybinds"))
+    {
+      auto Keybinding = [](SK_Keybind* binding, unx::ParameterStringW* param) ->
+      auto
+      {
+        std::string label  = UNX_WideCharToUTF8 (binding->human_readable) + "###";
+                    label += binding->bind_name;
+
+        if (ImGui::Selectable (label.c_str (), false))
+        {
+          ImGui::OpenPopup (binding->bind_name);
+        }
+
+        std::wstring original_binding = binding->human_readable;
+
+        SK_ImGui_KeybindDialog (binding);
+
+        if (original_binding != binding->human_readable)
+        {
+          param->store   (binding->human_readable);
+
+          extern iSK_INI* pad_cfg;
+
+          pad_cfg->write (pad_cfg->get_filename ());
+
+          return true;
+        }
+
+        return false;
+      };
+
+      ImGui::TreePush   ("");
+      ImGui::BeginGroup (  );
+        ImGui::Text     ("Toggle VSYNC");
+        ImGui::Text     ("Kickstart (Fix Stuck Loading)");
+
+        if (game_type & GAME_FFX)
+        {
+          ImGui::Text   ("Speed Boost");
+          ImGui::Text   ("Toggle Time Stop");
+          ImGui::Text   ("Toggle Freelook");
+          ImGui::Text   ("Toggle Permanent Sensor");
+          ImGui::Text   ("Toggle Full Party AP");
+          ImGui::Text   ("Soft Reset");
+        }
+      ImGui::EndGroup   (  );
+      ImGui::SameLine   (  );
+
+      ImGui::BeginGroup (  );
+        Keybinding        (&keybinds.VSYNC,     unx_VSYNC);
+        Keybinding        (&keybinds.KickStart, unx_kickstart);
+
+        if (game_type & GAME_FFX)
+        {
+          Keybinding      (&keybinds.SpeedStep, unx_speedstep);
+          Keybinding      (&keybinds.TimeStop,  unx_timestop);
+          Keybinding      (&keybinds.FreeLook,  unx_freelook);
+          Keybinding      (&keybinds.Sensor,    unx_sensor);
+          Keybinding      (&keybinds.FullAP,    unx_fullap);
+          Keybinding      (&keybinds.SoftReset, unx_soft_reset);
+        }
+      ImGui::EndGroup   (  );
+      ImGui::TreePop    (  );
+    }
+
+    if (game_type & GAME_FFX)
+    {
+      if (ImGui::CollapsingHeader ("Game Boosters", ImGuiTreeNodeFlags_DefaultOpen))
+      {
+        bool dirty = false;
+
+        ImGui::TreePush ("");
+
+        ImGui::PushStyleColor (ImGuiCol_Header,        ImVec4 (0.90f, 0.68f, 0.02f, 0.45f));
+        ImGui::PushStyleColor (ImGuiCol_HeaderHovered, ImVec4 (0.90f, 0.72f, 0.07f, 0.80f));
+        ImGui::PushStyleColor (ImGuiCol_HeaderActive,  ImVec4 (0.87f, 0.78f, 0.14f, 0.80f));
+
+        if (ImGui::CollapsingHeader ("Speed Boost"))
+        {
+          ImGui::TreePush    ("");
+
+          bool changed = false;
+
+          changed |= ImGui::InputFloat  ("Step Multiplier", &config.cheat.ffx.speed_step,  0, 0, 1);
+          changed |= ImGui::InputFloat  ("Speed Limit",     &config.cheat.ffx.max_speed,   0, 0, 1);
+          changed |= ImGui::InputFloat  ("Dialog Skip At",  &config.cheat.ffx.skip_dialog, 0, 0, 1);
+
+          if (changed)
+          {
+            dirty = true;
+            UNX_UpdateSpeedLimit ();
+          }
+
+          ImGui::TreePop     (  );
+        }
+
+        if (ImGui::CollapsingHeader ("Sensor / Party AP"))
+        {
+          ImGui::TreePush     ("");
+
+          if (ImGui::Checkbox ("Entire Party Earns AP", &config.cheat.ffx.entire_party_earns_ap))
+          {
+            dirty = true;
+            UNX_TogglePartyAP (  );
+            UNX_TogglePartyAP (  );
+          }
+
+          if (ImGui::Checkbox ("Grant Permanent Sensor", &config.cheat.ffx.permanent_sensor))
+          {
+            dirty = true;
+            UNX_ToggleSensor  (  );
+            UNX_ToggleSensor  (  );
+          }
+
+          ImGui::TreePop      (  );
+        }
+
+        if (ImGui::CollapsingHeader ("Misc."))
+        {
+          dirty = true;
+          ImGui::TreePush ("");
+          ImGui::Checkbox ("Seymour As Playble Character", &config.cheat.ffx.playable_seymour);
+          ImGui::TreePop  (  );
+        }
+
+        ImGui::PopStyleColor (3);
+        ImGui::TreePop       ( );
+
+        if (dirty)
+          UNX_SaveConfig ();
+      }
+    }
+
+    ImGui::PopStyleColor (3);
+    ImGui::TreePop       ( );
+  }
+
+  //SK_PlugIn_ControlPanelWidget ();
 }

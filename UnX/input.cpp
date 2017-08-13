@@ -340,6 +340,201 @@ UNX_KickStart (void)
   }
 }
 
+UNX_Keybindings keybinds;
+
+
+#include <unordered_map>
+
+std::unordered_map <std::wstring, BYTE> humanKeyNameToVirtKeyCode;
+std::unordered_map <BYTE, std::wstring> virtKeyCodeToHumanKeyName;
+
+#include <queue>
+
+#define SK_MakeKeyMask(vKey,ctrl,shift,alt) \
+  (UINT)((vKey) | (((ctrl) != 0) <<  9) |   \
+                  (((shift)!= 0) << 10) |   \
+                  (((alt)  != 0) << 11))
+
+void
+SK_Keybind::update (void)
+{
+  human_readable = L"";
+
+  std::wstring key_name = virtKeyCodeToHumanKeyName [(BYTE)(vKey & 0xFF)];
+
+  if (! key_name.length ())
+    return;
+
+  std::queue <std::wstring> words;
+
+  if (ctrl)
+    words.push (L"Ctrl");
+
+  if (alt)
+    words.push (L"Alt");
+
+  if (shift)
+    words.push (L"Shift");
+
+  words.push (key_name);
+
+  while (! words.empty ())
+  {
+    human_readable += words.front ();
+    words.pop ();
+
+    if (! words.empty ())
+      human_readable += L"+";
+  }
+
+  masked_code = SK_MakeKeyMask (vKey & 0xFF, ctrl, shift, alt);
+}
+
+void
+SK_Keybind::parse (void)
+{
+  vKey = 0x00;
+
+  static bool init = false;
+
+  if (! init)
+  {
+    init = true;
+
+    for (int i = 0; i < 0xFF; i++)
+    {
+      wchar_t name [32] = { };
+
+      switch (i)
+      {
+        case VK_F1:     wcscat (name, L"F1");           break;
+        case VK_F2:     wcscat (name, L"F2");           break;
+        case VK_F3:     wcscat (name, L"F3");           break;
+        case VK_F4:     wcscat (name, L"F4");           break;
+        case VK_F5:     wcscat (name, L"F5");           break;
+        case VK_F6:     wcscat (name, L"F6");           break;
+        case VK_F7:     wcscat (name, L"F7");           break;
+        case VK_F8:     wcscat (name, L"F8");           break;
+        case VK_F9:     wcscat (name, L"F9");           break;
+        case VK_F10:    wcscat (name, L"F10");          break;
+        case VK_F11:    wcscat (name, L"F11");          break;
+        case VK_F12:    wcscat (name, L"F12");          break;
+        case VK_F13:    wcscat (name, L"F13");          break;
+        case VK_F14:    wcscat (name, L"F14");          break;
+        case VK_F15:    wcscat (name, L"F15");          break;
+        case VK_F16:    wcscat (name, L"F16");          break;
+        case VK_F17:    wcscat (name, L"F17");          break;
+        case VK_F18:    wcscat (name, L"F18");          break;
+        case VK_F19:    wcscat (name, L"F19");          break;
+        case VK_F20:    wcscat (name, L"F20");          break;
+        case VK_F21:    wcscat (name, L"F21");          break;
+        case VK_F22:    wcscat (name, L"F22");          break;
+        case VK_F23:    wcscat (name, L"F23");          break;
+        case VK_F24:    wcscat (name, L"F24");          break;
+        case VK_PRINT:  wcscat (name, L"Print Screen"); break;
+        case VK_SCROLL: wcscat (name, L"Scroll Lock");  break;
+        case VK_PAUSE:  wcscat (name, L"Pause Break");  break;
+
+        default:
+        {
+          unsigned int scanCode =
+            ( MapVirtualKey (i, 0) & 0xFF );
+
+                        BYTE buf [256] = { };
+          unsigned short int temp      =  0;
+          
+          bool asc = (i <= 32);
+
+          if (! asc && i != VK_DIVIDE)
+             asc = ToAscii ( i, scanCode, buf, &temp, 1 );
+
+          scanCode            <<= 16;
+          scanCode   |= ( 0x1 <<  25  );
+
+          if (! asc)
+            scanCode |= ( 0x1 << 24   );
+    
+          GetKeyNameText ( scanCode,
+                             name,
+                               32 );
+        } break;
+      }
+
+    
+      if ( i != VK_CONTROL  && i != VK_MENU     &&
+           i != VK_SHIFT    && i != VK_OEM_PLUS && i != VK_OEM_MINUS &&
+           i != VK_LSHIFT   && i != VK_RSHIFT   &&
+           i != VK_LCONTROL && i != VK_RCONTROL &&
+           i != VK_LMENU    && i != VK_RMENU )
+      {
+
+        humanKeyNameToVirtKeyCode.emplace (name, (BYTE)i);
+        virtKeyCodeToHumanKeyName.emplace ((BYTE)i, name);
+      }
+    }
+    
+    humanKeyNameToVirtKeyCode.emplace (L"Plus",        (BYTE)VK_OEM_PLUS);
+    humanKeyNameToVirtKeyCode.emplace (L"Minus",       (BYTE)VK_OEM_MINUS);
+    humanKeyNameToVirtKeyCode.emplace (L"Ctrl",        (BYTE)VK_CONTROL);
+    humanKeyNameToVirtKeyCode.emplace (L"Alt",         (BYTE)VK_MENU);
+    humanKeyNameToVirtKeyCode.emplace (L"Shift",       (BYTE)VK_SHIFT);
+    humanKeyNameToVirtKeyCode.emplace (L"Left Shift",  (BYTE)VK_LSHIFT);
+    humanKeyNameToVirtKeyCode.emplace (L"Right Shift", (BYTE)VK_RSHIFT);
+    humanKeyNameToVirtKeyCode.emplace (L"Left Alt",    (BYTE)VK_LMENU);
+    humanKeyNameToVirtKeyCode.emplace (L"Right Alt",   (BYTE)VK_RMENU);
+    humanKeyNameToVirtKeyCode.emplace (L"Left Ctrl",   (BYTE)VK_LCONTROL);
+    humanKeyNameToVirtKeyCode.emplace (L"Right Ctrl",  (BYTE)VK_RCONTROL);
+    
+    virtKeyCodeToHumanKeyName.emplace ((BYTE)VK_CONTROL,   L"Ctrl");
+    virtKeyCodeToHumanKeyName.emplace ((BYTE)VK_MENU,      L"Alt");
+    virtKeyCodeToHumanKeyName.emplace ((BYTE)VK_SHIFT,     L"Shift");
+    virtKeyCodeToHumanKeyName.emplace ((BYTE)VK_OEM_PLUS,  L"Plus");
+    virtKeyCodeToHumanKeyName.emplace ((BYTE)VK_OEM_MINUS, L"Minus");
+    virtKeyCodeToHumanKeyName.emplace ((BYTE)VK_LSHIFT,    L"Left Shift");
+    virtKeyCodeToHumanKeyName.emplace ((BYTE)VK_RSHIFT,    L"Right Shift");
+    virtKeyCodeToHumanKeyName.emplace ((BYTE)VK_LMENU,     L"Left Alt");
+    virtKeyCodeToHumanKeyName.emplace ((BYTE)VK_RMENU,     L"Right Alt");  
+    virtKeyCodeToHumanKeyName.emplace ((BYTE)VK_LCONTROL,  L"Left Ctrl"); 
+    virtKeyCodeToHumanKeyName.emplace ((BYTE)VK_RCONTROL,  L"Right Ctrl");
+
+    init = true;
+  }
+
+  wchar_t wszKeyBind [128] = { };
+
+  lstrcatW (wszKeyBind, human_readable.c_str ());
+
+  wchar_t* wszBuf = nullptr;
+  wchar_t* wszTok = std::wcstok (wszKeyBind, L"+", &wszBuf);
+
+  ctrl  = false;
+  alt   = false;
+  shift = false;
+
+  if (wszTok == nullptr)
+  {
+    vKey = humanKeyNameToVirtKeyCode [wszKeyBind];
+  }
+
+  while (wszTok)
+  {
+    BYTE vKey_ = humanKeyNameToVirtKeyCode [wszTok];
+
+    if (vKey_ == VK_CONTROL)
+      ctrl  = true;
+    else if (vKey_ == VK_SHIFT)
+      shift = true;
+    else if (vKey_ == VK_MENU)
+      alt   = true;
+    else
+      vKey = vKey_;
+
+    wszTok = std::wcstok (nullptr, L"+", &wszBuf);
+  }
+
+  masked_code = SK_MakeKeyMask (vKey & 0xFF, ctrl, shift, alt);
+}
+
 void
 CALLBACK
 SK_UNX_PluginKeyPress ( BOOL Control,
@@ -347,73 +542,100 @@ SK_UNX_PluginKeyPress ( BOOL Control,
                         BOOL Alt,
                         BYTE vkCode )
 {
-  if (Control && Shift) {
-    if (Alt && vkCode == 'K') {
-      UNX_KickStart ();
-    }
+  extern __declspec (dllimport) bool SK_ImGui_Visible;
 
-    else if (vkCode == 'H') {
-      extern void UNX_SpeedStep (); 
-      UNX_SpeedStep ();
-    }
+  // Don't trigger keybindings while we are setting them ;)
+  if (SK_ImGui_Visible)
+    return;
 
-    else if (vkCode == 'P') {
-      extern void UNX_TimeStop (void);
-      UNX_TimeStop ();
-    }
 
-    else if (vkCode == 'U') {
-      extern void UNX_FFX2_UnitTest (void);
-      UNX_FFX2_UnitTest ();
-    }
+  int masked_key =
+    SK_MakeKeyMask (vkCode & 0xFF, Control, Shift, Alt);
 
-    else if (vkCode == 'Q') {
-      extern void UNX_Quickie (void);
-      UNX_Quickie ();
-    }
-
-    else if (vkCode == 'F') {
-      extern void UNX_ToggleFreeLook (void);
-      UNX_ToggleFreeLook ();
-    }
-
-    else if (vkCode == 'S') {
-      extern void UNX_ToggleSensor (void);
-      UNX_ToggleSensor ();
-    }
-
-    else if (vkCode == 'A') {
-      extern void UNX_TogglePartyAP (void);
-      UNX_TogglePartyAP ();
-    }
-
-    else if (vkCode == 'V') {
-      SK_ICommandResult result = 
-        SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval");
-
-      uint32_t dwLen = 4;
-      char szPresent [4];
-
-      result.getVariable ()->getValueString (szPresent, &dwLen);
-
-      if (strcmp (szPresent, "0"))
-        SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval 0");
-      else
-        SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval 1");
-    }
-
-    // FFX Soft Reset
-    else if (vkCode == VK_BACK) {
-      extern bool UNX_KillMeNow (void);
-      UNX_KillMeNow ();
-    }
+  if (masked_key == keybinds.SpeedStep.masked_code)
+  {
+    extern void UNX_SpeedStep (); 
+                UNX_SpeedStep ();
   }
 
-  //SK_PluginKeyPress_Original (Control, Shift, Alt, vkCode);
+  else if (masked_key == keybinds.KickStart.masked_code)
+  {
+    UNX_KickStart ();
+  }
+
+  else if (masked_key == keybinds.TimeStop.masked_code)
+  {
+    extern void UNX_TimeStop (void);
+                UNX_TimeStop ();
+  }
+
+  else if (masked_key == keybinds.FullAP.masked_code)
+  {
+    extern void UNX_TogglePartyAP (void);
+                UNX_TogglePartyAP ();
+  }
+
+  else if (masked_key == keybinds.Sensor.masked_code)
+  {
+    extern void UNX_ToggleSensor (void);
+                UNX_ToggleSensor ();
+  }
+
+  else if (masked_key == keybinds.FreeLook.masked_code)
+  {
+    extern void UNX_ToggleFreeLook (void);
+                UNX_ToggleFreeLook ();
+  }
+
+  // FFX Soft Reset
+  else if (masked_key == keybinds.SoftReset.masked_code)
+  {
+    extern bool UNX_KillMeNow (void);
+                UNX_KillMeNow ();
+  }
+
+  else if (masked_key == keybinds.VSYNC.masked_code)
+  {
+    SK_ICommandResult result = 
+      SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval");
+
+    uint32_t dwLen = 4;
+    char szPresent [4];
+
+    result.getVariable ()->getValueString (szPresent, &dwLen);
+
+    if (strcmp (szPresent, "0"))
+      SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval 0");
+    else
+      SK_GetCommandProcessor ()->ProcessCommandLine ("PresentationInterval 1");
+  }
+
+  //else if (vkCode == 'U') {
+  //  extern void UNX_FFX2_UnitTest (void);
+  //  UNX_FFX2_UnitTest ();
+  //}
+
+  else if (Control && Shift && vkCode == 'Q') {
+    extern void UNX_Quickie (void);
+    UNX_Quickie ();
+  }
+
+  SK_PluginKeyPress_Original (Control, Shift, Alt, vkCode);
 }
 
 typedef const wchar_t* (__stdcall *SK_GetConfigPath_pfn)(void);
 extern SK_GetConfigPath_pfn SK_GetConfigPath;
+
+iSK_INI* pad_cfg = nullptr;
+
+extern unx::ParameterStringW* unx_speedstep;
+extern unx::ParameterStringW* unx_kickstart;
+extern unx::ParameterStringW* unx_timestop;
+extern unx::ParameterStringW* unx_freelook;
+extern unx::ParameterStringW* unx_sensor;
+extern unx::ParameterStringW* unx_fullap;
+extern unx::ParameterStringW* unx_VSYNC;
+extern unx::ParameterStringW* unx_soft_reset;
 
 void
 unx::InputManager::Init (void)
@@ -424,13 +646,43 @@ unx::InputManager::Init (void)
                          "SK_GetGameWindow" );
 
   unx::ParameterFactory factory;
-  iSK_INI* pad_cfg =
+  pad_cfg =
     UNX_CreateINI (
       std::wstring (
         std::wstring (SK_GetConfigPath ()) + L"UnX_Gamepad.ini"
       ).c_str ()
     );
-  pad_cfg->parse ();
+
+  auto LoadKeybind =
+    [&](SK_Keybind* binding, wchar_t* ini_name) ->
+      auto
+      {
+        unx::ParameterStringW* ret =
+         dynamic_cast <unx::ParameterStringW *>
+          (factory.create_parameter <std::wstring> (L"DESCRIPTION HERE"));
+
+        ret->register_to_ini ( pad_cfg, L"UNX.Keybinds", ini_name );
+
+        if (! ret->load (binding->human_readable))
+        {
+          binding->parse ();
+          ret->store     (binding->human_readable);
+        }
+
+        binding->human_readable = ret->get_value ();
+        binding->parse ();
+
+        return ret;
+      };
+
+  unx_speedstep  = LoadKeybind (&keybinds.SpeedStep,       L"CycleSpeedBoost");
+  unx_kickstart  = LoadKeybind (&keybinds.KickStart,       L"KickStart");
+  unx_timestop   = LoadKeybind (&keybinds.TimeStop,        L"ToggleTimeStop");
+  unx_freelook   = LoadKeybind (&keybinds.FreeLook,        L"ToggleFreeLook");
+  unx_sensor     = LoadKeybind (&keybinds.Sensor,          L"TogglePermanentSensor");
+  unx_fullap     = LoadKeybind (&keybinds.FullAP,          L"ToggleFullPartyAP");
+  unx_VSYNC      = LoadKeybind (&keybinds.VSYNC,           L"ToggleVSYNC");
+  unx_soft_reset = LoadKeybind (&keybinds.SoftReset,       L"SoftReset");
 
   unx::ParameterStringW* texture_set =
     (unx::ParameterStringW *)factory.create_parameter <std::wstring> (L"Texture Set");
@@ -763,7 +1015,7 @@ unx::InputManager::Init (void)
   }
 
   pad_cfg->write ((std::wstring (SK_GetConfigPath ()) + L"UnX_Gamepad.ini").c_str ());
-  delete pad_cfg;
+//  delete pad_cfg;
 
   if (config.input.remap_dinput8)
   {
@@ -796,17 +1048,10 @@ unx::InputManager::Init (void)
       GetProcAddress ( GetModuleHandle (config.system.injector.c_str ()),
                          "SK_XInput_PollController" );
 
-#if 0
-  UNX_CreateDLLHook2 ( config.system.injector.c_str (),
-                        "XInputGetState9_1_0_Override",
-                         XInputGetState_Detour,
-              (LPVOID *)&XInputGetState_Original );
-#endif
-
-  UNX_CreateDLLHook2 ( config.system.injector.c_str (),
-                        "SK_ImGui_ToggleEx",
-                         SK_ImGui_ToggleEx_Bypass,
-              (LPVOID *)&SK_ImGui_ToggleEx );
+  //UNX_CreateDLLHook2 ( config.system.injector.c_str (),
+  //                      "SK_ImGui_ToggleEx",
+  //                       SK_ImGui_ToggleEx_Bypass,
+  //            (LPVOID *)&SK_ImGui_ToggleEx );
 
   UNX_CreateDLLHook2 ( config.system.injector.c_str (),
                        "SK_PluginKeyPress",
@@ -1344,36 +1589,21 @@ unx::InputManager::Hooker::MessagePump (LPVOID hook_ptr)
       continue;
     }
 
-    bool full_sleep = true;
+    bool        full_sleep = true;
+    static bool long_press = false;
 
     if (esc.state)
     {
-      static bool long_press = false;
-
-      if (esc.wasJustPressed ())
-      {
-        long_press = false;
-
-        bool ui  = true;
-        bool nav = false;
-
-        SK_ImGui_ToggleEx (ui, nav);
-        ////UNX_SendScancode (0x01);
-      }
-
-      else if ( long_press == false &&
-                esc.time_activated < timeGetTime () - 850 )
-      {
-        long_press = true;
-
-        bool ui  = false;
-        bool nav = true;
-
-        SK_ImGui_ToggleEx (ui, nav);
-      }
+      UNX_SendScancode (0x01);
     }
 
-    else if (speedboost.state) {
+    else if (esc.wasJustReleased ()) {
+      long_press = false;
+      esc.time_activated = MAXDWORD;
+    }
+
+
+    if (speedboost.state) {
       if (speedboost.wasJustPressed ()) {
         extern void UNX_SpeedStep (); 
         UNX_SpeedStep ();

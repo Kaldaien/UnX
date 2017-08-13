@@ -22,7 +22,7 @@
 #define __UNX__INI_H__
 
 #include <string>
-#include <map>
+#include <unordered_map>
 #include <vector>
 
 #include <Unknwnbase.h>
@@ -34,28 +34,16 @@ static const GUID IID_SK_INISection =
 interface iSK_INISection : public IUnknown
 {
 public:
-  iSK_INISection (void) {
-    AddRef ();
-  }
-
-  iSK_INISection (const wchar_t* section_name) {
-    AddRef ();
-  }
-
-  ~iSK_INISection (void) {
-    Release ();
-  }
-
   /*** IUnknown methods ***/
-  STDMETHOD  (       QueryInterface)(THIS_ REFIID riid, void** ppvObj) = 0;
-  STDMETHOD_ (ULONG, AddRef)        (THIS)                             = 0;
-  STDMETHOD_ (ULONG, Release)       (THIS)                             = 0;
+  STDMETHOD  (       QueryInterface)(THIS_ REFIID riid, void** ppvObj);
+  STDMETHOD_ (ULONG, AddRef)        (THIS);
+  STDMETHOD_ (ULONG, Release)       (THIS);
 
-  STDMETHOD_ (std::wstring&, get_value)    (const wchar_t* key)  = 0;
-  STDMETHOD_ (void,          set_name)     (const wchar_t* name) = 0;
-  STDMETHOD_ (bool,          contains_key) (const wchar_t* key)  = 0;
-  STDMETHOD_ (void,          add_key_value)(const wchar_t* key, const wchar_t* value) = 0;
-  STDMETHOD_ (bool,          remove_key)   (const wchar_t* key)  = 0;
+  STDMETHOD_ (std::wstring&, get_value)    (const wchar_t* key);
+  STDMETHOD_ (void,          set_name)     (const wchar_t* name_);
+  STDMETHOD_ (bool,          contains_key) (const wchar_t* key);
+  STDMETHOD_ (void,          add_key_value)(const wchar_t* key, const wchar_t* value);
+  STDMETHOD_ (bool,          remove_key)   (const wchar_t* key);
 };
 
 // {DD2B1E00-6C14-4659-8B45-FCEF1BC2C724}
@@ -64,36 +52,30 @@ static const GUID IID_SK_INI =
 
 interface iSK_INI : public IUnknown
 {
-  typedef const std::map <std::wstring, iSK_INISection> _TSectionMap;
-
-           iSK_INI (const wchar_t* filename) {
-    AddRef ();
-  };
-
-  virtual ~iSK_INI (void) {
-    Release ();
-  }
+  typedef const std::unordered_map <std::wstring, iSK_INISection> _TSectionMap;
 
   /*** IUnknown methods ***/
-  STDMETHOD  (       QueryInterface)(THIS_ REFIID riid, void** ppvObj) = 0;
-  STDMETHOD_ (ULONG, AddRef)        (THIS)                             = 0;
-  STDMETHOD_ (ULONG, Release)       (THIS)                             = 0;
+  STDMETHOD  (       QueryInterface)(THIS_ REFIID riid, void** ppvObj);
+  STDMETHOD_ (ULONG, AddRef)        (THIS);
+  STDMETHOD_ (ULONG, Release)       (THIS);
 
-  STDMETHOD_ (void, parse)  (THIS)                             = 0;
-  STDMETHOD_ (void, import) (THIS_ const wchar_t* import_data) = 0;
-  STDMETHOD_ (void, write)  (THIS_ const wchar_t* fname)       = 0;
+  STDMETHOD_ (void, parse)  (THIS);
+  STDMETHOD_ (void, import) (THIS_ const wchar_t* import_data);
+  STDMETHOD_ (void, write)  (THIS_ const wchar_t* fname);
 
-  STDMETHOD_ (_TSectionMap&,   get_sections)    (THIS)                   = 0;
-  STDMETHOD_ (iSK_INISection&, get_section)     (const wchar_t* section) = 0;
-  STDMETHOD_ (bool,            contains_section)(const wchar_t* section) = 0;
-  STDMETHOD_ (bool,            remove_section)  (const wchar_t* section) = 0;
+  STDMETHOD_ (_TSectionMap&,   get_sections)    (THIS);
+  STDMETHOD_ (iSK_INISection&, get_section)     (const wchar_t* section);
+  STDMETHOD_ (bool,            contains_section)(const wchar_t* section);
+  STDMETHOD_ (bool,            remove_section)  (const wchar_t* section);
 
   STDMETHOD_ (iSK_INISection&, get_section_f)   ( THIS_ _In_z_ _Printf_format_string_
                                                   wchar_t const* const _Format,
-                                                                       ... ) = 0;
+                                                                       ... );
+  STDMETHOD_ (const wchar_t*,  get_filename)    (THIS) const;
 };
 
 iSK_INI*
+__stdcall
 UNX_CreateINI (const wchar_t* const wszName);
 
 #endif

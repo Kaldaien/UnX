@@ -29,13 +29,9 @@
 
 extern wchar_t* UNX_GetExecutableName (void);
 
-void UNX_SetSensor (bool state);
+unx_gametype_t game_type = GAME_INVALID;
 
-enum unx_gametype_t {
-  GAME_INVALID = 0x0,
-  GAME_FFX     = 0x01,
-  GAME_FFX2    = 0x02
-} game_type = GAME_INVALID;
+void UNX_SetSensor (bool state);
 
 
 struct unx_ffx2_memory_s {
@@ -445,6 +441,17 @@ UNX_SpeedStep (void)
   }
 }
 
+void
+UNX_UpdateSpeedLimit (void)
+{
+  float step = config.cheat.ffx.speed_step;
+  config.cheat.ffx.speed_step = 1.0f;
+
+  UNX_SpeedStep ();
+
+  config.cheat.ffx.speed_step = step;
+}
+
 float
 __cdecl
 UNX_FFX_GameTick (float x)
@@ -461,7 +468,23 @@ UNX_FFX_GameTick (float x)
 
   last_tick = tick;
 
-  return UNX_FFX_GameTick_Original (tick);
+  float ret = last_tick;
+
+  static float last_ret = 0.0f;
+
+  __try
+  {
+    __try                                { ret = UNX_FFX_GameTick_Original (tick); }
+    __except (EXCEPTION_CONTINUE_SEARCH) {                                         }
+
+    last_ret = ret;
+  }
+
+  __except (EXCEPTION_EXECUTE_HANDLER)
+  {
+  }
+
+  return last_ret;
 }
 
 LPVOID FFX_LoadLevel_Original = nullptr;
@@ -567,6 +590,14 @@ unx::CheatManager::Shutdown (void)
 }
 
 #include "log.h"
+
+void
+UNX_SetPartyAP (bool state)
+{
+  last_changed.party_ap = timeGetTime ();
+
+  config.cheat.ffx.entire_party_earns_ap = state;
+}
 
 void
 UNX_TogglePartyAP (void)
@@ -693,46 +724,37 @@ UNX_KillMeNow (void)
   {
     case GAME_FFX:
     {
-      if (UNX_IsInBattle ()) {
-        uint8_t* inst = (uint8_t*)((intptr_t)__UNX_base_img_addr + 0x392930);
-
-        static const uint8_t die  [] = { 0xEB, 0x1D, 0 };
-              static uint8_t live [] = { 0x75, 0x1D, 0 };
-
-        static volatile LONG first = TRUE;
-
-        if (InterlockedCompareExchange (&first, FALSE, TRUE)) {
-          // Backup the original instructions
-          memcpy (live, inst, 2);
-        }
-
+      if (UNX_IsInBattle ())
+      {
         for (int i = 0; i < 8; i++) {
           ffx.party [i].vitals.current.HP = 0UL;
         }
 
-        std::queue <DWORD> suspended_tids =
-          UNX_SuspendAllOtherThreads ();
-        {
-          SK_GetCommandProcessor ()->ProcessCommandFormatted ("mem t 392930 %s", (const char *)die);
-        }
-        UNX_ResumeThreads (suspended_tids);
+        // Kill
+        SK_GetCommandProcessor ()->ProcessCommandLine ("mem s 392930 1deb");
 
-        Sleep (133);
+        // Spawn thread to restore original instructions
+        CreateThread (nullptr, 0,
+          [](LPVOID user) ->
+            DWORD
+              {
+                Sleep (5000UL);
 
-        suspended_tids =
-          UNX_SuspendAllOtherThreads ();
-        {
-          SK_GetCommandProcessor ()->ProcessCommandFormatted ("mem t 392930 %s", (const char *)live);
-        }
-        UNX_ResumeThreads (suspended_tids);
+                SK_GetCommandProcessor ()->ProcessCommandLine ("mem s 392930 1d7e");
+
+                CloseHandle (GetCurrentThread ());
+
+                return 0;
+              },
+            nullptr,
+          0x00,
+        nullptr );
 
         return true;
       }
 
       extern volatile ULONG queue_death;
       InterlockedExchange (&queue_death, TRUE);
-
-      Sleep (33);
     } break;
 
     case GAME_FFX2:

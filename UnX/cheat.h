@@ -19,6 +19,15 @@
  *
 **/
 
+#ifndef __UNX__CHEAT_H__
+#define __UNX__CHEAT_H__
+
+enum unx_gametype_t {
+  GAME_INVALID = 0x0,
+  GAME_FFX     = 0x01,
+  GAME_FFX2    = 0x02
+} extern game_type;
+
 namespace unx
 {
   namespace CheatManager {
@@ -34,3 +43,9 @@ namespace unx
     CHEAT_TIMER_FFX2 = 0x68994
   };
 }
+
+extern void UNX_TogglePartyAP    (void);
+extern void UNX_ToggleSensor     (void);
+extern void UNX_UpdateSpeedLimit (void);
+
+#endif /* __UNX__CHEAT_H__ */

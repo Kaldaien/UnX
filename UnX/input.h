@@ -23,6 +23,47 @@
 
 #include "command.h"
 
+
+struct SK_Keybind
+{
+  const char*  bind_name;
+  std::wstring human_readable;
+
+  struct {
+    BOOL ctrl,
+         shift,
+         alt;
+  };
+
+  SHORT vKey;
+
+  UINT  masked_code; // For fast comparison
+
+  void parse  (void);
+  void update (void);
+};
+
+struct UNX_Keybindings
+{
+  SK_Keybind SpeedStep { "Speed Boost",                   L"Ctrl+Shift+H",
+                         true, true, false,  'H' };
+  SK_Keybind KickStart { "Kickstart (fix stuck loading)", L"Ctrl+Alt+Shift+K",
+                         true, true, true,   'K' };
+  SK_Keybind TimeStop  { "TimeStop",                      L"Ctrl+Shift+P",
+                          true, true, false, 'P' };
+  SK_Keybind FreeLook  { "FreeLook",                      L"Ctrl+Shift+F",
+                          true, true, false, 'F' };
+  SK_Keybind Sensor    { "Permanent Sensor",              L"Ctrl+Shift+S",
+                          true, true, false, 'S' };
+  SK_Keybind FullAP    { "Full Party Earns AP",           L"Ctrl+Shift+A",
+                          true, true, false, 'A' };
+  SK_Keybind VSYNC     { "VSYNC",                         L"Ctrl+Shift+V",
+                         true, true, false,  'V' };
+  SK_Keybind SoftReset { "Soft Reset (FFX)",              L"Ctrl+Shift+Delete",
+                         true, true, false,   VK_DELETE };
+} extern keybinds;
+
+
 namespace unx
 {
   namespace InputManager

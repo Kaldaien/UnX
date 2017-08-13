@@ -138,7 +138,9 @@ unx::TimingFix::Init (void)
   UNX_EnableHook ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x27A010));
 #endif
 
-  if (config.stutter.reduce) {
+#if 0
+  if (config.stutter.reduce)
+  {
     //SK_GetCommandProcessor ()->ProcessCommandFormatted ("MaxDeltaTime 0");
 
     UNX_CreateDLLHook2 ( config.system.injector.c_str (),
@@ -153,6 +155,7 @@ unx::TimingFix::Init (void)
 
     UNX_ApplyQueuedHooks ();
   }
+#endif
 }
 
 void

@@ -29,12 +29,6 @@
 extern void*
 UNX_Scan (const uint8_t* pattern, size_t len, const uint8_t* mask);
 
-enum asset_type_t {
-  Voice,
-  SoundEffect,
-  Video
-};
-
 void
 UNX_PatchLanguageRef (asset_type_t type, int idx, const char* jp, const char* us)
 {
@@ -93,212 +87,264 @@ UNX_PatchLanguageRef (asset_type_t type, int idx, const char* jp, const char* us
   }
 }
 
+#include <queue>
+
+extern
+std::queue <DWORD>
+UNX_SuspendAllOtherThreads (void);
+
+extern
+void
+UNX_ResumeThreads (std::queue <DWORD> threads);
+
 bool
-UNX_PatchLanguageFFX (void)
+UNX_PatchLanguageFFX (asset_type_t type)
 {
-  UNX_PatchLanguageRef ( Voice,
-                           0,
-                             "Voice/JP/ffx_jp_voice_btl.fev",
-                             "Voice/US/ffx_us_voice_btl.fev" );
+  std::queue <DWORD> suspended_tids =
+    UNX_SuspendAllOtherThreads ();
 
-  UNX_PatchLanguageRef ( Voice,
-                           1,
-                             "Voice/JP/VoiceFevMapper.txt",
-                             "Voice/US/VoiceFevMapper.txt" );
+  if (type & Voice)
+  {
+    UNX_PatchLanguageRef ( Voice,
+                             0,
+                               "Voice/JP/ffx_jp_voice_btl.fev",
+                               "Voice/US/ffx_us_voice_btl.fev" );
 
-  UNX_PatchLanguageRef ( Voice,
-                           2,
-                             "Voice/JP/ffx_jp_voice_btl_iop_bank00.fsb",
-                             "Voice/US/ffx_us_voice_btl_iop_bank00.fsb" );
-
-  UNX_PatchLanguageRef ( Voice,
-                           3,
-                             "Voice/JP/",
-                             "Voice/US/" );
-
-  UNX_PatchLanguageRef ( Voice,
-                           4,
-                             "ffx_jp_voice01",
-                             "ffx_us_voice01" );
-
-  UNX_PatchLanguageRef ( Voice,
-                           5,
-                             "ffx_jp_voice270",
-                             "ffx_us_voice270" );
-
-  UNX_PatchLanguageRef ( SoundEffect,
-                           0,
-                             "SFX/JP/%04d.fev",
-                             "SFX/US/%04d.fev" );
-
-  UNX_PatchLanguageRef ( SoundEffect,
-                           1,
-                             "SFX/JP/9999.fev",
-                             "SFX/US/9999.fev" );
-
-  UNX_PatchLanguageRef ( Video,
-                           0,
-                             "JP/FFX_VideoList.txt",
-                             "US/FFX_VideoList.txt" );
-
-  if (config.language.video == L"us") {
-    UNX_PatchLanguageRef ( Video,
+    UNX_PatchLanguageRef ( Voice,
                              1,
-                               "Asia/FFX_VideoList.txt",
-                               "US/FFX_VideoList.txt" );
+                               "Voice/JP/VoiceFevMapper.txt",
+                               "Voice/US/VoiceFevMapper.txt" );
+
+    UNX_PatchLanguageRef ( Voice,
+                             2,
+                               "Voice/JP/ffx_jp_voice_btl_iop_bank00.fsb",
+                               "Voice/US/ffx_us_voice_btl_iop_bank00.fsb" );
+
+    UNX_PatchLanguageRef ( Voice,
+                             3,
+                               "Voice/JP/",
+                               "Voice/US/" );
+
+    UNX_PatchLanguageRef ( Voice,
+                             4,
+                               "ffx_jp_voice01",
+                               "ffx_us_voice01" );
+
+    UNX_PatchLanguageRef ( Voice,
+                             5,
+                               "ffx_jp_voice270",
+                               "ffx_us_voice270" );
   }
 
-  if (config.language.video == L"jp") {
-    UNX_PatchLanguageRef ( Video,
-                             2,
-                               "/MetaMenu/GameData/PS3Data/Video/JP/timestamp_JP.txt",
-                               "/MetaMenu/GameData/PS3Data/Video/US/timestamp_%s.txt" );
+  if (type & SoundEffect)
+  {
+    UNX_PatchLanguageRef ( SoundEffect,
+                             0,
+                               "SFX/JP/%04d.fev",
+                               "SFX/US/%04d.fev" );
+
+    UNX_PatchLanguageRef ( SoundEffect,
+                             1,
+                               "SFX/JP/9999.fev",
+                               "SFX/US/9999.fev" );
   }
+
+  if (type & Video)
+  {
+    UNX_PatchLanguageRef ( Video,
+                             0,
+                               "JP/FFX_VideoList.txt",
+                               "US/FFX_VideoList.txt" );
+
+    if (config.language.video == L"us") {
+      UNX_PatchLanguageRef ( Video,
+                               1,
+                                 "Asia/FFX_VideoList.txt",
+                                 "US/FFX_VideoList.txt" );
+    }
+
+    if (config.language.video == L"jp") {
+      UNX_PatchLanguageRef ( Video,
+                               2,
+                                 "/MetaMenu/GameData/PS3Data/Video/JP/timestamp_JP.txt",
+                                 "/MetaMenu/GameData/PS3Data/Video/US/timestamp_%s.txt" );
+    }
+  }
+
+  UNX_ResumeThreads (suspended_tids);
 
   return true;
 }
 
 bool
-UNX_PatchLanguageFFX2 (void)
+UNX_PatchLanguageFFX2 (asset_type_t type)
 {
-  UNX_PatchLanguageRef ( Voice,
-                           0,
-                             "Voice/JP/ffx2_jp_voice_btl.fev",
-                             "Voice/US/ffx2_us_voice_btl.fev" );
+  std::queue <DWORD> suspended_tids =
+    UNX_SuspendAllOtherThreads ();
 
-  UNX_PatchLanguageRef ( Voice,
-                           1,
-                             "Voice/JP/VoiceFevMapper.txt",
-                             "Voice/US/VoiceFevMapper.txt" );
+  if (type & Voice)
+  {
+    UNX_PatchLanguageRef ( Voice,
+                             0,
+                               "Voice/JP/ffx2_jp_voice_btl.fev",
+                               "Voice/US/ffx2_us_voice_btl.fev" );
 
-  UNX_PatchLanguageRef ( Voice,
-                           2,
-                             "Voice/JP/ffx2_jp_voice_btl_iop_bank00.fsb",
-                             "Voice/US/ffx2_us_voice_btl_iop_bank00.fsb" );
-
-  UNX_PatchLanguageRef ( Voice,
-                           3,
-                             "Voice/JP/",
-                             "Voice/US/" );
-
-  UNX_PatchLanguageRef ( Voice,
-                           4,
-                             "ffx2_jp_voice00_2",
-                             "ffx2_us_voice00_2" );
-
-  UNX_PatchLanguageRef ( Voice,
-                           5,
-                             "ffx2_jp_voice02_2",
-                             "ffx2_us_voice02_2" );
-
-  UNX_PatchLanguageRef ( Voice,
-                           6,
-                             "ffx2_jp_voice03_2",
-                             "ffx2_us_voice03_2" );
-
-  UNX_PatchLanguageRef ( Voice,
-                           7,
-                             "ffx2_jp_voice04_2",
-                             "ffx2_us_voice04_2" );
-
-  UNX_PatchLanguageRef ( Voice,
-                           8,
-                             "ffx2_jp_voice06_1",
-                             "ffx2_us_voice06_1" );
-
-  UNX_PatchLanguageRef ( SoundEffect,
-                           0,
-                             "SFX/JP/%04d.fev",
-                             "SFX/US/%04d.fev" );
-
-  UNX_PatchLanguageRef ( Video,
-                           0,
-                             "JP/FFX_VideoList.txt",
-                             "US/FFX_VideoList.txt" );
-
-  if (config.language.video == L"us") {
-    UNX_PatchLanguageRef ( Video,
+    UNX_PatchLanguageRef ( Voice,
                              1,
-                               "Asia/FFX_VideoList.txt",
-                               "US/FFX_VideoList.txt" );
+                               "Voice/JP/VoiceFevMapper.txt",
+                               "Voice/US/VoiceFevMapper.txt" );
+
+    UNX_PatchLanguageRef ( Voice,
+                             2,
+                               "Voice/JP/ffx2_jp_voice_btl_iop_bank00.fsb",
+                               "Voice/US/ffx2_us_voice_btl_iop_bank00.fsb" );
+
+    UNX_PatchLanguageRef ( Voice,
+                             3,
+                               "Voice/JP/",
+                               "Voice/US/" );
+
+    UNX_PatchLanguageRef ( Voice,
+                             4,
+                               "ffx2_jp_voice00_2",
+                               "ffx2_us_voice00_2" );
+
+    UNX_PatchLanguageRef ( Voice,
+                             5,
+                               "ffx2_jp_voice02_2",
+                               "ffx2_us_voice02_2" );
+
+    UNX_PatchLanguageRef ( Voice,
+                             6,
+                               "ffx2_jp_voice03_2",
+                               "ffx2_us_voice03_2" );
+
+    UNX_PatchLanguageRef ( Voice,
+                             7,
+                               "ffx2_jp_voice04_2",
+                               "ffx2_us_voice04_2" );
+
+    UNX_PatchLanguageRef ( Voice,
+                             8,
+                               "ffx2_jp_voice06_1",
+                               "ffx2_us_voice06_1" );
   }
 
-  if (config.language.video == L"jp") {
-    UNX_PatchLanguageRef ( Video,
-                             2,
-                               "/MetaMenu/GameData/PSVitaData/Video/JP/timestamp_JP.txt",
-                               "/MetaMenu/GameData/PSVitaData/Video/US/timestamp_%s.txt" );
+  if (type & SoundEffect)
+  {
+    UNX_PatchLanguageRef ( SoundEffect,
+                             0,
+                               "SFX/JP/%04d.fev",
+                               "SFX/US/%04d.fev" );
   }
+
+  if (type & Video)
+  {
+    UNX_PatchLanguageRef ( Video,
+                             0,
+                               "JP/FFX_VideoList.txt",
+                               "US/FFX_VideoList.txt" );
+
+    if (config.language.video == L"us") {
+      UNX_PatchLanguageRef ( Video,
+                               1,
+                                 "Asia/FFX_VideoList.txt",
+                                 "US/FFX_VideoList.txt" );
+    }
+
+    if (config.language.video == L"jp") {
+      UNX_PatchLanguageRef ( Video,
+                               2,
+                                 "/MetaMenu/GameData/PSVitaData/Video/JP/timestamp_JP.txt",
+                                 "/MetaMenu/GameData/PSVitaData/Video/US/timestamp_%s.txt" );
+    }
+  }
+
+  UNX_ResumeThreads (suspended_tids);
 
   return true;
 }
 
 bool
-UNX_PatchLanguageFFX_Will (void)
+UNX_PatchLanguageFFX_Will (asset_type_t type)
 {
-  UNX_PatchLanguageRef ( Voice,
-                           0,
-                             "Voice/JP/ffx_jp_voice_btl.fev",
-                             "Voice/US/ffx_us_voice_btl.fev" );
+  std::queue <DWORD> suspended_tids =
+    UNX_SuspendAllOtherThreads ();
 
-  UNX_PatchLanguageRef ( Voice,
-                           1,
-                             "Voice/JP/VoiceFevMapper.txt",
-                             "Voice/US/VoiceFevMapper.txt" );
+  if (type & Voice)
+  {
+    UNX_PatchLanguageRef ( Voice,
+                             0,
+                               "Voice/JP/ffx_jp_voice_btl.fev",
+                               "Voice/US/ffx_us_voice_btl.fev" );
 
-  UNX_PatchLanguageRef ( Voice,
-                           2,
-                             "Voice/JP/ffx_jp_voice_btl_iop_bank00.fsb",
-                             "Voice/US/ffx_us_voice_btl_iop_bank00.fsb" );
+    UNX_PatchLanguageRef ( Voice,
+                             1,
+                               "Voice/JP/VoiceFevMapper.txt",
+                               "Voice/US/VoiceFevMapper.txt" );
 
-  UNX_PatchLanguageRef ( Voice,
-                           3,
-                             "Voice/JP/",
-                             "Voice/US/" );
+    UNX_PatchLanguageRef ( Voice,
+                             2,
+                               "Voice/JP/ffx_jp_voice_btl_iop_bank00.fsb",
+                               "Voice/US/ffx_us_voice_btl_iop_bank00.fsb" );
 
-  UNX_PatchLanguageRef ( Voice,
-                           4,
-                             "ffx_jp_voice01",
-                             "ffx_us_voice01" );
+    UNX_PatchLanguageRef ( Voice,
+                             3,
+                               "Voice/JP/",
+                               "Voice/US/" );
 
-  UNX_PatchLanguageRef ( Voice,
-                           5,
-                             "ffx_jp_voice270",
-                             "ffx_us_voice270" );
+    UNX_PatchLanguageRef ( Voice,
+                             4,
+                               "ffx_jp_voice01",
+                               "ffx_us_voice01" );
 
-  UNX_PatchLanguageRef ( SoundEffect,
-                           0,
-                             "SFX/JP/%04d.fev",
-                             "SFX/US/%04d.fev" );
+    UNX_PatchLanguageRef ( Voice,
+                             5,
+                               "ffx_jp_voice270",
+                               "ffx_us_voice270" );
+  }
 
-  UNX_PatchLanguageRef ( SoundEffect,
-                           1,
-                             "SFX/JP/9999.fev",
-                             "SFX/US/9999.fev" );
+  if (type & SoundEffect)
+  {
+    UNX_PatchLanguageRef (SoundEffect,
+                             0,
+                               "SFX/JP/%04d.fev",
+                               "SFX/US/%04d.fev" );
 
-  UNX_PatchLanguageRef ( Video,
-                           0,
-                             "JP/FFX_VideoList.txt",
-                             "US/FFX_VideoList.txt" );
+    UNX_PatchLanguageRef ( SoundEffect,
+                             1,
+                               "SFX/JP/9999.fev",
+                               "SFX/US/9999.fev" );
+  }
 
-  if (config.language.video == L"us") {
+  if (type & Video)
+  {
+    UNX_PatchLanguageRef ( Video,
+                             0,
+                               "JP/FFX_VideoList.txt",
+                               "US/FFX_VideoList.txt" );
+
+    if (config.language.video == L"us") {
+      UNX_PatchLanguageRef ( Video,
+                               1,
+                                 "Asia/FFX_VideoList.txt",
+                                 "US/FFX_VideoList.txt" );
+    }
+
     UNX_PatchLanguageRef ( Video,
                              1,
-                               "Asia/FFX_VideoList.txt",
-                               "US/FFX_VideoList.txt" );
+                               "/MetaMenu/GameData/PS3Data/Video/JP/SideStory.webm",
+                               "/MetaMenu/GameData/PS3Data/Video/US/SideStory.webm" );
+
+    if (config.language.video == L"jp") {
+      UNX_PatchLanguageRef ( Video,
+                               2,
+                                 "/MetaMenu/GameData/PS3Data/Video/JP/timestamp_JP.txt",
+                                 "/MetaMenu/GameData/PS3Data/Video/US/timestamp_%s.txt" );
+    }
   }
 
-  UNX_PatchLanguageRef ( Video,
-                           1,
-                             "/MetaMenu/GameData/PS3Data/Video/JP/SideStory.webm",
-                             "/MetaMenu/GameData/PS3Data/Video/US/SideStory.webm" );
-
-  if (config.language.video == L"jp") {
-    UNX_PatchLanguageRef ( Video,
-                             2,
-                               "/MetaMenu/GameData/PS3Data/Video/JP/timestamp_JP.txt",
-                               "/MetaMenu/GameData/PS3Data/Video/US/timestamp_%s.txt" );
-  }
+  UNX_ResumeThreads (suspended_tids);
 
   return true;
 }
@@ -326,35 +372,34 @@ UNX_GetExecutableName (void)
   return pwszExec;
 }
 
-//typedef __cdecl
-bool
-UNX_PatchLanguage (void)
-{
-  wchar_t* pwszShortName = UNX_GetExecutableName ();
-
-  if (! lstrcmpiW (pwszShortName, L"ffx.exe")) {
-    return UNX_PatchLanguageFFX ();
-  }
-
-  else if (! lstrcmpiW (pwszShortName, L"ffx-2.exe"))
-    return UNX_PatchLanguageFFX2 ();
-
-  else if (! lstrcmpiW (pwszShortName, L"FFX&X-2_Will.exe"))
-    return UNX_PatchLanguageFFX_Will ();
-
-  return true;
-}
-
 void
 unx::LanguageManager::Init (void)
 {
-  UNX_PatchLanguage ();
+  ApplyPatch (Any);
 }
 
 void
 unx::LanguageManager::Shutdown (void)
 {
   return;
+}
+
+bool
+unx::LanguageManager::ApplyPatch (asset_type_t type)
+{
+  wchar_t* pwszShortName = UNX_GetExecutableName ();
+
+  if (! lstrcmpiW (pwszShortName, L"ffx.exe")) {
+    return UNX_PatchLanguageFFX (type);
+  }
+
+  else if (! lstrcmpiW (pwszShortName, L"ffx-2.exe"))
+    return UNX_PatchLanguageFFX2 (type);
+
+  else if (! lstrcmpiW (pwszShortName, L"FFX&X-2_Will.exe"))
+    return UNX_PatchLanguageFFX_Will (type);
+
+  return true;  
 }
 
 

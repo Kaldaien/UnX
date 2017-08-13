@@ -27,44 +27,19 @@
 #include "log.h"
 #include "hook.h"
 
-#include "sound.h"
 #include "cheat.h"
 
 #include <dxgi.h>
 #include <d3d11.h>
 
-typedef HRESULT (WINAPI *DXGISwap_ResizeBuffers_pfn)(
-   IDXGISwapChain *This,
-   UINT            BufferCount,
-   UINT            Width,
-   UINT            Height,
-   DXGI_FORMAT     NewFormat,
-   UINT            SwapChainFlags
-);
-DXGISwap_ResizeBuffers_pfn DXGISwap_ResizeBuffers_Original = nullptr;
-
-typedef HRESULT (WINAPI *DXGISwap_ResizeTarget_pfn)(
-   IDXGISwapChain *This,
-   DXGI_MODE_DESC *desc
-);
-DXGISwap_ResizeTarget_pfn DXGISwap_ResizeTarget_Original = nullptr;
-
 typedef HWND (WINAPI *SK_GetGameWindow_pfn)(void);
 extern SK_GetGameWindow_pfn SK_GetGameWindow;
-
-IDXGISwapChain* pGameSwapChain = nullptr;
 
 extern BOOL
 APIENTRY
 DllMain (HMODULE hModule,
          DWORD   ul_reason_for_call,
          LPVOID  /* lpReserved */);
-
-enum unx_fullscreen_op_t {
-  Fullscreen,
-  Window,
-  Restore
-};
 
 #include <atlbase.h>
 
@@ -96,112 +71,6 @@ UNX_IsWindowThread (void)
 
   return false;
 }
-
-DWORD
-WINAPI
-UNX_ToggleFullscreenThread (LPVOID user)
-{
-  BOOL                  fullscreen = FALSE;
-  CComPtr <IDXGIOutput> pOutput    = nullptr;
-
-  if (SUCCEEDED (pGameSwapChain->GetFullscreenState (&fullscreen, &pOutput))) {
-    if (fullscreen) {
-      DXGI_SWAP_CHAIN_DESC swap_desc;
-      pGameSwapChain->GetDesc (&swap_desc);
-
-      DXGI_MODE_DESC mode = swap_desc.BufferDesc;
-      swap_desc.BufferDesc.Format = DXGI_FORMAT_UNKNOWN;
-      swap_desc.BufferUsage       = DXGI_USAGE_DISCARD_ON_PRESENT;
-      swap_desc.Flags             = 0x02;
-
-      pGameSwapChain->ResizeTarget       (&mode);
-      pGameSwapChain->SetFullscreenState (FALSE, nullptr);
-    } else {
-      DXGI_SWAP_CHAIN_DESC swap_desc;
-      pGameSwapChain->GetDesc (&swap_desc);
-
-      DXGI_MODE_DESC mode = swap_desc.BufferDesc;
-      swap_desc.BufferDesc.Format = DXGI_FORMAT_UNKNOWN;
-      swap_desc.BufferUsage       = DXGI_USAGE_DISCARD_ON_PRESENT;
-      swap_desc.Flags             = 0x02;
-
-      pGameSwapChain->ResizeTarget       (&mode);
-      pGameSwapChain->SetFullscreenState (TRUE, pOutput);
-
-      pOutput.Release ();
-
-      mode.RefreshRate.Denominator = 0;
-      mode.RefreshRate.Numerator   = 0;
-
-      pGameSwapChain->ResizeTarget  (&mode);
-
-      //pGameSwapChain->ResizeBuffers (0, 0, 0, DXGI_FORMAT_UNKNOWN,
-                                     //DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
-    }
-  }
-
-  return 0;
-}
-
-void
-UNX_ToggleFullscreen (void)
-{
-  // Mod is not yet fully initialized...
-  if (! pGameSwapChain)
-    return;
-
-  if ( UNX_IsWindowThread () ||
-       UNX_IsRenderThread () ) {
-    // It is not safe to issue DXGI commands from the thread that drives
-    //   the Windows message pump... so spawn a separate thread to do this.
-    CreateThread (nullptr, 0, UNX_ToggleFullscreenThread, nullptr, 0, nullptr);
-  } else {
-    UNX_ToggleFullscreenThread (nullptr);
-  }
-}
-
-
-void UNX_SetFullscreenState (unx_fullscreen_op_t op);
-
-void
-UNX_SetFullscreenState (unx_fullscreen_op_t op)
-{
-  static BOOL last_fullscreen = FALSE;
-
-  // Mod is not yet fully initialized...
-  if (pGameSwapChain == nullptr)
-    return;
-
-  BOOL fs;
-  pGameSwapChain->GetFullscreenState (&fs, nullptr);
-
-  if (op == Fullscreen) {
-    if (fs != TRUE) {
-      dll_log->Log (L"[Fullscreen] Transition: Window -> Full");
-
-      last_fullscreen = fs;
-
-      UNX_ToggleFullscreen ();
-    }
-  } else {
-    if (op == Restore) {
-      dll_log->Log (L"[Fullscreen] Operation: *Restore");
-      UNX_SetFullscreenState (last_fullscreen ? Fullscreen : Window);
-      last_fullscreen = fs;
-    }
-
-    if (op == Window) {
-      if (fs == TRUE) {
-        dll_log->Log (L"[Fullscreen] Transition: Full -> Window");
-
-        last_fullscreen = fs;
-
-        UNX_ToggleFullscreen ();
-      }
-    }
-  }
-}
-
 
 unx::window_state_s unx::window;
 
@@ -305,26 +174,10 @@ DetourWindowProc ( _In_  HWND   hWnd,
     }
   }
 
-  // This state is persistent and we do not want Alt+F4 to remember
-  //   a muted state.
   if (  uMsg == WM_DESTROY    || uMsg == WM_QUIT ||
-      (config.input.fast_exit && uMsg == WM_CLOSE)  ) {
+      (config.input.fast_exit && uMsg == WM_CLOSE)  )
+  {
     shutting_down = true;
-
-    UNX_SetGameMute (FALSE);
-
-    // Don't change the active window when shutting down
-    //if (SetForegroundWindow (SK_GetGameWindow ())) {
-
-      // The game would deadlock and never shutdown if we tried to Alt+F4 in
-      //   fullscreen mode... oh the quirks of D3D :(
-      if (pGameSwapChain != nullptr && config.display.enable_fullscreen) {
-        UNX_SetFullscreenState (Window);
-        // Give some wait time before proceeding with shutdown so that
-        //   the DLL properly finishes its shutdown procedure.
-        Sleep (250);
-      }
-    //}
 
     // Don't trigger the code below that handles window deactivation
     //   in fullscreen mode
@@ -347,7 +200,8 @@ DetourWindowProc ( _In_  HWND   hWnd,
   {
     bool deactivate = ! (unx::window.active);
 
-    if (uMsg == WM_ACTIVATEAPP) {
+    if (uMsg == WM_ACTIVATEAPP)
+    {
       deactivate = wParam == 0;
       unx::window.active = ! deactivate;
     }
@@ -357,26 +211,16 @@ DetourWindowProc ( _In_  HWND   hWnd,
     dll_log->Log ( L"[Window Mgr] Activation: %s",
                      unx::window.active ? L"ACTIVE" :
                                           L"INACTIVE" );
-
-    //
-    // Allow Alt+Tab to work
-    //
-    if (pGameSwapChain != nullptr && config.display.enable_fullscreen) {
-      if (! deactivate) {
-        UNX_SetFullscreenState (Restore);
-      } else {
-        UNX_SetFullscreenState (Window);
-      }
-    }
   }
 
-  if (config.input.trap_alt_tab) {
-    if ( uMsg == WM_NCACTIVATE ) {
+  if (config.input.trap_alt_tab)
+  {
+    if ( uMsg == WM_NCACTIVATE )
       return 0;
-    }
   }
 
-  if (uMsg == WM_TIMER) {
+  if (uMsg == WM_TIMER)
+  {
     if (wParam == unx::CHEAT_TIMER_FFX)
       unx::CheatTimer_FFX ();
     else if (wParam == unx::CHEAT_TIMER_FFX2)
@@ -386,9 +230,11 @@ DetourWindowProc ( _In_  HWND   hWnd,
 
 
 
-  if (config.input.fix_bg_input) {
+  if (config.input.fix_bg_input)
+  {
     // Block keyboard input to the game while the console is visible
-    if (! (unx::window.active)/* || background_render*/) {
+    if (! (unx::window.active)/* || background_render*/)
+    {
       if (uMsg >= WM_KEYFIRST && uMsg <= WM_KEYLAST)
         return DefWindowProc (hWnd, uMsg, wParam, lParam);
 
@@ -400,16 +246,10 @@ DetourWindowProc ( _In_  HWND   hWnd,
 
 
   // Block the menu key from messing with stuff*
-  if ((uMsg == WM_SYSKEYDOWN || uMsg == WM_SYSKEYUP)) {
-    // Alt + Enter (Fullscreen toggle)
-    if (uMsg == WM_SYSKEYDOWN && wParam == VK_RETURN) {
-      if (pGameSwapChain && config.display.enable_fullscreen) {
-        UNX_ToggleFullscreen ();
-        return DefWindowProc (hWnd, uMsg, wParam, lParam);
-      }
-    }
-
-    if (wParam != VK_TAB || (! config.input.trap_alt_tab)) {
+  if ((uMsg == WM_SYSKEYDOWN || uMsg == WM_SYSKEYUP))
+  {
+    if (wParam != VK_TAB || (! config.input.trap_alt_tab))
+    {
       // Actually, just block Alt+F4
       if (config.input.fast_exit && wParam == VK_F4)
         return DefWindowProc (hWnd, uMsg, wParam, lParam);
@@ -417,99 +257,6 @@ DetourWindowProc ( _In_  HWND   hWnd,
   }
 
   return DetourWindowProc_Original (hWnd, uMsg, wParam, lParam);
-}
-
-DWORD
-WINAPI
-UNX_MWA_Thread (LPVOID pUser)
-{
-  return 0;
-
-  DXGI_SWAP_CHAIN_DESC desc;
-
-  if (config.display.enable_fullscreen) {
-    BOOL fullscreen = FALSE;
-
-    if (pGameSwapChain) {
-      if ( SUCCEEDED ( pGameSwapChain->GetFullscreenState (
-                            &fullscreen,
-                              nullptr                     )
-                     )
-         )
-      {
-      }
-    }
-  }
-
-  if (pGameSwapChain != nullptr) {
-    if (SUCCEEDED (pGameSwapChain->GetDesc (&desc))) {
-      //
-      // Allow Alt+Enter
-      //
-
-      CComPtr <ID3D11Device> pDev;
-      CComPtr <IDXGIDevice>  pDevDXGI;
-      CComPtr <IDXGIAdapter> pAdapter;
-      CComPtr <IDXGIFactory> pFactory;
-
-      if ( SUCCEEDED (pGameSwapChain->GetDevice  (IID_PPV_ARGS (&pDev))     )&&
-           SUCCEEDED (pDev->QueryInterface       (IID_PPV_ARGS (&pDevDXGI)) )&&
-           SUCCEEDED (pDevDXGI->GetAdapter                     (&pAdapter)  )&&
-           SUCCEEDED (      pAdapter->GetParent  (IID_PPV_ARGS (&pFactory)) ) )
-      {
-        dll_log->Log( L"[Fullscreen] Setting DXGI Window Association "
-                      L"(HWND: Game=%X,SwapChain=%X)",
-                        SK_GetGameWindow (), desc.OutputWindow );
-        dll_log->Log( L"[Fullscreen]   >> flags: "
-                      L"DXGI_MWA_NO_WINDOW_CHANGES | DXGI_MWA_NO_ALT_ENTER" );
-
-        pFactory->MakeWindowAssociation ( desc.OutputWindow,
-                                            DXGI_MWA_NO_WINDOW_CHANGES |
-                                            DXGI_MWA_NO_ALT_ENTER );
-      }
-    }
-  }
-
-  return 0;
-}
-
-HRESULT
-WINAPI
-DXGISwap_ResizeBuffers_Detour (
-   IDXGISwapChain *This,
-   UINT            BufferCount,
-   UINT            Width,
-   UINT            Height,
-   DXGI_FORMAT     NewFormat,
-   UINT            SwapChainFlags
-)
-{
-  DXGI_SWAP_CHAIN_DESC desc;
-
-  if (SUCCEEDED (This->GetDesc (&desc))) {
-    if (desc.OutputWindow == SK_GetGameWindow ())
-      pGameSwapChain = This;
-  }
-
-  // Allow Fullscreen
-  if (config.display.enable_fullscreen)
-    SwapChainFlags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-  else
-    SwapChainFlags &= ~DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-
-  HRESULT hr =
-    DXGISwap_ResizeBuffers_Original ( This,
-                                        BufferCount,
-                                          Width, Height,
-                                            NewFormat,
-                                              SwapChainFlags );
-
-  //if ( UNX_IsWindowThread () || UNX_IsRenderThread () )
-    //CreateThread (nullptr, 0, UNX_MWA_Thread, nullptr, 0, nullptr);
-  //else
-    UNX_MWA_Thread (nullptr);
-
-  return hr;
 }
 
 typedef void (WINAPI *SK_BeginBufferSwap_pfn)(void);
@@ -534,7 +281,11 @@ SK_BeginBufferSwap_Detour (void)
   }
 
   if (InterlockedCompareExchange (&queue_death, FALSE, TRUE)) {
-    SK_GetCommandProcessor ()->ProcessCommandLine ("mem b D2A8E2 2");
+    SK_GetCommandProcessor ()->ProcessCommandLine ("mem b D2A8E2 2 ");
+
+    bool
+    UNX_KillMeNow (void);
+    UNX_KillMeNow ();
   }
 
   if (SKX_DrawExternalOSD != nullptr) {
@@ -551,7 +302,7 @@ SK_BeginBufferSwap_Detour (void)
         osd_out +=
                    "  Press Ctrl + Shift + O         to toggle In-Game OSD\n"
                    "  Press Ctrl + Shift + Backspace to access In-Game Config Menu\n"
-                   "    ( Press and HOLD L2 + R2 + Select on Gamepads )\n"
+                   "    ( Press Start + Select on Gamepads )\n"
                    "      [Titlebar will colorcycle in gamepad mode]\n\n";
         //osd_out += "Press Ctrl + Shift + O to toggle OSD\n\n";
       } else {
@@ -570,20 +321,17 @@ UNX_InstallWindowHook (HWND hWnd)
 {
   unx::window.hwnd = hWnd;
 
-  UNX_CreateDLLHook ( config.system.injector.c_str (),
-                      "SK_BeginBufferSwap",
-                       SK_BeginBufferSwap_Detour,
-            (LPVOID *)&SK_BeginBufferSwap_Original );
+  UNX_CreateDLLHook2 ( config.system.injector.c_str (),
+                       "SK_BeginBufferSwap",
+                        SK_BeginBufferSwap_Detour,
+             (LPVOID *)&SK_BeginBufferSwap_Original );
 
-  UNX_CreateDLLHook ( config.system.injector.c_str (),
-                      "SK_DetourWindowProc",
-                       DetourWindowProc,
-            (LPVOID *)&DetourWindowProc_Original );
+  UNX_CreateDLLHook2 ( config.system.injector.c_str (),
+                       "SK_DetourWindowProc",
+                        DetourWindowProc,
+             (LPVOID *)&DetourWindowProc_Original );
 
-  UNX_CreateDLLHook ( config.system.injector.c_str (),
-                      "DXGISwap_ResizeBuffers_Override",
-                       DXGISwap_ResizeBuffers_Detour,
-            (LPVOID *)&DXGISwap_ResizeBuffers_Original );
+  UNX_ApplyQueuedHooks ();
 
   HMODULE hModInject  = GetModuleHandleW (config.system.injector.c_str ());
 
