@@ -75,7 +75,7 @@ int
 __cdecl
 VSYNCEmulation_Detour (int x)
 {
-  dll_log->Log (L"[   Time   ] VSYNC Emulation Thread Created By Game", x);
+  dll_log->Log (L"[   Time   ] VSYNC Emulation Thread Created By Game");
 
   return (VSYNCEmulation_Original (x));
 }
@@ -128,8 +128,6 @@ unx::TimingFix::Init (void)
     }
   }
 
-  HMODULE hModKernel32 = LoadLibrary (L"kernel32.dll");
-
 #if 0
    UNX_CreateFuncHook ( L"VSYNCEmulation",
        (LPVOID)((intptr_t)__UNX_base_img_addr + 0x27A010),
@@ -139,6 +137,8 @@ unx::TimingFix::Init (void)
 #endif
 
 #if 0
+  HMODULE hModKernel32 = LoadLibrary (L"kernel32.dll");
+
   if (config.stutter.reduce)
   {
     //SK_GetCommandProcessor ()->ProcessCommandFormatted ("MaxDeltaTime 0");

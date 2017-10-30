@@ -120,4 +120,8 @@ MH_STATUS
 __stdcall
 UNX_UnInit_MinHook (void);
 
+
+extern void*
+UNX_Scan (const void* pattern, size_t len, const void* mask);
+
 #endif /* __UNX__HOOK_H__ */

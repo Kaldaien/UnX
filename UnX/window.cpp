@@ -109,7 +109,8 @@ DetourWindowProc ( _In_  HWND   hWnd,
 
   extern LPVOID __UNX_base_img_addr;
 
-  if (schedule_load) {
+  if (schedule_load)
+  {
     schedule_load = false;
 
     typedef int (__stdcall *LoadSave_pfn)   (void);
@@ -117,23 +118,21 @@ DetourWindowProc ( _In_  HWND   hWnd,
     typedef int (__stdcall *LoadSave3_pfn)  (void);
     typedef int (__cdecl   *LoadSaveXXX_pfn)(int);
 
-    LoadSave_pfn LoadSave =
-      (LoadSave_pfn)
-        ((intptr_t)__UNX_base_img_addr + 0x248910);
-
-    LoadSave2_pfn LoadSave2 =
-      (LoadSave2_pfn)
-        ((intptr_t)__UNX_base_img_addr + 0x248890);
-
-    LoadSave3_pfn LoadSave3 =
-      (LoadSave3_pfn)
-        ((intptr_t)__UNX_base_img_addr + 0x230DE0);
+    ///LoadSave_pfn LoadSave =
+    ///  (LoadSave_pfn)
+    ///    ((intptr_t)__UNX_base_img_addr + 0x248910);
+    ///
+    ///LoadSave2_pfn LoadSave2 =
+    ///  (LoadSave2_pfn)
+    ///    ((intptr_t)__UNX_base_img_addr + 0x248890);
+    ///
+    ///LoadSave3_pfn LoadSave3 =
+    ///  (LoadSave3_pfn)
+    ///    ((intptr_t)__UNX_base_img_addr + 0x230DE0);
 
     LoadSaveXXX_pfn LoadSaveXXX =
       (LoadSaveXXX_pfn)
         ((intptr_t)__UNX_base_img_addr + 0x421870);
-
-    int xxx = 0;
 
     //*(int *)((intptr_t)__UNX_base_img_addr + 0xCE72D0) = 0;
       *(int *)((intptr_t)__UNX_base_img_addr + 0x8CB994) = 1;
@@ -333,7 +332,8 @@ UNX_InstallWindowHook (HWND hWnd)
 
   UNX_ApplyQueuedHooks ();
 
-  HMODULE hModInject  = GetModuleHandleW (config.system.injector.c_str ());
+  HMODULE hModInject  =
+    GetModuleHandleW (config.system.injector.c_str ());
 
   SKX_DrawExternalOSD =
    (SKX_DrawExternalOSD_pfn)GetProcAddress (
@@ -368,7 +368,8 @@ bool
   unx::WindowManager::
     CommandProcessor::OnVarChange (SK_IVariable* var, void* val)
 {
-  SK_ICommandProcessor* pCommandProc = SK_GetCommandProcessor ();
+  //SK_ICommandProcessor* pCommandProc =
+  //  SK_GetCommandProcessor ();
 
   bool known = false;
 

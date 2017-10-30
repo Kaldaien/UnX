@@ -329,9 +329,11 @@ unx::ParameterStringW::load (std::wstring& ref)
 
 template <>
 unx::iParameter*
-unx::ParameterFactory::create_parameter <int> (const wchar_t* name)
+unx::ParameterFactory::create_parameter <int> (const wchar_t*)
 {
-  iParameter* param = new ParameterInt ();
+  iParameter* param =
+    new ParameterInt ();
+
   params.push_back (param);
 
   return param;
@@ -339,9 +341,11 @@ unx::ParameterFactory::create_parameter <int> (const wchar_t* name)
 
 template <>
 unx::iParameter*
-unx::ParameterFactory::create_parameter <int64_t> (const wchar_t* name)
+unx::ParameterFactory::create_parameter <int64_t> (const wchar_t*)
 {
-  iParameter* param = new ParameterInt64 ();
+  iParameter* param =
+    new ParameterInt64 ();
+
   params.push_back (param);
 
   return param;
@@ -349,9 +353,11 @@ unx::ParameterFactory::create_parameter <int64_t> (const wchar_t* name)
 
 template <>
 unx::iParameter*
-unx::ParameterFactory::create_parameter <bool> (const wchar_t* name)
+unx::ParameterFactory::create_parameter <bool> (const wchar_t*)
 {
-  iParameter* param = new ParameterBool ();
+  iParameter* param =
+    new ParameterBool ();
+
   params.push_back (param);
 
   return param;
@@ -359,9 +365,11 @@ unx::ParameterFactory::create_parameter <bool> (const wchar_t* name)
 
 template <>
 unx::iParameter*
-unx::ParameterFactory::create_parameter <float> (const wchar_t* name)
+unx::ParameterFactory::create_parameter <float> (const wchar_t*)
 {
-  iParameter* param = new ParameterFloat ();
+  iParameter* param =
+    new ParameterFloat ();
+
   params.push_back (param);
 
   return param;
@@ -369,9 +377,11 @@ unx::ParameterFactory::create_parameter <float> (const wchar_t* name)
 
 template <>
 unx::iParameter*
-unx::ParameterFactory::create_parameter <std::wstring> (const wchar_t* name)
+unx::ParameterFactory::create_parameter <std::wstring> (const wchar_t*)
 {
-  iParameter* param = new ParameterStringW ();
+  iParameter* param =
+   new ParameterStringW ();
+
   params.push_back (param);
 
   return param;

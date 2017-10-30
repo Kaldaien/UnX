@@ -25,9 +25,7 @@
 #include <Windows.h>
 #include "config.h"
 #include "log.h"
-
-extern void*
-UNX_Scan (const uint8_t* pattern, size_t len, const uint8_t* mask);
+#include "hook.h"
 
 void
 UNX_PatchLanguageRef (asset_type_t type, int idx, const char* jp, const char* us)
@@ -62,18 +60,23 @@ UNX_PatchLanguageRef (asset_type_t type, int idx, const char* jp, const char* us
   if (! (jp_to_us || us_to_jp))
     return;
 
-  const uint8_t* sig  = jp_to_us ? (const uint8_t *)jp : (const uint8_t *)us;
-  const uint8_t* src  = jp_to_us ? (const uint8_t *)us : (const uint8_t *)jp;
+  const uint8_t* sig  = jp_to_us ? reinterpret_cast <const uint8_t *> (jp) :
+                                   reinterpret_cast <const uint8_t *> (us);
+  const uint8_t* src  = jp_to_us ? reinterpret_cast <const uint8_t *> (us) :
+                                   reinterpret_cast <const uint8_t *> (jp);
 
-  void*          dst  = UNX_Scan ( sig, strlen ((const char *)sig), nullptr);
+  void*          dst  = UNX_Scan ( sig, strlen (reinterpret_cast <const char *> (sig)), nullptr);
 
   DWORD dwOld;
 
-  if (dst != nullptr) {
-    dll_log->LogEx (true, L"[ Language ] %s%lu: %42hs ==> ", wszType, idx, dst);
-    VirtualProtect (dst, strlen ((const char *)dst)+1, PAGE_READWRITE, &dwOld);
-    strcpy ((char *)dst, (const char *)src);
-    dll_log->LogEx (false, L"%hs\n", dst);
+  if (dst != nullptr)
+  {
+    dll_log->LogEx (true, L"[ Language ] %s%li: %42hs ==> ", wszType, idx, static_cast      <const char *> (dst));
+
+    VirtualProtect (dst, strlen (reinterpret_cast <const char *> (dst))+1, PAGE_READWRITE, &dwOld);
+                         strcpy (reinterpret_cast <char *>       (dst),    reinterpret_cast <const char *> (src));
+
+    dll_log->LogEx (false, L"%hs\n", static_cast <const char *> (dst));
 #if 0
     extern LPVOID __UNX_base_img_addr;
 
@@ -156,14 +159,16 @@ UNX_PatchLanguageFFX (asset_type_t type)
                                "JP/FFX_VideoList.txt",
                                "US/FFX_VideoList.txt" );
 
-    if (config.language.video == L"us") {
+    if (config.language.video == L"us")
+    {
       UNX_PatchLanguageRef ( Video,
                                1,
                                  "Asia/FFX_VideoList.txt",
                                  "US/FFX_VideoList.txt" );
     }
 
-    if (config.language.video == L"jp") {
+    if (config.language.video == L"jp")
+    {
       UNX_PatchLanguageRef ( Video,
                                2,
                                  "/MetaMenu/GameData/PS3Data/Video/JP/timestamp_JP.txt",
@@ -245,14 +250,16 @@ UNX_PatchLanguageFFX2 (asset_type_t type)
                                "JP/FFX_VideoList.txt",
                                "US/FFX_VideoList.txt" );
 
-    if (config.language.video == L"us") {
+    if (config.language.video == L"us")
+    {
       UNX_PatchLanguageRef ( Video,
                                1,
                                  "Asia/FFX_VideoList.txt",
                                  "US/FFX_VideoList.txt" );
     }
 
-    if (config.language.video == L"jp") {
+    if (config.language.video == L"jp")
+    {
       UNX_PatchLanguageRef ( Video,
                                2,
                                  "/MetaMenu/GameData/PSVitaData/Video/JP/timestamp_JP.txt",
@@ -324,7 +331,8 @@ UNX_PatchLanguageFFX_Will (asset_type_t type)
                                "JP/FFX_VideoList.txt",
                                "US/FFX_VideoList.txt" );
 
-    if (config.language.video == L"us") {
+    if (config.language.video == L"us")
+{
       UNX_PatchLanguageRef ( Video,
                                1,
                                  "Asia/FFX_VideoList.txt",
@@ -336,7 +344,8 @@ UNX_PatchLanguageFFX_Will (asset_type_t type)
                                "/MetaMenu/GameData/PS3Data/Video/JP/SideStory.webm",
                                "/MetaMenu/GameData/PS3Data/Video/US/SideStory.webm" );
 
-    if (config.language.video == L"jp") {
+    if (config.language.video == L"jp")
+    {
       UNX_PatchLanguageRef ( Video,
                                2,
                                  "/MetaMenu/GameData/PS3Data/Video/JP/timestamp_JP.txt",
@@ -368,7 +377,8 @@ UNX_GetExecutableName (void)
     *(pwszShortName - 1) != L'\\')
     --pwszShortName;
 
-  pwszExec = wcsdup (pwszShortName);
+  pwszExec = _wcsdup (pwszShortName);
+
   return pwszExec;
 }
 
@@ -389,14 +399,15 @@ unx::LanguageManager::ApplyPatch (asset_type_t type)
 {
   wchar_t* pwszShortName = UNX_GetExecutableName ();
 
-  if (! lstrcmpiW (pwszShortName, L"ffx.exe")) {
+  if (! _wcsicmp (pwszShortName, L"ffx.exe"))
+  {
     return UNX_PatchLanguageFFX (type);
   }
 
-  else if (! lstrcmpiW (pwszShortName, L"ffx-2.exe"))
+  else if (! _wcsicmp (pwszShortName, L"ffx-2.exe"))
     return UNX_PatchLanguageFFX2 (type);
 
-  else if (! lstrcmpiW (pwszShortName, L"FFX&X-2_Will.exe"))
+  else if (! _wcsicmp (pwszShortName, L"FFX&X-2_Will.exe"))
     return UNX_PatchLanguageFFX_Will (type);
 
   return true;  

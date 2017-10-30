@@ -23,6 +23,7 @@
 
 #include "command.h"
 
+#include <string>
 
 struct SK_Keybind
 {
@@ -33,7 +34,7 @@ struct SK_Keybind
     BOOL ctrl,
          shift,
          alt;
-  };
+  } modifiers;
 
   SHORT vKey;
 
@@ -45,23 +46,150 @@ struct SK_Keybind
 
 struct UNX_Keybindings
 {
-  SK_Keybind SpeedStep { "Speed Boost",                   L"Ctrl+Shift+H",
-                         true, true, false,  'H' };
+  UNX_Keybindings (void)
+  {
+    vec.emplace_back (&VSYNC);
+    vec.emplace_back (&KickStart);
+
+    ffx_vec.emplace_back (&VSYNC);
+    ffx_vec.emplace_back (&KickStart);
+    ffx_vec.emplace_back (&SpeedStep);
+    ffx_vec.emplace_back (&TimeStop);
+    ffx_vec.emplace_back (&FreeLook);
+    ffx_vec.emplace_back (&Sensor);
+    ffx_vec.emplace_back (&FullAP),
+    ffx_vec.emplace_back (&SoftReset);
+  }
+
+  SK_Keybind VSYNC     { "Toggle VSYNC",                  L"Ctrl+Shift+V",
+                         true, true, false,  'V' };
   SK_Keybind KickStart { "Kickstart (fix stuck loading)", L"Ctrl+Alt+Shift+K",
                          true, true, true,   'K' };
-  SK_Keybind TimeStop  { "TimeStop",                      L"Ctrl+Shift+P",
+  SK_Keybind SpeedStep { "Speed Boost",                   L"Ctrl+Shift+H",
+                         true, true, false,  'H' };
+  SK_Keybind TimeStop  { "Toggle Time Stop",              L"Ctrl+Shift+P",
                           true, true, false, 'P' };
-  SK_Keybind FreeLook  { "FreeLook",                      L"Ctrl+Shift+F",
+  SK_Keybind FreeLook  { "Toggle Freelook",               L"Ctrl+Shift+F",
                           true, true, false, 'F' };
-  SK_Keybind Sensor    { "Permanent Sensor",              L"Ctrl+Shift+S",
+  SK_Keybind Sensor    { "Toggle Permanent Sensor",       L"Ctrl+Shift+S",
                           true, true, false, 'S' };
-  SK_Keybind FullAP    { "Full Party Earns AP",           L"Ctrl+Shift+A",
+  SK_Keybind FullAP    { "Toggle Full Party AP",          L"Ctrl+Shift+A",
                           true, true, false, 'A' };
-  SK_Keybind VSYNC     { "VSYNC",                         L"Ctrl+Shift+V",
-                         true, true, false,  'V' };
   SK_Keybind SoftReset { "Soft Reset (FFX)",              L"Ctrl+Shift+Delete",
                          true, true, false,   VK_DELETE };
+
+  std::vector <SK_Keybind *> vec;
+  std::vector <SK_Keybind *> ffx_vec;
 } extern keybinds;
+
+struct SK_GamepadCombo_V0 {
+  const wchar_t** button_names = nullptr;
+  std::string     combo_name   =  "";
+  std::wstring    unparsed     = L"";
+  int             buttons      = 0;
+};
+
+#include "parameter.h"
+
+struct UNX_GamepadCombo : SK_GamepadCombo_V0
+{
+  unx::ParameterStringW* config_parameter;
+};
+
+struct unx_gamepad_s {
+  std::wstring tex_set = L"PlayStation_Glossy";
+  bool         legacy  = false;
+
+  UNX_GamepadCombo f1;
+  UNX_GamepadCombo f2;
+  UNX_GamepadCombo f3;
+  UNX_GamepadCombo f4;
+  UNX_GamepadCombo f5;
+  UNX_GamepadCombo screenshot;
+  UNX_GamepadCombo fullscreen; 
+  UNX_GamepadCombo esc;
+  UNX_GamepadCombo speedboost;
+  UNX_GamepadCombo kickstart;
+  UNX_GamepadCombo softreset;
+
+  struct names_s
+  {
+    const wchar_t*
+      Xbox [18] =
+        {  L"Up",    L"Down",     L"Left",    L"Right",
+           L"Start", L"Back",
+           L"LS",    L"RS",
+           L"LB",    L"RB",
+           L"Guide", L"Unused",
+           L"A",     L"B",     L"X",    L"Y",
+           L"LT",    L"RT",      };
+    
+    const wchar_t*
+      PlayStation [18] =
+        {  L"Up",    L"Down",     L"Left",    L"Right",
+           L"Start", L"Select",
+           L"L3",    L"R3",
+           L"L1",    L"R1",
+           L"Home",  L"Unused",
+           L"Cross", L"Circle",   L"Square",  L"Triangle",
+           L"L2",    L"R2",      };
+  } names;
+
+  struct remap_s {
+    struct buttons_s {
+      int X     = JOY_BUTTON1;
+      int A     = JOY_BUTTON2;
+      int B     = JOY_BUTTON3;
+      int Y     = JOY_BUTTON4;
+      int LB    = JOY_BUTTON5;
+      int RB    = JOY_BUTTON6;
+      int LT    = JOY_BUTTON7;
+      int RT    = JOY_BUTTON8;
+      int BACK  = JOY_BUTTON9;
+      int START = JOY_BUTTON10;
+      int LS    = JOY_BUTTON11;
+      int RS    = JOY_BUTTON12;
+    } buttons;
+
+    // Post-Process the button map above so we do not
+    //   have to constantly perform the operations
+    //     below when polling a controller...
+    int map [12];
+
+    static int indexToEnum (int idx) {
+      // For Axes
+      if (idx <= 0) {
+        idx = (16 - idx);
+      }
+
+      // Possibility for sign-related problems exists if
+      //   0 is passed, but button 0 is not valid anyway.
+      return 1 << (idx - 1);
+    }
+
+    static int enumToIndex (unsigned int enum_val) {
+      int idx = 0;
+
+      // For Axes
+      bool axis = false;
+
+      if (enum_val >= (1 << 16))
+        axis = true;
+
+      while (enum_val > 0) {
+        enum_val >>= 1;
+        idx++;
+      }
+
+      if (axis) {
+        idx -= 16;
+        idx  = -idx;
+      }
+
+      return idx;
+    }
+  } remap;
+} extern gamepad;
 
 
 namespace unx

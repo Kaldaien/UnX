@@ -40,9 +40,6 @@
 HMODULE hDLLMod      = { 0 }; // Handle to SELF
 HMODULE hInjectorDLL = { 0 }; // Handle to Special K
 
-extern void*
-UNX_Scan (const uint8_t* pattern, size_t len, const uint8_t* mask);
-
 typedef HRESULT (__stdcall *SK_UpdateSoftware_pfn)           (const wchar_t* wszProduct);
 typedef bool    (__stdcall *SK_FetchVersionInfo_pfn)         (const wchar_t* wszProduct);
 typedef void    (__stdcall *SKX_SetPluginName_pfn)           (const wchar_t* name);
@@ -57,7 +54,7 @@ std::wstring injector_name;
 
 DWORD
 __stdcall
-DllThread (LPVOID user)
+DllThread (LPVOID)
 {
   std::wstring plugin_name = L"Untitled Project X v " + UNX_VER_STR;
 
@@ -122,7 +119,7 @@ DllThread (LPVOID user)
 
     CreateThread (
       nullptr, 0,
-        [](LPVOID user)->
+        [](LPVOID)->
           DWORD
             {
               SK_UpdateSoftware_pfn SK_UpdateSoftware =

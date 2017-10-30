@@ -19,6 +19,8 @@
  *
 **/
 
+#define _CRT_SECURE_NO_WARNINGS
+
 #include "config.h"
 #include "cheat.h"
 #include "window.h"
@@ -466,25 +468,7 @@ UNX_FFX_GameTick (float x)
   if (isinf (tick) || isnan (tick))
     tick = last_tick;
 
-  last_tick = tick;
-
-  float ret = last_tick;
-
-  static float last_ret = 0.0f;
-
-  __try
-  {
-    __try                                { ret = UNX_FFX_GameTick_Original (tick); }
-    __except (EXCEPTION_CONTINUE_SEARCH) {                                         }
-
-    last_ret = ret;
-  }
-
-  __except (EXCEPTION_EXECUTE_HANDLER)
-  {
-  }
-
-  return last_ret;
+  return UNX_FFX_GameTick_Original (tick);
 }
 
 LPVOID FFX_LoadLevel_Original = nullptr;
@@ -514,7 +498,8 @@ unx::CheatManager::Init (void)
   //
   // FFX
   //
-  if (! lstrcmpiW (pwszShortName, L"ffx.exe")) {
+  if (! _wcsicmp (pwszShortName, L"ffx.exe"))
+  {
     dll_log->LogEx (true, L"[Cheat Code]  Setting up FFX Cheat Engine...");
 
     game_type = GAME_FFX;
@@ -563,7 +548,8 @@ unx::CheatManager::Init (void)
   //
   // FFX-2
   //
-  else if (! lstrcmpiW (pwszShortName, L"ffx-2.exe")) {
+  else if (! _wcsicmp (pwszShortName, L"ffx-2.exe"))
+  {
     dll_log->LogEx (true, L"[Cheat Code]  Setting up FFX-2 Cheat Engine...");
 
     game_type = GAME_FFX2;
@@ -735,7 +721,7 @@ UNX_KillMeNow (void)
 
         // Spawn thread to restore original instructions
         CreateThread (nullptr, 0,
-          [](LPVOID user) ->
+          [](LPVOID) ->
             DWORD
               {
                 Sleep (5000UL);
@@ -856,20 +842,23 @@ UNX_SummarizeCheats (DWORD dwTime)
   {
     case GAME_FFX:
     {
-      if (last_changed.party_ap > dwTime - status_duration) {
+      if (last_changed.party_ap > dwTime - status_duration)
+      {
         summary += "Full Party AP:    ";
         summary += config.cheat.ffx.entire_party_earns_ap ?
                      "ON\n" : "OFF\n";
       }
 
-      if (last_changed.sensor > dwTime - status_duration) {
+      if (last_changed.sensor > dwTime - status_duration)
+      {
         summary += "Permanent Sensor: ";
         summary += config.cheat.ffx.permanent_sensor ?
                      "ON\n" : "OFF\n";
       }
 
-      if (last_changed.speed > dwTime - (status_duration * 2)) {
-        char szGameSpeed [64] = { '\0' };
+      if (last_changed.speed > dwTime - (status_duration * 2))
+      {
+        char szGameSpeed [128] = { };
 
         sprintf ( szGameSpeed, "Game Speed:       %4.1fx\n",
                     __UNX_speed_mod );
@@ -878,7 +867,8 @@ UNX_SummarizeCheats (DWORD dwTime)
 
       uint8_t* skip = (uint8_t *)((intptr_t)__UNX_base_img_addr + 0x12FBB63 - 0x400000);
 
-      if (ffx.debug_flags->control.camera || *skip || __UNX_skip_cutscenes) {
+      if (ffx.debug_flags->control.camera || *skip || __UNX_skip_cutscenes)
+      {
         summary += "SPECIAL MODE:     ";
 
         if (ffx.debug_flags->control.camera)

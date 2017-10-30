@@ -20,6 +20,8 @@
 **/
 #define _CRT_SECURE_NO_WARNINGS
 
+#define NOMINMAX
+
 #include "config.h"
 #include "parameter.h"
 #include "ini.h"
@@ -31,6 +33,9 @@
 #include "DLL_VERSION.H"
 
 #include <string>
+#include <algorithm>
+
+#include <atlbase.h>
 
 static
   iSK_INI*
@@ -660,7 +665,8 @@ UNX_LoadConfig (std::wstring name)
 
 
   extern wchar_t* UNX_GetExecutableName (void);
-  if (! lstrcmpiW (UNX_GetExecutableName (), L"ffx.exe")) {
+  if (StrStrIW (UNX_GetExecutableName (), L"ffx.exe"))
+  {
     booster.ffx.entire_party_earns_ap->load (config.cheat.ffx.entire_party_earns_ap);
     booster.ffx.permanent_sensor->load      (config.cheat.ffx.permanent_sensor);
     booster.ffx.playable_seymour->load      (config.cheat.ffx.playable_seymour);
@@ -741,7 +747,7 @@ UNX_SaveConfig (std::wstring name, bool close_config)
   ((unx::iParameter *)language.video)->store         (                     );
 
   extern wchar_t* UNX_GetExecutableName (void);
-  if (! lstrcmpiW (UNX_GetExecutableName (), L"ffx.exe"))
+  if (StrStrIW (UNX_GetExecutableName (), L"ffx.exe"))
   {
     booster.ffx.entire_party_earns_ap->store (config.cheat.ffx.entire_party_earns_ap);
     booster.ffx.permanent_sensor->store      (config.cheat.ffx.permanent_sensor);
@@ -807,12 +813,134 @@ unx::ParameterStringW* unx_fullap;
 unx::ParameterStringW* unx_VSYNC;
 unx::ParameterStringW* unx_soft_reset;
 
+#include <d3d11.h>
+
+typedef enum D3DX11_IMAGE_FILE_FORMAT {
+  D3DX11_IFF_BMP          = 0,
+  D3DX11_IFF_JPG          = 1,
+  D3DX11_IFF_PNG          = 3,
+  D3DX11_IFF_DDS          = 4,
+  D3DX11_IFF_TIFF         = 10,
+  D3DX11_IFF_GIF          = 11,
+  D3DX11_IFF_WMP          = 12,
+  D3DX11_IFF_FORCE_DWORD  = 0x7fffffff
+} D3DX11_IMAGE_FILE_FORMAT, *LPD3DX11_IMAGE_FILE_FORMAT;
+
+typedef struct D3DX11_IMAGE_INFO {
+  UINT                     Width;
+  UINT                     Height;
+  UINT                     Depth;
+  UINT                     ArraySize;
+  UINT                     MipLevels;
+  UINT                     MiscFlags;
+  DXGI_FORMAT              Format;
+  D3D11_RESOURCE_DIMENSION ResourceDimension;
+  D3DX11_IMAGE_FILE_FORMAT ImageFileFormat;
+} D3DX11_IMAGE_INFO, *LPD3DX11_IMAGE_INFO;
+
+
+typedef struct D3DX11_IMAGE_LOAD_INFO {
+  UINT              Width;
+  UINT              Height;
+  UINT              Depth;
+  UINT              FirstMipLevel;
+  UINT              MipLevels;
+  D3D11_USAGE       Usage;
+  UINT              BindFlags;
+  UINT              CpuAccessFlags;
+  UINT              MiscFlags;
+  DXGI_FORMAT       Format;
+  UINT              Filter;
+  UINT              MipFilter;
+  D3DX11_IMAGE_INFO *pSrcInfo;
+} D3DX11_IMAGE_LOAD_INFO, *LPD3DX11_IMAGE_LOAD_INFO;
+
+interface ID3DX11ThreadPump;
+
+typedef HRESULT (WINAPI *D3DX11CreateTextureFromFileW_pfn)(
+  _In_  ID3D11Device           *pDevice,
+  _In_  LPCWSTR                pSrcFile,
+  _In_  D3DX11_IMAGE_LOAD_INFO *pLoadInfo,
+  _In_  IUnknown               *pPump,
+  _Out_ ID3D11Resource         **ppTexture,
+  _Out_ HRESULT                *pHResult
+);
+
+interface ID3DX11ThreadPump;
+
+typedef HRESULT (WINAPI *D3DX11GetImageInfoFromFileW_pfn)(
+  _In_  LPCWSTR           pSrcFile,
+  _In_  ID3DX11ThreadPump *pPump,
+  _In_  D3DX11_IMAGE_INFO *pSrcInfo,
+  _Out_ HRESULT           *pHResult
+);
+
+__declspec (dllimport)
+IUnknown* __stdcall SK_Render_GetDevice (void);
+
+__declspec (dllimport)
+IUnknown* __stdcall SK_Render_GetSwapChain (void);
+
+
 #include "cheat.h"
+#include "hook.h"
+
+struct ButtonRef_s {
+  ID3D11Texture2D* pTex;
+  std::wstring     name;
+  std::string      name_utf8; // Lazy optimization
+};
+
+static std::vector <ButtonRef_s> gamepads;
+
+
+__declspec (dllimport)
+void
+__stdcall
+SKX_ImGui_RegisterDiscardableResource (IUnknown* pRes);
+
+typedef void (__stdcall *SK_ImGui_ResetCallback_pfn)(void);
+
+__declspec (dllimport)
+void
+__stdcall
+SKX_ImGui_RegisterResource (IUnknown* pRes);
+
+__declspec (dllimport)
+void
+__stdcall
+SKX_ImGui_RegisterResetCallback (SK_ImGui_ResetCallback_pfn pCallback);
+
+__declspec (dllimport)
+void
+__stdcall
+SKX_ImGui_UnregisterResetCallback (SK_ImGui_ResetCallback_pfn pCallback);
+
+void
+__stdcall
+UNX_ImGui_ResetCallback (void)
+{
+  gamepads.clear ();
+}
+
+__declspec (dllimport)
+INT
+__stdcall
+SK_ImGui_GamepadComboDialog0 (SK_GamepadCombo_V0* combo);
 
 void
 __stdcall
 UNX_ControlPanelWidget (void)
 {
+  static bool first = true;
+
+  if (first)
+  {
+    SKX_ImGui_RegisterResetCallback (UNX_ImGui_ResetCallback);
+    first = false;
+  }
+
+
   static 
     const char* szLabel = (game_type & GAME_FFX) ? "Final Fantasy X HD Remaster" :
                                                    "Final Fantasy X-2 HD Remaster";
@@ -903,15 +1031,23 @@ UNX_ControlPanelWidget (void)
       ImGui::TreePop      (  );
     }
 
-    if (ImGui::CollapsingHeader ("Keybinds"))
+    if (ImGui::CollapsingHeader ("Key Bindings"))
     {
       auto Keybinding = [](SK_Keybind* binding, unx::ParameterStringW* param) ->
       auto
       {
-        std::string label  = UNX_WideCharToUTF8 (binding->human_readable) + "###";
-                    label += binding->bind_name;
+          std::string label  = "##UnX_Keybind_";
+                      label += binding->bind_name;
 
-        if (ImGui::Selectable (label.c_str (), false))
+          ImGui::PushID   ((int)&binding);
+          bool selected =
+            ImGui::Selectable (label.c_str (), false);
+          ImGui::PopID    ();
+
+        ImGui::SameLine   ();
+        ImGui::Text       (UNX_WideCharToUTF8 (binding->human_readable).c_str ());
+
+        if (selected)
         {
           ImGui::OpenPopup (binding->bind_name);
         }
@@ -968,6 +1104,302 @@ UNX_ControlPanelWidget (void)
       ImGui::TreePop    (  );
     }
 
+
+    if (ImGui::CollapsingHeader ("Gamepad Config"))
+    {
+      ImGui::TreePush ("");
+
+      ImGui::PushStyleColor (ImGuiCol_Header,        ImVec4 (0.90f, 0.68f, 0.02f, 0.45f));
+      ImGui::PushStyleColor (ImGuiCol_HeaderHovered, ImVec4 (0.90f, 0.72f, 0.07f, 0.80f));
+      ImGui::PushStyleColor (ImGuiCol_HeaderActive,  ImVec4 (0.87f, 0.78f, 0.14f, 0.80f));
+
+      bool gamepad_binding = ImGui::CollapsingHeader ("Gamepad Bindings");
+
+      if (ImGui::IsItemHovered ())
+        ImGui::SetTooltip ("Press and hold all buttons in your combo for half a second.");
+
+      if (gamepad_binding)
+      {
+        bool ps_map = StrStrIW (gamepad.tex_set.c_str (), L"PlayStation") ||
+                      StrStrIW (gamepad.tex_set.c_str (), L"PS");
+
+        auto GamepadCombo = [&](UNX_GamepadCombo* combo) ->
+        auto
+        {
+          std::string label  = "###";
+                      label += combo->combo_name;
+
+          ImGui::PushID   ((int)&combo);
+          bool selected =
+            ImGui::Selectable (label.c_str (), false);
+          ImGui::PopID    ();
+          ImGui::SameLine ();
+
+          ImGui::Text     (UNX_WideCharToUTF8 (combo->unparsed).c_str ());
+
+          if (selected)
+          {
+            combo->button_names =
+              ps_map ? gamepad.names.PlayStation :
+                       gamepad.names.Xbox;
+          
+            ImGui::OpenPopup (combo->combo_name.c_str ());
+          }
+
+          if (SK_ImGui_GamepadComboDialog0 (combo))
+          {
+            extern void UNX_SetupSpecialButtons (void);
+            UNX_SetupSpecialButtons ();
+
+            ((unx::ParameterStringW *)combo->config_parameter)->store (combo->unparsed);
+
+            extern iSK_INI* pad_cfg;
+            
+            pad_cfg->write (pad_cfg->get_filename ());
+          
+            return true;
+          }
+
+          return false;
+        };
+
+        ImGui::TreePush   ("");
+        ImGui::BeginGroup (  );
+          ImGui::Text     ("F1");
+          ImGui::Text     ("F2");
+          ImGui::Text     ("F3");
+          ImGui::Text     ("F4");
+          ImGui::Text     ("F5");
+          ImGui::Text     ("Screenshot");
+          ImGui::Text     ("Fullscreen");
+          ImGui::Text     ("Escape");
+          ImGui::Text     ("Kickstart");
+
+          if (game_type & GAME_FFX)
+          {
+            ImGui::Text   ("Speed Boost");
+            ImGui::Text   ("Soft Reset");
+          }
+        ImGui::EndGroup   (  );
+        ImGui::SameLine   (  );
+
+        ImGui::BeginGroup (  );
+        GamepadCombo (&gamepad.f1);
+        GamepadCombo (&gamepad.f2);
+        GamepadCombo (&gamepad.f3);
+        GamepadCombo (&gamepad.f4);
+        GamepadCombo (&gamepad.f5);
+        GamepadCombo (&gamepad.screenshot);
+        GamepadCombo (&gamepad.fullscreen);
+        GamepadCombo (&gamepad.esc);
+        GamepadCombo (&gamepad.kickstart);
+
+        if (game_type & GAME_FFX)
+        {
+          GamepadCombo (&gamepad.speedboost);
+          GamepadCombo (&gamepad.softreset);
+          if (ImGui::IsItemHovered () || ImGui::IsItemFocused ())
+            ImGui::SetTooltip ("It is STRONGLY recommended that you do not change this gamepad combo!");
+        }
+        ImGui::EndGroup   (  );
+        ImGui::TreePop    (  );
+      }
+
+      if (ImGui::CollapsingHeader ("Gamepad Button Icons"))
+      {
+        static int  max_width = 0;
+        static bool changed   = false;
+
+        ImGui::TreePush ("");
+
+        if (gamepads.empty ())
+        {
+          WIN32_FIND_DATA fd     = {  };
+          HANDLE          hFind  = INVALID_HANDLE_VALUE;
+
+          std::wstring resource_dir =
+            config.textures.resource_root;
+          resource_dir += L"\\gamepads\\*";
+
+          hFind =
+            FindFirstFileW (resource_dir.c_str (), &fd);
+
+          static D3DX11GetImageInfoFromFileW_pfn
+            D3DX11GetImageInfoFromFileW = nullptr;
+
+          static D3DX11CreateTextureFromFileW_pfn
+            D3DX11CreateTextureFromFileW = nullptr;
+
+          if (D3DX11CreateTextureFromFileW == nullptr)
+          {
+            D3DX11CreateTextureFromFileW =
+              (D3DX11CreateTextureFromFileW_pfn)
+                GetProcAddress (GetModuleHandle (L"d3dx11_43.dll"), "D3DX11CreateTextureFromFileW");
+          }
+
+          if (D3DX11GetImageInfoFromFileW == nullptr)
+          {
+            D3DX11GetImageInfoFromFileW =
+              (D3DX11GetImageInfoFromFileW_pfn)
+                GetProcAddress (GetModuleHandle (L"d3dx11_43.dll"), "D3DX11GetImageInfoFromFileW");
+          }
+
+          if (hFind != INVALID_HANDLE_VALUE)
+          {
+            do
+            {
+              wchar_t wszGamepadTex [MAX_PATH * 2] = { };
+
+              lstrcatW (wszGamepadTex, config.textures.resource_root.c_str ());
+              lstrcatW (wszGamepadTex, L"\\gamepads\\");
+              lstrcatW (wszGamepadTex, fd.cFileName);
+              lstrcatW (wszGamepadTex, L"\\ButtonMap.dds");
+
+              if (GetFileAttributes (wszGamepadTex) != INVALID_FILE_ATTRIBUTES)
+              {
+                ID3D11Texture2D* pTexture2D = nullptr;
+
+                D3DX11_IMAGE_INFO      img_info   = {   };
+                D3DX11_IMAGE_LOAD_INFO load_info  = {   };
+
+                if ( D3DX11GetImageInfoFromFileW && SUCCEEDED (
+                       D3DX11GetImageInfoFromFileW ( wszGamepadTex,
+                                                      nullptr,
+                                                       &img_info,
+                                                        nullptr )
+                               )
+                    )
+                {
+                  load_info.BindFlags      = D3D11_BIND_SHADER_RESOURCE;
+                  load_info.CpuAccessFlags = 0;
+                  load_info.Depth          = img_info.Depth;
+                  load_info.Filter         = (UINT)-1;
+                  load_info.FirstMipLevel  = 0;
+                  load_info.Format         = img_info.Format;
+                  load_info.Height         = img_info.Height;
+                  load_info.MipFilter      = (UINT)-1;
+                  load_info.MipLevels      = img_info.MipLevels;
+                  load_info.MiscFlags      = img_info.MiscFlags;
+                  load_info.pSrcInfo       = &img_info;
+                  load_info.Usage          = D3D11_USAGE_IMMUTABLE;
+                  load_info.Width          = img_info.Width;
+
+                  if ( D3DX11CreateTextureFromFileW && SUCCEEDED ( D3DX11CreateTextureFromFileW (
+                     reinterpret_cast <ID3D11Device *> (SK_Render_GetDevice ()), wszGamepadTex,
+                                       &load_info, nullptr,
+                       (ID3D11Resource **)&pTexture2D, nullptr )
+                                 )
+                     )
+                  {
+                    int width =
+                      (int)ImGui::CalcTextSize (UNX_WideCharToUTF8 (fd.cFileName).c_str ()).x;
+
+                    if (width > max_width)
+                      max_width = width;
+
+                    gamepads.emplace_back ( ButtonRef_s { pTexture2D, fd.cFileName, UNX_WideCharToUTF8 (fd.cFileName) } );
+
+                    SKX_ImGui_RegisterResource (pTexture2D);
+                  }
+                }
+              }
+            } while (FindNextFileW (hFind, &fd) != 0);
+
+            FindClose (hFind);
+          }
+        }
+
+        ID3D11Texture2D* pTex = nullptr;
+
+        ImGui::Columns    (2);
+
+        for ( auto it : gamepads )
+        {
+          extern unx::ParameterStringW* texture_set;
+          extern iSK_INI*               pad_cfg;
+          static std::wstring           original = texture_set->get_value ();
+
+          bool selected =
+            texture_set->get_value () == it.name;
+
+          if (selected && (! pTex))
+            pTex = it.pTex;
+
+          if (ImGui::Selectable (it.name_utf8.c_str (), &selected))
+          {
+            if (selected)
+            {
+              gamepad.tex_set   = it.name;
+              texture_set->store (it.name);
+              pad_cfg->write     (pad_cfg->get_filename ());
+
+              changed = (original != it.name);
+
+              extern void
+              UNX_SetupSpecialButtons (void);
+              UNX_SetupSpecialButtons ();
+            }
+          }
+
+          if (ImGui::IsItemHovered ())
+          {
+            pTex = it.pTex;
+          }
+        }
+
+        if (changed)
+        {
+          ImGui::PushStyleColor (ImGuiCol_Text, ImColor::HSV (0.125f, 1.0f, 1.0f));
+          ImGui::BulletText     ("Game Restart Required");
+          ImGui::PopStyleColor  (                       );
+        }
+
+        ImGui::NextColumn ();
+
+      //float width  = ImGui::GetItemRectSize ().x;
+        float height = ImGui::GetItemRectSize ().y;
+
+        if (pTex != nullptr)
+        {
+          D3D11_TEXTURE2D_DESC desc = { };
+               pTex->GetDesc (&desc);
+
+          ID3D11ShaderResourceView*       pSRV     = nullptr;
+          D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = { };
+  
+          srv_desc.ViewDimension             = D3D11_SRV_DIMENSION_TEXTURE2D;
+          srv_desc.Format                    = desc.Format;
+          srv_desc.Texture2D.MipLevels       = 1;
+          srv_desc.Texture2D.MostDetailedMip = 0;
+
+          ID3D11Device* pDev = reinterpret_cast <ID3D11Device *> (
+                                 SK_Render_GetDevice ()
+                               );
+
+          bool success = (pDev != nullptr) &&
+            SUCCEEDED (   pDev->CreateShaderResourceView (pTex, &srv_desc, &pSRV) );
+
+          if (success && pSRV != nullptr)
+          {
+            ImGui::Image ( pSRV,    ImVec2  ( ((float)desc.Width / (float)desc.Height) * std::max (height, (float)desc.Height),
+                                                                                         std::max (height, (float)desc.Height) ),
+                                       ImVec2  (0,1),             ImVec2  (1,0),
+                                       ImColor (255,255,255,255), ImColor (242,242,13,255) );
+
+            SKX_ImGui_RegisterDiscardableResource (pSRV);
+          }
+        }
+
+        ImGui::NextColumn ( );
+        ImGui::Columns    (1);
+
+        ImGui::TreePop ();
+      }
+
+      ImGui::PopStyleColor (3);
+      ImGui::TreePop       ( );
+    }
+
     if (game_type & GAME_FFX)
     {
       if (ImGui::CollapsingHeader ("Game Boosters", ImGuiTreeNodeFlags_DefaultOpen))
@@ -976,9 +1408,9 @@ UNX_ControlPanelWidget (void)
 
         ImGui::TreePush ("");
 
-        ImGui::PushStyleColor (ImGuiCol_Header,        ImVec4 (0.90f, 0.68f, 0.02f, 0.45f));
-        ImGui::PushStyleColor (ImGuiCol_HeaderHovered, ImVec4 (0.90f, 0.72f, 0.07f, 0.80f));
-        ImGui::PushStyleColor (ImGuiCol_HeaderActive,  ImVec4 (0.87f, 0.78f, 0.14f, 0.80f));
+        ImGui::PushStyleColor (ImGuiCol_Header,        ImVec4 (0.02f, 0.68f, 0.90f, 0.45f));
+        ImGui::PushStyleColor (ImGuiCol_HeaderHovered, ImVec4 (0.07f, 0.72f, 0.90f, 0.80f));
+        ImGui::PushStyleColor (ImGuiCol_HeaderActive,  ImVec4 (0.14f, 0.78f, 0.87f, 0.80f));
 
         if (ImGui::CollapsingHeader ("Speed Boost"))
         {
@@ -1024,7 +1456,7 @@ UNX_ControlPanelWidget (void)
         {
           dirty = true;
           ImGui::TreePush ("");
-          ImGui::Checkbox ("Seymour As Playble Character", &config.cheat.ffx.playable_seymour);
+          ImGui::Checkbox ("Seymour As Playable Character", &config.cheat.ffx.playable_seymour);
           ImGui::TreePop  (  );
         }
 
@@ -1039,6 +1471,4 @@ UNX_ControlPanelWidget (void)
     ImGui::PopStyleColor (3);
     ImGui::TreePop       ( );
   }
-
-  //SK_PlugIn_ControlPanelWidget ();
 }
