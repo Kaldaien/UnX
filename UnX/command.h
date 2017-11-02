@@ -21,11 +21,12 @@
 #ifndef __EPSILON_TESTBED__COMMAND_H__
 #define __EPSILON_TESTBED__COMMAND_H__
 
-#include <Unknwnbase.h>
+#include <Unknwn.h>
 
 # include <unordered_map>
 
 #include <locale> // tolower (...)
+#include <algorithm>
 
 interface SK_IVariable;
 interface SK_ICommand;
@@ -115,9 +116,7 @@ interface SK_ICommandProcessor
 {
   SK_ICommandProcessor (void);
 
-  virtual ~SK_ICommandProcessor (void)
-  {
-  }
+  virtual ~SK_ICommandProcessor (void) = default;
 
   virtual SK_ICommand*       FindCommand   (const char* szCommand) const = 0;
 
@@ -141,6 +140,7 @@ typedef SK_ICommandProcessor* (__stdcall *SK_GetCommandProcessor_pfn)(void);
 extern SK_GetCommandProcessor_pfn SK_GetCommandProcessor;
 
 SK_IVariable*
+__stdcall
 UNX_CreateVar ( SK_IVariable::VariableType  type,
                 void*                       var,
                 SK_IVariableListener       *pListener = nullptr );

@@ -21,23 +21,3 @@
 #include "command.h"
 
 SK_GetCommandProcessor_pfn SK_GetCommandProcessor = nullptr;
-
-typedef SK_IVariable* (__stdcall *SK_CreateVar_pfn)( SK_IVariable::VariableType  type,
-                                                     void*                       var,
-                                                     SK_IVariableListener       *pListener );
-SK_CreateVar_pfn SK_CreateVar = nullptr;
-
-SK_IVariable*
-UNX_CreateVar ( SK_IVariable::VariableType  type,
-                void*                       var,
-                SK_IVariableListener       *pListener )
-{
-  extern HMODULE hInjectorDLL;
-
-  if (SK_CreateVar == nullptr) {
-    SK_CreateVar =
-      (SK_CreateVar_pfn)GetProcAddress (hInjectorDLL, "SK_CreateVar");
-  }
-
-  return SK_CreateVar (type, var, pListener);
-}

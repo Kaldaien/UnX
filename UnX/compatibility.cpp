@@ -33,7 +33,15 @@ LPVOID __UNX_base_img_addr = nullptr;
 LPVOID __UNX_end_img_addr  = nullptr;
 
 void*
+__stdcall
 UNX_Scan (const void* pattern, size_t len, const void* mask)
+{
+  return UNX_ScanAligned (pattern, len, mask);
+}
+
+void*
+__stdcall
+UNX_ScanAlignedEx (const void* pattern, size_t len, const void* mask, void* after, int align)
 {
   uint8_t* base_addr =
     reinterpret_cast <uint8_t *> (GetModuleHandle (nullptr));
@@ -52,8 +60,8 @@ UNX_Scan (const void* pattern, size_t len, const void* mask)
 
   uint8_t* end_addr = base_addr + pNT->OptionalHeader.SizeOfImage;
 #else
-           base_addr = reinterpret_cast <uint8_t *> (minfo.BaseAddress);//AllocationBase;
-  uint8_t* end_addr  = reinterpret_cast <uint8_t *> (minfo.BaseAddress) + minfo.RegionSize;
+           base_addr = static_cast <uint8_t *> (minfo.BaseAddress);//AllocationBase;
+  uint8_t* end_addr  = static_cast <uint8_t *> (minfo.BaseAddress) + minfo.RegionSize;
 
   ///if (base_addr != (uint8_t *)0x400000)
   ///{
@@ -71,8 +79,8 @@ UNX_Scan (const void* pattern, size_t len, const void* mask)
 #ifndef _WIN64
   // Account for possible overflow in 32-bit address space in very rare (address randomization) cases
 uint8_t* const PAGE_WALK_LIMIT = 
-  base_addr + static_cast <uintptr_t>(1UL << 26) > base_addr ?
-                                                   base_addr + static_cast      <uintptr_t>( 1UL << 26) :
+  base_addr + static_cast <uintptr_t>(1UL << 27) > base_addr ?
+                                                   base_addr + static_cast      <uintptr_t>( 1UL << 27) :
                                                                reinterpret_cast <uint8_t *>(~0UL      );
 #else
   // Dark Souls 3 needs this, its address space is completely random to the point
@@ -103,9 +111,9 @@ uint8_t* const PAGE_WALK_LIMIT = (base_addr + static_cast <uintptr_t>(1ULL << 36
     if (! warned)
     {
       dll_log->Log ( L"[ Sig Scan ] Module page walk resulted in end addr. out-of-range: %ph",
-                       end_addr );
+                      end_addr );
       dll_log->Log ( L"[ Sig Scan ]  >> Restricting to %ph",
-                       PAGE_WALK_LIMIT );
+                      PAGE_WALK_LIMIT );
       warned = true;
     }
 
@@ -120,9 +128,6 @@ uint8_t* const PAGE_WALK_LIMIT = (base_addr + static_cast <uintptr_t>(1ULL << 36
                       end_addr );
 #endif
 #endif
-
-  const uintptr_t after = 0;
-  const int       align = 1;
 
   __UNX_base_img_addr = base_addr;
   __UNX_end_img_addr  = end_addr;
@@ -211,9 +216,16 @@ uint8_t* const PAGE_WALK_LIMIT = (base_addr + static_cast <uintptr_t>(1ULL << 36
   return nullptr;
 }
 
+void*
+__stdcall
+UNX_ScanAligned (const void* pattern, size_t len, const void* mask, int align)
+{
+  return UNX_ScanAlignedEx (pattern, len, mask, nullptr, align);
+}
+
 void
 UNX_FlushInstructionCache ( LPCVOID base_addr,
-                           size_t  code_size )
+                            size_t  code_size )
 {
   FlushInstructionCache ( GetCurrentProcess (),
                             base_addr,
@@ -227,17 +239,33 @@ UNX_InjectMachineCode ( LPVOID  base_addr,
                         DWORD   permissions,
                         void   *old_code = nullptr )
 {
-  DWORD dwOld =
-    PAGE_NOACCESS;
+  __try {
+    DWORD dwOld =
+      PAGE_NOACCESS;
 
-  if ( VirtualProtect ( base_addr,   code_size,
-                        permissions, &dwOld )   )
+    if ( VirtualProtect ( base_addr,   code_size,
+                          permissions, &dwOld )   )
+    {
+      if (old_code != nullptr) memcpy (old_code, base_addr, code_size);
+                               memcpy (base_addr, new_code, code_size);
+
+      VirtualProtect ( base_addr, code_size,
+                       dwOld,     &dwOld );
+
+      return;
+    }
+  }
+
+  __except ( ( GetExceptionCode () == EXCEPTION_ACCESS_VIOLATION ) ? 
+               EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH )
   {
-    if (old_code != nullptr) memcpy (old_code, base_addr, code_size);
-                             memcpy (base_addr, new_code, code_size);
+    //assert (false);
 
-    VirtualProtect ( base_addr, code_size,
-                     dwOld,     &dwOld );
+    // Bad memory address, just discard the write attempt
+    //
+    //   This isn't atomic; if we fail, it's possible we wrote part
+    //     of the data successfully - consider an undo mechanism.
+    //
   }
 
   UNX_FlushInstructionCache (base_addr, code_size);

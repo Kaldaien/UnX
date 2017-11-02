@@ -27,18 +27,20 @@
 
 
 MH_STATUS
-WINAPI
-UNX_CreateFuncHook ( LPCWSTR pwszFuncName,
-                     LPVOID  pTarget,
-                     LPVOID  pDetour,
-                     LPVOID *ppOriginal )
+__stdcall
+UNX_CreateFuncHook ( const wchar_t  *pwszFuncName,
+                           void     *pTarget,
+                           void     *pDetour,
+                           void    **ppOriginal )
 {
   static HMODULE hParent =
     GetModuleHandle (config.system.injector.c_str ());
 
-  typedef MH_STATUS (WINAPI *SK_CreateFuncHook_pfn)
-      ( LPCWSTR pwszFuncName, LPVOID  pTarget,
-        LPVOID  pDetour,      LPVOID *ppOriginal );
+  typedef MH_STATUS (__stdcall *SK_CreateFuncHook_pfn)( const wchar_t  *pwszFuncName,
+                                                              void     *pTarget,
+                                                              void     *pDetour,
+                                                              void    **ppOriginal );
+
   static SK_CreateFuncHook_pfn SK_CreateFuncHook =
     (SK_CreateFuncHook_pfn)GetProcAddress (hParent, "SK_CreateFuncHook");
 
@@ -47,18 +49,17 @@ UNX_CreateFuncHook ( LPCWSTR pwszFuncName,
 }
 
 MH_STATUS
-WINAPI
-UNX_CreateDLLHook ( LPCWSTR pwszModule, LPCSTR  pszProcName,
-                    LPVOID  pDetour,    LPVOID *ppOriginal,
-                    LPVOID *ppFuncAddr )
+__stdcall
+UNX_CreateDLLHook ( const wchar_t  *pwszModule, const char  *pszProcName,
+                          void     *pDetour,          void **ppOriginal,
+                          void    **ppFuncAddr )
 {
   static HMODULE hParent =
     GetModuleHandle (config.system.injector.c_str ());
 
-  typedef MH_STATUS (WINAPI *SK_CreateDLLHook_pfn)(
-        LPCWSTR pwszModule, LPCSTR  pszProcName,
-        LPVOID  pDetour,    LPVOID *ppOriginal, 
-        LPVOID *ppFuncAddr );
+  typedef MH_STATUS (__stdcall *SK_CreateDLLHook_pfn)( const wchar_t  *pwszModule, const char  *pszProcName,
+                                                             void     *pDetour,          void **ppOriginal,
+                                                             void    **ppFuncAddr );
   static SK_CreateDLLHook_pfn SK_CreateDLLHook =
     (SK_CreateDLLHook_pfn)GetProcAddress (hParent, "SK_CreateDLLHook");
 
@@ -67,18 +68,18 @@ UNX_CreateDLLHook ( LPCWSTR pwszModule, LPCSTR  pszProcName,
 }
 
 MH_STATUS
-WINAPI
-UNX_CreateDLLHook2 ( LPCWSTR pwszModule, LPCSTR  pszProcName,
-                     LPVOID  pDetour,    LPVOID *ppOriginal,
-                     LPVOID *ppFuncAddr )
+__stdcall
+UNX_CreateDLLHook2 ( const wchar_t  *pwszModule, const char  *pszProcName,
+                           void     *pDetour,          void **ppOriginal,
+                           void    **ppFuncAddr )
 {
   static HMODULE hParent =
     GetModuleHandle (config.system.injector.c_str ());
 
-  typedef MH_STATUS (WINAPI *SK_CreateDLLHook2_pfn)(
-        LPCWSTR pwszModule, LPCSTR  pszProcName,
-        LPVOID  pDetour,    LPVOID *ppOriginal, 
-        LPVOID *ppFuncAddr );
+  typedef MH_STATUS (__stdcall *SK_CreateDLLHook2_pfn)( const wchar_t  *pwszModule, const char  *pszProcName,
+                                                              void     *pDetour,          void **ppOriginal,
+                                                              void    **ppFuncAddr );
+
   static SK_CreateDLLHook2_pfn SK_CreateDLLHook2 =
     (SK_CreateDLLHook2_pfn)GetProcAddress (hParent, "SK_CreateDLLHook2");
 
@@ -87,13 +88,14 @@ UNX_CreateDLLHook2 ( LPCWSTR pwszModule, LPCSTR  pszProcName,
 }
 
 MH_STATUS
-WINAPI
+__stdcall
 UNX_ApplyQueuedHooks (void)
 {
   static HMODULE hParent =
     GetModuleHandle (config.system.injector.c_str ());
 
-  typedef MH_STATUS (WINAPI *SK_ApplyQueuedHooks_pfn)();
+  typedef MH_STATUS (__stdcall *SK_ApplyQueuedHooks_pfn)(void);
+
   static SK_ApplyQueuedHooks_pfn SK_ApplyQueuedHooks =
     (SK_ApplyQueuedHooks_pfn)GetProcAddress (hParent, "SK_ApplyQueuedHooks");
 
@@ -108,13 +110,14 @@ UNX_ApplyQueuedHooks (void)
 
 
 MH_STATUS
-WINAPI
-UNX_EnableHook (LPVOID pTarget)
+__stdcall
+UNX_EnableHook (void *pTarget)
 {
   static HMODULE hParent =
     GetModuleHandle (config.system.injector.c_str ());
 
-  typedef MH_STATUS (WINAPI *SK_EnableHook_pfn)(LPVOID pTarget);
+  typedef MH_STATUS (__stdcall *SK_EnableHook_pfn)(void *pTarget);
+
   static SK_EnableHook_pfn SK_EnableHook =
     (SK_EnableHook_pfn)GetProcAddress (hParent, "SK_EnableHook");
 
@@ -122,13 +125,14 @@ UNX_EnableHook (LPVOID pTarget)
 }
 
 MH_STATUS
-WINAPI
-UNX_DisableHook (LPVOID pTarget)
+__stdcall
+UNX_DisableHook (void *pTarget)
 {
   static HMODULE hParent =
     GetModuleHandle (config.system.injector.c_str ());
 
-  typedef MH_STATUS (WINAPI *SK_DisableHook_pfn)(LPVOID pTarget);
+  typedef MH_STATUS (__stdcall *SK_DisableHook_pfn)(void *pTarget);
+
   static SK_DisableHook_pfn SK_DisableHook =
     (SK_DisableHook_pfn)GetProcAddress (hParent, "SK_DisableHook");
 
@@ -136,13 +140,14 @@ UNX_DisableHook (LPVOID pTarget)
 }
 
 MH_STATUS
-WINAPI
-UNX_RemoveHook (LPVOID pTarget)
+__stdcall
+UNX_RemoveHook (void *pTarget)
 {
   static HMODULE hParent =
     GetModuleHandle (config.system.injector.c_str ());
 
-  typedef MH_STATUS (WINAPI *SK_RemoveHook_pfn)(LPVOID pTarget);
+  typedef MH_STATUS (__stdcall *SK_RemoveHook_pfn)(void *pTarget);
+
   static SK_RemoveHook_pfn SK_RemoveHook =
     (SK_RemoveHook_pfn)GetProcAddress (hParent, "SK_RemoveHook");
 
@@ -150,7 +155,7 @@ UNX_RemoveHook (LPVOID pTarget)
 }
 
 MH_STATUS
-WINAPI
+__stdcall
 UNX_Init_MinHook (void)
 {
   MH_STATUS status = MH_OK;
@@ -159,7 +164,7 @@ UNX_Init_MinHook (void)
 }
 
 MH_STATUS
-WINAPI
+__stdcall
 UNX_UnInit_MinHook (void)
 {
   MH_STATUS status = MH_OK;

@@ -32,7 +32,8 @@ UNX_CreateINI (const wchar_t* const wszName)
   typedef iSK_INI* (__stdcall *SK_CreateINI_pfn)(const wchar_t* const wszName);
   static SK_CreateINI_pfn SK_CreateINI = nullptr;
 
-  if (SK_CreateINI == nullptr) {
+  if (SK_CreateINI == nullptr)
+  {
     SK_CreateINI =
       (SK_CreateINI_pfn)
         GetProcAddress (

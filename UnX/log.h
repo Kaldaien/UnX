@@ -21,7 +21,10 @@
 #ifndef __UNX__LOG_H__
 #define __UNX__LOG_H__
 
-#include <Unknwnbase.h>
+#include <intrin.h>
+#include <Unknwn.h>
+#include <cstdio>
+#include <string>
 
 // {A4BF1773-CAAB-48F3-AD88-C2AB5C23BD6F}
 static const GUID IID_SK_Logger = 
@@ -79,6 +82,22 @@ interface iSK_Logger : public IUnknown
   STDMETHOD_ (void, Log)  (THIS_ _In_z_ _Printf_format_string_
                                  char const* const    _Format,
                                                            ... ) = 0;
+
+  FILE*            fLog        = nullptr;
+  std::wstring     name        = L"";
+  bool             silent      = false;
+  bool             initialized = false;
+  int              lines       =   0;
+  CRITICAL_SECTION log_mutex   = {   };
+  ULONG            refs        =   0UL;
+  DWORD            last_flush  =   0;
+  DWORD            flush_freq  =   100; // msecs
+
+public:
+  // Temporary augmentation for log issues during thread suspension
+  bool             lock   (void) { if (! lockless) { EnterCriticalSection (&log_mutex); return true; } return false; }
+  bool             unlock (void) { if (! lockless) { LeaveCriticalSection (&log_mutex); return true; } return false; }
+  bool             lockless    = true;
 };
 
 extern iSK_Logger* dll_log;

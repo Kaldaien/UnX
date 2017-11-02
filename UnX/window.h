@@ -21,117 +21,6 @@
 #ifndef __UNX__WINDOW_H__
 #define __UNX__WINDOW_H__
 
-typedef HWND (WINAPI *CreateWindowExW_pfn)(
-  _In_     DWORD     dwExStyle,
-  _In_opt_ LPCWSTR   lpClassName,
-  _In_opt_ LPCWSTR   lpWindowName,
-  _In_     DWORD     dwStyle,
-  _In_     int       x,
-  _In_     int       y,
-  _In_     int       nWidth,
-  _In_     int       nHeight,
-  _In_opt_ HWND      hWndParent,
-  _In_opt_ HMENU     hMenu,
-  _In_opt_ HINSTANCE hInstance,
-  _In_opt_ LPVOID    lpParam
-);
-
-typedef HWND (WINAPI *CreateWindowW_pfn)(
-  _In_opt_ LPCWSTR   lpClassName,
-  _In_opt_ LPCWSTR   lpWindowName,
-  _In_     DWORD     dwStyle,
-  _In_     int       x,
-  _In_     int       y,
-  _In_     int       nWidth,
-  _In_     int       nHeight,
-  _In_opt_ HWND      hWndParent,
-  _In_opt_ HMENU     hMenu,
-  _In_opt_ HINSTANCE hInstance,
-  _In_opt_ LPVOID    lpParam
-);
-
-typedef HWND (WINAPI *CreateWindowExA_pfn)(
-  _In_     DWORD     dwExStyle,
-  _In_opt_ LPCSTR    lpClassName,
-  _In_opt_ LPCSTR    lpWindowName,
-  _In_     DWORD     dwStyle,
-  _In_     int       x,
-  _In_     int       y,
-  _In_     int       nWidth,
-  _In_     int       nHeight,
-  _In_opt_ HWND      hWndParent,
-  _In_opt_ HMENU     hMenu,
-  _In_opt_ HINSTANCE hInstance,
-  _In_opt_ LPVOID    lpParam
-);
-
-typedef HWND (WINAPI *CreateWindowA_pfn)(
-  _In_opt_ LPCSTR    lpClassName,
-  _In_opt_ LPCSTR    lpWindowName,
-  _In_     DWORD     dwStyle,
-  _In_     int       x,
-  _In_     int       y,
-  _In_     int       nWidth,
-  _In_     int       nHeight,
-  _In_opt_ HWND      hWndParent,
-  _In_opt_ HMENU     hMenu,
-  _In_opt_ HINSTANCE hInstance,
-  _In_opt_ LPVOID    lpParam
-);
-
-typedef BOOL (WINAPI *MoveWindow_pfn)(
-  _In_ HWND hWnd,
-  _In_ int  X,
-  _In_ int  Y,
-  _In_ int  nWidth,
-  _In_ int  nHeight,
-  _In_ BOOL bRepaint
-);
-
-typedef BOOL (WINAPI *SetWindowPos_pfn)(
-  _In_ HWND hWnd,
-  _In_opt_ HWND hWndInsertAfter,
-  _In_ int X,
-  _In_ int Y,
-  _In_ int cx,
-  _In_ int cy,
-  _In_ UINT uFlags
-);
-
-typedef LONG
-(WINAPI *SetWindowLongA_pfn)(
-    _In_ HWND hWnd,
-    _In_ int nIndex,
-    _In_ LONG dwNewLong);
-
-typedef LONG
-(WINAPI *SetWindowLongW_pfn)(
-    _In_ HWND hWnd,
-    _In_ int nIndex,
-    _In_ LONG dwNewLong);
-
-typedef BOOL
-(WINAPI *IsIconic_pfn)(
-         HWND hWnd);
-
-typedef HWND
-(WINAPI *GetForegroundWindow_pfn)(
-  void
-);
-
-typedef HWND
-(WINAPI *GetFocus_pfn)(
-  void
-);
-
-extern MoveWindow_pfn          MoveWindow_Original;
-extern SetWindowPos_pfn        SetWindowPos_Original;
-extern GetForegroundWindow_pfn GetForegroundWindow_Original;
-extern SetWindowLongA_pfn      SetWindowLongA_Original;
-extern SetWindowLongW_pfn      SetWindowLongW_Original;
-extern IsIconic_pfn            IsIconic_Original;
-extern GetFocus_pfn            GetFocus_Original;
-
 #include "command.h"
 
 namespace unx
@@ -190,15 +79,6 @@ namespace unx
     private:
       static CommandProcessor* pCommProc;
     };
-
-    class BorderManager {
-    public:
-      void Enable  (void);
-      void Disable (void);
-      void Toggle  (void);
-
-      void AdjustWindow (void);
-    } static border;
   }
 }
 

@@ -34,6 +34,12 @@ static const GUID IID_SK_INISection =
 interface iSK_INISection : public IUnknown
 {
 public:
+  iSK_INISection (void) = default;
+
+  iSK_INISection (const wchar_t* section_name) {
+    name = section_name;
+  }
+
   /*** IUnknown methods ***/
   STDMETHOD  (       QueryInterface)(THIS_ REFIID riid, void** ppvObj);
   STDMETHOD_ (ULONG, AddRef)        (THIS);
@@ -44,6 +50,14 @@ public:
   STDMETHOD_ (bool,          contains_key) (const wchar_t* key);
   STDMETHOD_ (void,          add_key_value)(const wchar_t* key, const wchar_t* value);
   STDMETHOD_ (bool,          remove_key)   (const wchar_t* key);
+
+  //protected:
+  //private:
+  std::wstring                                    name;
+  std::unordered_map <std::wstring, std::wstring> keys;
+  std::vector        <std::wstring>               ordered_keys;
+
+  ULONG                                           refs = 0;
 };
 
 // {DD2B1E00-6C14-4659-8B45-FCEF1BC2C724}
@@ -52,7 +66,12 @@ static const GUID IID_SK_INI =
 
 interface iSK_INI : public IUnknown
 {
-  typedef const std::unordered_map <std::wstring, iSK_INISection> _TSectionMap;
+  using _TSectionMap =
+    const std::unordered_map <std::wstring, iSK_INISection>;
+
+   iSK_INI (const wchar_t* filename);
+  ~iSK_INI (void);
+
 
   /*** IUnknown methods ***/
   STDMETHOD  (       QueryInterface)(THIS_ REFIID riid, void** ppvObj);
@@ -72,6 +91,33 @@ interface iSK_INI : public IUnknown
                                                   wchar_t const* const _Format,
                                                                        ... );
   STDMETHOD_ (const wchar_t*,  get_filename)    (THIS) const;
+
+protected:
+private:
+  FILE*     fINI    = nullptr;
+
+  wchar_t*  wszName = nullptr;
+  wchar_t*  wszData = nullptr;
+
+  std::unordered_map <
+    std::wstring, iSK_INISection
+  >         sections;
+
+  // Preserve insertion order so that we write the INI file in the
+  //   same order we read it. Otherwise things get jumbled around
+  //     arbitrarily as the map is re-hashed.
+  std::vector <std::wstring>
+            ordered_sections;
+
+  // Preserve File Encoding
+  enum CharacterEncoding {
+    INI_INVALID = 0x00,
+    INI_UTF8    = 0x01,
+    INI_UTF16LE = 0x02,
+    INI_UTF16BE = 0x04 // Not natively supported, but can be converted
+  } encoding_;
+
+  ULONG     refs = 0;
 };
 
 iSK_INI*

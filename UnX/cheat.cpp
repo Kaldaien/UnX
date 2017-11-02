@@ -395,9 +395,10 @@ UNX_FFX_AudioSkip (bool bSkip)
 
   static bool init = false;
 
-  if (! init) {
-    memcpy (orig_inst, (char *)pFMODSyncAddr, 3);
+  if (! init)
+  {
     init = true;
+    memcpy (orig_inst, (char *)pFMODSyncAddr, 3);
   }
 
   DWORD dwProtect;
@@ -407,7 +408,8 @@ UNX_FFX_AudioSkip (bool bSkip)
 
   VirtualProtect ((LPVOID)pFMODSyncAddr, 3, PAGE_READWRITE, &dwProtect);
 
-  if (bSkip) {
+  if (bSkip)
+  {
     const uint8_t skip_inst [] = { 0xc2, 0x08, 0x00, 0x00 };
     memcpy ((void *)pFMODSyncAddr, skip_inst, 3);
     //SK_GetCommandProcessor ()->ProcessCommandFormatted ("mem t %p %s", pFMODSyncAddr, skip_inst);
@@ -423,7 +425,7 @@ UNX_FFX_AudioSkip (bool bSkip)
   UNX_ResumeThreads (tids);
 }
 
-typedef float (__cdecl *FFX_GameTick_pfn)(float);
+typedef void (__cdecl *FFX_GameTick_pfn)(float);
 FFX_GameTick_pfn UNX_FFX_GameTick_Original = nullptr;
 
 void
@@ -447,30 +449,21 @@ void
 UNX_UpdateSpeedLimit (void)
 {
   float step = config.cheat.ffx.speed_step;
-  config.cheat.ffx.speed_step = 1.0f;
+               config.cheat.ffx.speed_step = 1.0f;
 
   UNX_SpeedStep ();
 
   config.cheat.ffx.speed_step = step;
 }
 
-float
+void
 __cdecl
-UNX_FFX_GameTick (float x)
+UNX_FFX_GameTick (float fSpeed)
 {
-//  dll_log->Log ( L"[ FFXEvent ] Tick (%f)",
-//s                   x );
-
-  float tick = __UNX_speed_mod * x;
-
-  static float last_tick = tick;
-
-  if (isinf (tick) || isnan (tick))
-    tick = last_tick;
-
-  return UNX_FFX_GameTick_Original (tick);
+  UNX_FFX_GameTick_Original (fSpeed * __UNX_speed_mod);
 }
 
+#if 0
 LPVOID FFX_LoadLevel_Original = nullptr;
 
 __declspec (naked)
@@ -488,6 +481,7 @@ UNX_LoadLevel (char* szName)
           popad
           jmp FFX_LoadLevel_Original }
 }
+#endif
 
 void
 unx::CheatManager::Init (void)

@@ -27,7 +27,6 @@
 #include "hook.h"
 
 #include "language.h"
-#include "timing.h"
 #include "display.h"
 #include "input.h"
 #include "window.h"
@@ -109,7 +108,6 @@ DllThread (LPVOID)
     unx::DisplayFix::Init      ();
     //unx::RenderFix::Init       ();
     unx::InputManager::Init    ();
-    unx::TimingFix::Init       ();
     unx::WindowManager::Init   ();
 
     UNX_CreateDLLHook ( config.system.injector.c_str (),
@@ -160,14 +158,11 @@ BOOL
 WINAPI
 SKPlugIn_Init (HMODULE hModSpecialK)
 {
-  wchar_t wszSKFileName [MAX_PATH];
-          wszSKFileName [MAX_PATH - 1] = L'\0';
-
-  GetModuleFileName (hModSpecialK, wszSKFileName, MAX_PATH - 1);
+                           wchar_t wszSKFileName [MAX_PATH + 2] = { };
+  GetModuleFileName (hModSpecialK, wszSKFileName, MAX_PATH);
 
   injector_name = wszSKFileName;
-
-  hInjectorDLL = hModSpecialK;
+  hInjectorDLL  = hModSpecialK;
 
   DllThread (nullptr);
 
@@ -184,7 +179,7 @@ DllMain (HMODULE hModule,
   {
     case DLL_PROCESS_ATTACH:
     {
-      DisableThreadLibraryCalls (hModule);
+      //DisableThreadLibraryCalls (hModule);
       hDLLMod = hModule;
     } break;
 
@@ -194,12 +189,12 @@ DllMain (HMODULE hModule,
 
     case DLL_PROCESS_DETACH:
     {
-      if (dll_log != nullptr) {
+      if (dll_log != nullptr)
+      {
         unx::LanguageManager::Shutdown ();
         unx::WindowManager::Shutdown   ();
         //unx::RenderFix::Shutdown       ();
         unx::InputManager::Shutdown    ();
-        unx::TimingFix::Shutdown       ();
         unx::DisplayFix::Shutdown      ();
 
         UNX_UnInit_MinHook ();

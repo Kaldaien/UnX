@@ -1124,20 +1124,11 @@ unx::InputManager::Shutdown (void)
 void
 unx::InputManager::Hooker::Start (void)
 {
-  hMsgPump =
-    (HANDLE)
-      _beginthreadex ( nullptr,
-                         0,
-                           Hooker::MessagePump,
-                             nullptr,
-                              0,
-                                nullptr );
 }
 
 void
 unx::InputManager::Hooker::End (void)
 {
-  TerminateThread     (hMsgPump, 0);
 }
 
 #define XINPUT_GAMEPAD_DPAD_UP        0x0001
@@ -1460,335 +1451,339 @@ UNX_PollAxis (int axis, const JOYINFOEX& joy_ex, const JOYCAPSW& caps)
 __declspec (dllimport)
 bool SK_ImGui_Visible;
 
+
+std::deque <WORD> pressed_scancodes;
+
+void
+UNX_PollInput (void)
+{
+  if ( ((! SK_XInput_PollController) && (! gamepad.legacy)) )
+  {
+    return;
+  }
+
+  static bool init  = false;
+
+  if (! init)
+  {
+    UNX_SetupSpecialButtons ();
+  }
+
+  static combo_button_s f1         ( &gamepad.f1 );
+  static combo_button_s f2         ( &gamepad.f2 );
+  static combo_button_s f3         ( &gamepad.f3 );
+  static combo_button_s f4         ( &gamepad.f4 );
+  static combo_button_s f5         ( &gamepad.f5 );
+  static combo_button_s esc        ( &gamepad.esc );
+  static combo_button_s full       ( &gamepad.fullscreen );
+  static combo_button_s sshot      ( &gamepad.screenshot );
+  static combo_button_s speedboost ( &gamepad.speedboost );
+  static combo_button_s kickstart  ( &gamepad.kickstart  );
+  static combo_button_s softreset  ( &gamepad.softreset  );
+
+#define XI_POLL_INTERVAL 500UL
+
+  static DWORD  xi_ret       = ERROR_DEVICE_NOT_CONNECTED;
+  static DWORD  last_xi_poll = timeGetTime ();// - (XI_POLL_INTERVAL + 1UL);
+
+  static INPUT keys [5];
+
+  if (! init)
+  {
+    keys [0].type           = INPUT_KEYBOARD;
+    keys [0].ki.wVk         = 0;
+    keys [0].ki.dwFlags     = KEYEVENTF_SCANCODE;
+    keys [0].ki.time        = 0;
+    keys [0].ki.dwExtraInfo = 0;
+
+    for (int i = 1; i < 5; i++) {
+      keys [i].type           = INPUT_KEYBOARD;
+      keys [i].ki.wVk         = 0;
+      keys [i].ki.dwFlags     = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
+      keys [i].ki.time        = 0;
+      keys [i].ki.dwExtraInfo = 0;
+    }
+
+    init = true;
+  }
+
+
+  int slot = config.input.gamepad_slot;
+  if (slot == -1)
+      slot = 0;
+
+  // Do Not Handle Input While We Do Not Have Focus
+  if (GetForegroundWindow () != SK_GetGameWindow ())
+  {
+    return;
+  }
+
+  if (SK_ImGui_Visible)
+  {
+    return;
+  }
+
+
+  XINPUT_STATE xi_state = {   };
+  bool         success  = false;
+
+  if (SK_XInput_PollController != nullptr && (! gamepad.legacy))
+  {
+    // This function is actually a performance hazard when no controllers
+    //   are plugged in, so ... throttle the sucker.
+    if (  xi_ret == 0 ||
+         (last_xi_poll < timeGetTime () - XI_POLL_INTERVAL) )
+    {
+           success = SK_XInput_PollController (slot, &xi_state);
+      last_xi_poll = timeGetTime    ();
+
+      if (! success)
+      {
+        xi_state.Gamepad = {                        };
+        xi_ret           = ERROR_DEVICE_NOT_CONNECTED;
+      } else
+        xi_ret   =   0;
+    }
+  }
+
+  else
+  {
+    if (  xi_ret == 0 ||
+         (last_xi_poll < timeGetTime () - XI_POLL_INTERVAL) )
+    {
+      if (! joyGetNumDevs ())
+      {
+        xi_ret = ERROR_DEVICE_NOT_CONNECTED;
+      }
+
+      else
+      {
+        static JOYCAPSW caps = { };
+
+        if (! caps.wMaxButtons)
+          joyGetDevCaps (JOYSTICKID1, &caps, sizeof JOYCAPSW);
+
+        xi_ret = 0;
+
+        JOYINFOEX joy_ex { };
+                  joy_ex.dwSize  = sizeof JOYINFOEX;
+                  joy_ex.dwFlags = JOY_RETURNALL      | JOY_RETURNPOVCTS |
+                                   JOY_RETURNCENTERED | JOY_USEDEADZONE;
+
+        joyGetPosEx (JOYSTICKID1, &joy_ex);
+
+        xi_state.Gamepad.bLeftTrigger  = 0;//joy_ex.dwUpos > 0;
+        xi_state.Gamepad.bRightTrigger = 0;//joy_ex.dwVpos > 0;
+
+        xi_state.Gamepad.wButtons = 0;
+
+        if (UNX_PollAxis (gamepad.remap.buttons.A, joy_ex, caps) > 190)
+          xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_A;
+        if (UNX_PollAxis (gamepad.remap.buttons.B, joy_ex, caps) > 190)
+          xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_B;
+        if (UNX_PollAxis (gamepad.remap.buttons.X, joy_ex, caps) > 190)
+          xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_X;
+        if (UNX_PollAxis (gamepad.remap.buttons.Y, joy_ex, caps) > 190)
+          xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_Y;
+
+        if (UNX_PollAxis (gamepad.remap.buttons.START, joy_ex, caps) > 190)
+          xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_START;
+        if (UNX_PollAxis (gamepad.remap.buttons.BACK, joy_ex, caps) > 190)
+          xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_BACK;
+
+        xi_state.Gamepad.bLeftTrigger =
+          UNX_PollAxis (gamepad.remap.buttons.LT, joy_ex, caps);
+
+        xi_state.Gamepad.bRightTrigger =
+          UNX_PollAxis (gamepad.remap.buttons.RT, joy_ex, caps);
+
+        if (UNX_PollAxis (gamepad.remap.buttons.LB, joy_ex, caps) > 190)
+          xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_LEFT_SHOULDER;
+        if (UNX_PollAxis (gamepad.remap.buttons.RB, joy_ex, caps) > 190)
+          xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_RIGHT_SHOULDER;
+
+        if (UNX_PollAxis (gamepad.remap.buttons.LS, joy_ex, caps) > 190)
+          xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_LEFT_THUMB;
+        if (UNX_PollAxis (gamepad.remap.buttons.RS, joy_ex, caps) > 190)
+          xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_RIGHT_THUMB;
+
+        if (joy_ex.dwPOV == JOY_POVFORWARD)
+          xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_DPAD_UP;
+        if (joy_ex.dwPOV & JOY_POVBACKWARD)
+          xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_DPAD_DOWN;
+        if (joy_ex.dwPOV & JOY_POVLEFT)
+          xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_DPAD_LEFT;
+        if (joy_ex.dwPOV & JOY_POVRIGHT)
+          xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_DPAD_RIGHT;
+      }
+
+      last_xi_poll = timeGetTime    ();
+    }
+  }
+
+  if (xi_state.Gamepad.bLeftTrigger > 30)
+    xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_LEFT_TRIGGER;
+  else
+    xi_state.Gamepad.wButtons &= ~XINPUT_GAMEPAD_RIGHT_TRIGGER;
+
+  if (xi_state.Gamepad.bRightTrigger > 30)
+    xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_RIGHT_TRIGGER;
+  else
+    xi_state.Gamepad.wButtons &= ~XINPUT_GAMEPAD_RIGHT_TRIGGER;
+
+ //
+ // Analog deadzone compensation
+ //
+ if (xi_state.Gamepad.bLeftTrigger < 130)
+   xi_state.Gamepad.bLeftTrigger = 0;
+
+ if (xi_state.Gamepad.bRightTrigger < 130)
+   xi_state.Gamepad.bRightTrigger = 0;
+
+  //SetFocus (SK_GetGameWindow ());
+
+ softreset.poll (xi_ret, xi_state.Gamepad);
+
+ bool four_finger = softreset.wasJustPressed ();
+  //bool four_finger = (
+  //    xi_ret == 0                          &&
+  //    config.input.four_finger_salute      &&
+  //    xi_state.Gamepad.bLeftTrigger        &&
+  //    xi_state.Gamepad.bRightTrigger       &&
+  //    xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_LEFT_SHOULDER)  &&
+  //    xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_RIGHT_SHOULDER) &&
+  //    xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_START)          &&
+  //    xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_BACK)
+  //);
+
+  f1.poll         (xi_ret, xi_state.Gamepad);
+  f2.poll         (xi_ret, xi_state.Gamepad);
+  f3.poll         (xi_ret, xi_state.Gamepad);
+  f4.poll         (xi_ret, xi_state.Gamepad);
+  f5.poll         (xi_ret, xi_state.Gamepad);
+  esc.poll        (xi_ret, xi_state.Gamepad);
+  full.poll       (xi_ret, xi_state.Gamepad);
+  sshot.poll      (xi_ret, xi_state.Gamepad);
+  speedboost.poll (xi_ret, xi_state.Gamepad);
+  kickstart.poll  (xi_ret, xi_state.Gamepad);
+
+  WORD scancode = 0;
+
+#define UNX_SendScancode(x) { scancode          = (x);                \
+                            keys [0].ki.wScan = scancode;           \
+                                                                    \
+                            SendInput (1, &keys [0], sizeof INPUT); \
+                                                                    \
+                            pressed_scancodes.push_back (scancode); }
+
+  if (four_finger)
+  {
+    extern bool UNX_KillMeNow (void);
+
+    // If in battle, trigger a Game Over screen, otherwise restart the
+    //   entire game.
+    if (! UNX_KillMeNow ())
+    {
+      SendMessage (SK_GetGameWindow (), WM_CLOSE, 0, 0);
+    }
+
+    return;
+  }
+
+  // Filter out what appears to be the beginning of a "four finger salute"
+  //   so that menus and various other things are not activated.
+  if ( xi_state.Gamepad.bRightTrigger && xi_state.Gamepad.bLeftTrigger &&
+       xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_LEFT_SHOULDER)      &&
+       xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_RIGHT_SHOULDER) )
+  {
+    return;
+  }
+
+  bool        full_sleep = true;
+  static bool long_press = false;
+
+  if (esc.state)
+  {
+    UNX_SendScancode (0x01);
+  }
+
+  else if (esc.wasJustReleased ())
+  {
+    long_press         = false;
+    esc.time_activated = MAXDWORD;
+  }
+
+
+  if (speedboost.state)
+  {
+    if (speedboost.wasJustPressed ())
+    {
+      extern void UNX_SpeedStep (); 
+      UNX_SpeedStep ();
+    }
+  }
+
+  else if (f1.state) { UNX_SendScancode (0x3b); }
+  else if (f2.state) { UNX_SendScancode (0x3c); }
+  else if (f3.state) { UNX_SendScancode (0x3d); }
+  else if (f4.state) { UNX_SendScancode (0x3e); }
+  else if (f5.state) { UNX_SendScancode (0x3f); }
+
+  else if (full.wasJustPressed ())
+  {
+    UNX_SendScancode (0x38);
+    UNX_SendScancode (0x1c);
+
+    full_sleep = false;
+  }
+
+  else if (kickstart.wasJustPressed ())
+  {
+    UNX_KickStart ();
+  }
+
+  else if (sshot.wasJustPressed ())
+  {
+    typedef bool (__stdcall *SK_SteamAPI_TakeScreenshot_pfn)(void);
+
+    static SK_SteamAPI_TakeScreenshot_pfn
+      SK_SteamAPI_TakeScreenshot =
+        (SK_SteamAPI_TakeScreenshot_pfn)
+          GetProcAddress (
+                   GetModuleHandle ( config.system.injector.c_str () ),
+                     "SK_SteamAPI_TakeScreenshot"
+          );
+
+    if (SK_SteamAPI_TakeScreenshot != nullptr)
+      SK_SteamAPI_TakeScreenshot ();
+  }
+
+  int i = 1;
+
+  //SetFocus (SK_GetGameWindow ());
+
+  while (pressed_scancodes.size ())
+  {
+    keys [i++].ki.wScan = pressed_scancodes.front     ();
+                          pressed_scancodes.pop_front ();
+
+    if (i > 4)
+    {
+      SendInput (4, &keys [1], sizeof INPUT);
+      i = 1;
+    }
+  }
+
+  if (i > 1)
+    SendInput (i-1, &keys [1], sizeof INPUT);
+
+  //SetFocus (SK_GetGameWindow ());
+}
+
 unsigned int
 __stdcall
 unx::InputManager::Hooker::MessagePump (LPVOID)
 {
-  if ( ((! SK_XInput_PollController) && (! gamepad.legacy)) )
-  {
-    CloseHandle (GetCurrentThread ());
-    return 0;
-  }
-
-  UNX_SetupSpecialButtons ();
-
-  combo_button_s f1         ( &gamepad.f1 );
-  combo_button_s f2         ( &gamepad.f2 );
-  combo_button_s f3         ( &gamepad.f3 );
-  combo_button_s f4         ( &gamepad.f4 );
-  combo_button_s f5         ( &gamepad.f5 );
-  combo_button_s esc        ( &gamepad.esc );
-  combo_button_s full       ( &gamepad.fullscreen );
-  combo_button_s sshot      ( &gamepad.screenshot );
-  combo_button_s speedboost ( &gamepad.speedboost );
-  combo_button_s kickstart  ( &gamepad.kickstart  );
-  combo_button_s softreset  ( &gamepad.softreset  );
-
-#define XI_POLL_INTERVAL 500UL
-
-  DWORD  xi_ret       = ERROR_DEVICE_NOT_CONNECTED;
-  DWORD  last_xi_poll = timeGetTime ();// - (XI_POLL_INTERVAL + 1UL);
-
-  INPUT keys [5];
-
-  keys [0].type           = INPUT_KEYBOARD;
-  keys [0].ki.wVk         = 0;
-  keys [0].ki.dwFlags     = KEYEVENTF_SCANCODE;
-  keys [0].ki.time        = 0;
-  keys [0].ki.dwExtraInfo = 0;
-
-  for (int i = 1; i < 5; i++) {
-    keys [i].type           = INPUT_KEYBOARD;
-    keys [i].ki.wVk         = 0;
-    keys [i].ki.dwFlags     = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
-    keys [i].ki.time        = 0;
-    keys [i].ki.dwExtraInfo = 0;
-  }
-
-  std::deque <WORD> pressed_scancodes;
-
-  while (true)
-  {
-    int slot = config.input.gamepad_slot;
-    if (slot == -1)
-        slot = 0;
-
-    // Do Not Handle Input While We Do Not Have Focus
-    if (GetForegroundWindow () != SK_GetGameWindow ())
-    {
-      Sleep (15);
-      continue;
-    }
-
-    if (SK_ImGui_Visible)
-    {
-      Sleep (15);
-      continue;
-    }
-
-    XINPUT_STATE xi_state = {   };
-    bool         success  = false;
-
-    if (SK_XInput_PollController != nullptr && (! gamepad.legacy))
-    {
-      // This function is actually a performance hazzard when no controllers
-      //   are plugged in, so ... throttle the sucker.
-      if (  xi_ret == 0 ||
-           (last_xi_poll < timeGetTime () - XI_POLL_INTERVAL) )
-      {
-             success = SK_XInput_PollController (slot, &xi_state);
-        last_xi_poll = timeGetTime    ();
-
-        if (! success)
-        {
-          xi_state.Gamepad = {                        };
-          xi_ret           = ERROR_DEVICE_NOT_CONNECTED;
-        } else
-          xi_ret   =   0;
-      }
-    }
-
-    else
-    {
-      if (  xi_ret == 0 ||
-           (last_xi_poll < timeGetTime () - XI_POLL_INTERVAL) )
-      {
-        if (! joyGetNumDevs ())
-        {
-          xi_ret = ERROR_DEVICE_NOT_CONNECTED;
-        }
-
-        else
-        {
-          static JOYCAPSW caps = { };
-
-          if (! caps.wMaxButtons)
-            joyGetDevCaps (JOYSTICKID1, &caps, sizeof JOYCAPSW);
-
-          xi_ret = 0;
-
-          JOYINFOEX joy_ex { };
-                    joy_ex.dwSize  = sizeof JOYINFOEX;
-                    joy_ex.dwFlags = JOY_RETURNALL      | JOY_RETURNPOVCTS |
-                                     JOY_RETURNCENTERED | JOY_USEDEADZONE;
-
-          joyGetPosEx (JOYSTICKID1, &joy_ex);
-
-          xi_state.Gamepad.bLeftTrigger  = 0;//joy_ex.dwUpos > 0;
-          xi_state.Gamepad.bRightTrigger = 0;//joy_ex.dwVpos > 0;
-
-          xi_state.Gamepad.wButtons = 0;
-
-          if (UNX_PollAxis (gamepad.remap.buttons.A, joy_ex, caps) > 190)
-            xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_A;
-          if (UNX_PollAxis (gamepad.remap.buttons.B, joy_ex, caps) > 190)
-            xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_B;
-          if (UNX_PollAxis (gamepad.remap.buttons.X, joy_ex, caps) > 190)
-            xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_X;
-          if (UNX_PollAxis (gamepad.remap.buttons.Y, joy_ex, caps) > 190)
-            xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_Y;
-
-          if (UNX_PollAxis (gamepad.remap.buttons.START, joy_ex, caps) > 190)
-            xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_START;
-          if (UNX_PollAxis (gamepad.remap.buttons.BACK, joy_ex, caps) > 190)
-            xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_BACK;
-
-          xi_state.Gamepad.bLeftTrigger =
-            UNX_PollAxis (gamepad.remap.buttons.LT, joy_ex, caps);
-
-          xi_state.Gamepad.bRightTrigger =
-            UNX_PollAxis (gamepad.remap.buttons.RT, joy_ex, caps);
-
-          if (UNX_PollAxis (gamepad.remap.buttons.LB, joy_ex, caps) > 190)
-            xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_LEFT_SHOULDER;
-          if (UNX_PollAxis (gamepad.remap.buttons.RB, joy_ex, caps) > 190)
-            xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_RIGHT_SHOULDER;
-
-          if (UNX_PollAxis (gamepad.remap.buttons.LS, joy_ex, caps) > 190)
-            xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_LEFT_THUMB;
-          if (UNX_PollAxis (gamepad.remap.buttons.RS, joy_ex, caps) > 190)
-            xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_RIGHT_THUMB;
-
-          if (joy_ex.dwPOV == JOY_POVFORWARD)
-            xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_DPAD_UP;
-          if (joy_ex.dwPOV & JOY_POVBACKWARD)
-            xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_DPAD_DOWN;
-          if (joy_ex.dwPOV & JOY_POVLEFT)
-            xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_DPAD_LEFT;
-          if (joy_ex.dwPOV & JOY_POVRIGHT)
-            xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_DPAD_RIGHT;
-        }
-
-        last_xi_poll = timeGetTime    ();
-      }
-    }
-
-    if (xi_state.Gamepad.bLeftTrigger > 30)
-      xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_LEFT_TRIGGER;
-    else
-      xi_state.Gamepad.wButtons &= ~XINPUT_GAMEPAD_RIGHT_TRIGGER;
-
-    if (xi_state.Gamepad.bRightTrigger > 30)
-      xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_RIGHT_TRIGGER;
-    else
-      xi_state.Gamepad.wButtons &= ~XINPUT_GAMEPAD_RIGHT_TRIGGER;
-
-   //
-   // Analog deadzone compensation
-   //
-   if (xi_state.Gamepad.bLeftTrigger < 130)
-     xi_state.Gamepad.bLeftTrigger = 0;
-
-   if (xi_state.Gamepad.bRightTrigger < 130)
-     xi_state.Gamepad.bRightTrigger = 0;
-
-    //SetFocus (SK_GetGameWindow ());
-
-   softreset.poll (xi_ret, xi_state.Gamepad);
-
-   bool four_finger = softreset.wasJustPressed ();
-    //bool four_finger = (
-    //    xi_ret == 0                          &&
-    //    config.input.four_finger_salute      &&
-    //    xi_state.Gamepad.bLeftTrigger        &&
-    //    xi_state.Gamepad.bRightTrigger       &&
-    //    xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_LEFT_SHOULDER)  &&
-    //    xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_RIGHT_SHOULDER) &&
-    //    xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_START)          &&
-    //    xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_BACK)
-    //);
-
-    f1.poll         (xi_ret, xi_state.Gamepad);
-    f2.poll         (xi_ret, xi_state.Gamepad);
-    f3.poll         (xi_ret, xi_state.Gamepad);
-    f4.poll         (xi_ret, xi_state.Gamepad);
-    f5.poll         (xi_ret, xi_state.Gamepad);
-    esc.poll        (xi_ret, xi_state.Gamepad);
-    full.poll       (xi_ret, xi_state.Gamepad);
-    sshot.poll      (xi_ret, xi_state.Gamepad);
-    speedboost.poll (xi_ret, xi_state.Gamepad);
-    kickstart.poll  (xi_ret, xi_state.Gamepad);
-
-    WORD scancode = 0;
-
-#define UNX_SendScancode(x) { scancode          = (x);                \
-                              keys [0].ki.wScan = scancode;           \
-                                                                      \
-                              SendInput (1, &keys [0], sizeof INPUT); \
-                                                                      \
-                              pressed_scancodes.push_back (scancode); }
-
-    if (four_finger)
-    {
-      extern bool UNX_KillMeNow (void);
-
-      // If in battle, trigger a Game Over screen, otherwise restart the
-      //   entire game.
-      if (! UNX_KillMeNow ())
-      {
-        SendMessage (SK_GetGameWindow (), WM_CLOSE, 0, 0);
-      }
-
-      Sleep (15);
-      continue;
-    }
-
-    // Filter out what appears to be the beginning of a "four finger salute"
-    //   so that menus and various other things are not activated.
-    if ( xi_state.Gamepad.bRightTrigger && xi_state.Gamepad.bLeftTrigger &&
-         xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_LEFT_SHOULDER)      &&
-         xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_RIGHT_SHOULDER) )
-    {
-      Sleep (15);
-      continue;
-    }
-
-    bool        full_sleep = true;
-    static bool long_press = false;
-
-    if (esc.state)
-    {
-      UNX_SendScancode (0x01);
-    }
-
-    else if (esc.wasJustReleased ())
-    {
-      long_press         = false;
-      esc.time_activated = MAXDWORD;
-    }
-
-
-    if (speedboost.state)
-    {
-      if (speedboost.wasJustPressed ())
-      {
-        extern void UNX_SpeedStep (); 
-        UNX_SpeedStep ();
-      }
-    }
-
-    else if (f1.state) { UNX_SendScancode (0x3b); }
-    else if (f2.state) { UNX_SendScancode (0x3c); }
-    else if (f3.state) { UNX_SendScancode (0x3d); }
-    else if (f4.state) { UNX_SendScancode (0x3e); }
-    else if (f5.state) { UNX_SendScancode (0x3f); }
-
-    else if (full.wasJustPressed ())
-    {
-      UNX_SendScancode (0x38);
-      UNX_SendScancode (0x1c);
-
-      full_sleep = false;
-    }
-
-    else if (kickstart.wasJustPressed ())
-    {
-      UNX_KickStart ();
-    }
-
-    else if (sshot.wasJustPressed ())
-    {
-      typedef bool (__stdcall *SK_SteamAPI_TakeScreenshot_pfn)(void);
-
-      static SK_SteamAPI_TakeScreenshot_pfn
-        SK_SteamAPI_TakeScreenshot =
-          (SK_SteamAPI_TakeScreenshot_pfn)
-            GetProcAddress (
-                     GetModuleHandle ( config.system.injector.c_str () ),
-                       "SK_SteamAPI_TakeScreenshot"
-            );
-
-      if (SK_SteamAPI_TakeScreenshot != nullptr)
-        SK_SteamAPI_TakeScreenshot ();
-    }
-
-    Sleep (full_sleep ? 15 : 0);
-
-    if (! full_sleep)
-      SetForegroundWindow (SK_GetGameWindow ());
-
-    int i = 1;
-
-    //SetFocus (SK_GetGameWindow ());
-
-    while (pressed_scancodes.size ())
-    {
-      keys [i++].ki.wScan = pressed_scancodes.front     ();
-                            pressed_scancodes.pop_front ();
-
-      if (i > 4)
-      {
-        SendInput (4, &keys [1], sizeof INPUT);
-        i = 1;
-      }
-    }
-
-    if (i > 1)
-      SendInput (i-1, &keys [1], sizeof INPUT);
-
-    //SetFocus (SK_GetGameWindow ());
-  }
-
   return 0;
 }
 

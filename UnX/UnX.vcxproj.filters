@@ -16,9 +16,6 @@
     <ClCompile Include="language.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="timing.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="window.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -55,9 +52,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="language.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="timing.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="window.h">

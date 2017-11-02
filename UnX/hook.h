@@ -70,31 +70,27 @@ typedef enum MH_STATUS
 }
 MH_STATUS;
 
-typedef const char*    LPCSTR;
-typedef const wchar_t* LPCWSTR;
-typedef void*          LPVOID;
-
 void
 UNX_DrawCommandConsole (void);
 
 MH_STATUS
 __stdcall
-UNX_CreateFuncHook ( LPCWSTR pwszFuncName,
-                     LPVOID  pTarget,
-                     LPVOID  pDetour,
-                     LPVOID *ppOriginal );
+UNX_CreateFuncHook ( const wchar_t  *pwszFuncName,
+                           void     *pTarget,
+                           void     *pDetour,
+                           void    **ppOriginal );
 
 MH_STATUS
 __stdcall
-UNX_CreateDLLHook ( LPCWSTR pwszModule, LPCSTR  pszProcName,
-                    LPVOID  pDetour,    LPVOID *ppOriginal,
-                    LPVOID* ppFuncAddr = nullptr );
+UNX_CreateDLLHook ( const wchar_t  *pwszModule, const char  *pszProcName,
+                          void     *pDetour,          void **ppOriginal,
+                          void    **ppFuncAddr = nullptr );
 
 MH_STATUS
 __stdcall
-UNX_CreateDLLHook2 ( LPCWSTR pwszModule, LPCSTR  pszProcName,
-                     LPVOID  pDetour,    LPVOID *ppOriginal,
-                     LPVOID *ppFuncAddr = nullptr );
+UNX_CreateDLLHook2 ( const wchar_t  *pwszModule, const char  *pszProcName,
+                           void     *pDetour,          void **ppOriginal,
+                           void    **ppFuncAddr = nullptr );
 
 MH_STATUS
 __stdcall
@@ -102,15 +98,15 @@ UNX_ApplyQueuedHooks (void);
 
 MH_STATUS
 __stdcall
-UNX_EnableHook (LPVOID pTarget);
+UNX_EnableHook (void *pTarget);
 
 MH_STATUS
 __stdcall
-UNX_DisableHook (LPVOID pTarget);
+UNX_DisableHook (void *pTarget);
 
 MH_STATUS
 __stdcall
-UNX_RemoveHook (LPVOID pTarget);
+UNX_RemoveHook (void *pTarget);
 
 MH_STATUS
 __stdcall
@@ -122,6 +118,15 @@ UNX_UnInit_MinHook (void);
 
 
 extern void*
-UNX_Scan (const void* pattern, size_t len, const void* mask);
+__stdcall
+UNX_Scan          (const void* pattern, size_t len, const void* mask);
+
+extern void*
+__stdcall
+UNX_ScanAligned   (const void* pattern, size_t len, const void* mask, int align = 1);
+
+extern void*
+__stdcall
+UNX_ScanAlignedEx (const void* pattern, size_t len, const void* mask, void* after = nullptr, int align = 1);
 
 #endif /* __UNX__HOOK_H__ */

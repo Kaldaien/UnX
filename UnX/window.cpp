@@ -164,15 +164,6 @@ DetourWindowProc ( _In_  HWND   hWnd,
   }
 
 
-  if (config.input.filter_ime) {
-    if ( (uMsg >= WM_IME_SETCONTEXT        && uMsg <= WM_IME_KEYUP) ||
-         (uMsg >= WM_DWMCOMPOSITIONCHANGED && uMsg <= WM_DWMSENDICONICLIVEPREVIEWBITMAP) ) {
-      //dll_log->Log ( L"[IME Fix-Up]  Ignoring IME Message (%x)",
-                     //uMsg );
-      return DefWindowProc (hWnd, uMsg, wParam, lParam);
-    }
-  }
-
   if (  uMsg == WM_DESTROY    || uMsg == WM_QUIT ||
       (config.input.fast_exit && uMsg == WM_CLOSE)  )
   {
@@ -266,10 +257,16 @@ SKX_DrawExternalOSD_pfn SKX_DrawExternalOSD = nullptr;
 
 extern std::string UNX_SummarizeCheats (DWORD dwTime);
 
+extern void
+UNX_PollInput (void);
+
 void
 WINAPI
 SK_BeginBufferSwap_Detour (void)
 {
+  UNX_PollInput ();
+
+
   if (unx::window.render_thread == 0)
     unx::window.render_thread = GetCurrentThreadId ();
 
@@ -279,7 +276,8 @@ SK_BeginBufferSwap_Detour (void)
     dll_log->Log (L" !!! Unexpected Lack of SK_BufferSwap_Override in dxgi.dll !!! ");
   }
 
-  if (InterlockedCompareExchange (&queue_death, FALSE, TRUE)) {
+  if (InterlockedCompareExchange (&queue_death, FALSE, TRUE))
+  {
     SK_GetCommandProcessor ()->ProcessCommandLine ("mem b D2A8E2 2 ");
 
     bool
@@ -287,7 +285,8 @@ SK_BeginBufferSwap_Detour (void)
     UNX_KillMeNow ();
   }
 
-  if (SKX_DrawExternalOSD != nullptr) {
+  if (SKX_DrawExternalOSD != nullptr)
+  {
     static bool  first_frame      = true;
     static bool  draw_osd_toggle  = true;
     static DWORD first_frame_time = timeGetTime ();

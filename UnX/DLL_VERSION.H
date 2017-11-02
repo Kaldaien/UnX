@@ -4,7 +4,7 @@
 #define UNX_MAJOR 0
 #define UNX_MINOR 9
 #define UNX_BUILD 1
-#define UNX_REV   0
+#define UNX_REV   1
 
 
 
@@ -13,7 +13,7 @@
 #define _A2(a)     #a
 #define  _A(a)  _A2(a)
 #define _L2(w)  L ## w
-#define  _L(w) _L2(w)
+#define  _L(w)  _L2(w)
 
 
 #if (UNX_REV > 0)
