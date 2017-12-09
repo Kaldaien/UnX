@@ -104,6 +104,7 @@ struct {
 } render;
 
 struct {
+  unx::ParameterBool*    disable_timing_hacks;
 } compatibility;
 
 struct {
@@ -302,6 +303,18 @@ UNX_LoadConfig (std::wstring name)
     dll_ini,
       L"UnX.Render",
         L"BypassIntel" );
+
+
+  compatibility.disable_timing_hacks =
+    dynamic_cast <unx::ParameterBool *>
+      (g_ParameterFactory.create_parameter <bool> (
+        L"Disable Timeskip Feature for more accurate debug logs")
+      );
+  compatibility.disable_timing_hacks->register_to_ini (
+    dll_ini,
+      L"UnX.Compatibility",
+        L"DisableTimingHacks"
+  );
 
 
   language.voice =
@@ -653,6 +666,9 @@ UNX_LoadConfig (std::wstring name)
   input.filter_ime->load   (config.input.filter_ime);
 
 
+  compatibility.disable_timing_hacks->load (config.cheat.ffx.disable_timing_hacks);
+
+
 #if 1
   // Force BG input fix off if this is disabled
   if (! config.input.fast_exit)
@@ -749,12 +765,14 @@ UNX_SaveConfig (std::wstring name, bool close_config)
   extern wchar_t* UNX_GetExecutableName (void);
   if (StrStrIW (UNX_GetExecutableName (), L"ffx.exe"))
   {
-    booster.ffx.entire_party_earns_ap->store (config.cheat.ffx.entire_party_earns_ap);
-    booster.ffx.permanent_sensor->store      (config.cheat.ffx.permanent_sensor);
-    booster.ffx.playable_seymour->store      (config.cheat.ffx.playable_seymour);
-    booster.ffx.max_speed->store             (config.cheat.ffx.max_speed);
-    booster.ffx.speed_step->store            (config.cheat.ffx.speed_step);
-    booster.ffx.skip_dialog->store           (config.cheat.ffx.skip_dialog);
+    compatibility.disable_timing_hacks->store (config.cheat.ffx.disable_timing_hacks);
+
+    booster.ffx.entire_party_earns_ap->store  (config.cheat.ffx.entire_party_earns_ap);
+    booster.ffx.permanent_sensor->store       (config.cheat.ffx.permanent_sensor);
+    booster.ffx.playable_seymour->store       (config.cheat.ffx.playable_seymour);
+    booster.ffx.max_speed->store              (config.cheat.ffx.max_speed);
+    booster.ffx.speed_step->store             (config.cheat.ffx.speed_step);
+    booster.ffx.skip_dialog->store            (config.cheat.ffx.skip_dialog);
   }
 
   sys.version->store      (UNX_VER_STR);
@@ -1416,11 +1434,28 @@ UNX_ControlPanelWidget (void)
         {
           ImGui::TreePush    ("");
 
-          bool changed = false;
+          bool changed         = false;
+          bool enable_timehack = (! config.cheat.ffx.disable_timing_hacks);
+               changed        |= ImGui::Checkbox ("Enable", &enable_timehack);
 
-          changed |= ImGui::InputFloat  ("Step Multiplier", &config.cheat.ffx.speed_step,  0, 0, 1);
-          changed |= ImGui::InputFloat  ("Speed Limit",     &config.cheat.ffx.max_speed,   0, 0, 1);
-          changed |= ImGui::InputFloat  ("Dialog Skip At",  &config.cheat.ffx.skip_dialog, 0, 0, 1);
+          if (ImGui::IsItemHovered ())
+          {
+            ImGui::BeginTooltip ();
+            ImGui::Text         ("May cause compatibility issues with third-party software");
+            ImGui::Separator    ();
+            ImGui::BulletText   ("Disable if logs\\crash\\*\\crash.log contains a line about UNX_FFX_GameTick");
+            ImGui::EndTooltip   ();
+          }
+
+          if (changed)
+            config.cheat.ffx.disable_timing_hacks = (! enable_timehack);
+
+          if (enable_timehack)
+          {
+            changed |= ImGui::InputFloat  ("Step Multiplier", &config.cheat.ffx.speed_step,  0, 0, 1);
+            changed |= ImGui::InputFloat  ("Speed Limit",     &config.cheat.ffx.max_speed,   0, 0, 1);
+            changed |= ImGui::InputFloat  ("Dialog Skip At",  &config.cheat.ffx.skip_dialog, 0, 0, 1);
+          }
 
           if (changed)
           {
@@ -1428,7 +1463,7 @@ UNX_ControlPanelWidget (void)
             UNX_UpdateSpeedLimit ();
           }
 
-          ImGui::TreePop     (  );
+          ImGui::TreePop      (  );
         }
 
         if (ImGui::CollapsingHeader ("Sensor / Party AP"))

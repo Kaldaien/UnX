@@ -438,6 +438,30 @@ UNX_SpeedStep (void)
   else
     __UNX_speed_mod = 1.0f;
 
+
+  if (TRUE)
+  {
+    static bool enabled = false;
+
+    if (__UNX_speed_mod != 1.0f && (! config.cheat.ffx.disable_timing_hacks))
+    {
+      if (! enabled)
+      {
+        enabled = true;
+        UNX_EnableHook  ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x420C00));
+      }
+    }
+
+    else
+    {
+      if (enabled)
+      {
+        enabled = false;
+        UNX_DisableHook ((LPVOID)( (intptr_t)__UNX_base_img_addr + 0x420C00 ));
+      }
+    }
+  }
+
   if (__UNX_speed_mod >= config.cheat.ffx.skip_dialog) {
     UNX_FFX_AudioSkip (true);
   } else {
@@ -522,7 +546,6 @@ unx::CheatManager::Init (void)
         (LPVOID)((intptr_t)__UNX_base_img_addr + 0x420C00),
                              UNX_FFX_GameTick,
                   (LPVOID *)&UNX_FFX_GameTick_Original );
-    UNX_EnableHook ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x420C00));
 
 #if 0
     UNX_CreateFuncHook ( L"FFX_LoadLevel",
@@ -850,7 +873,7 @@ UNX_SummarizeCheats (DWORD dwTime)
                      "ON\n" : "OFF\n";
       }
 
-      if (last_changed.speed > dwTime - (status_duration * 2))
+      if (last_changed.speed > dwTime - (status_duration * 2) && (! config.cheat.ffx.disable_timing_hacks))
       {
         char szGameSpeed [128] = { };
 
@@ -871,7 +894,7 @@ UNX_SummarizeCheats (DWORD dwTime)
         if (*skip)
           summary += "(Timestop) ";
 
-        if (__UNX_skip_cutscenes)
+        if (__UNX_skip_cutscenes && (! config.cheat.ffx.disable_timing_hacks))
           summary += "(Cutscene Skip) ";
 
         summary += "\n";

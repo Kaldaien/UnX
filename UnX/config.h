@@ -46,6 +46,7 @@ struct unx_config_s
       float max_speed             = 8.0f;
       float speed_step            = 2.0f;
       float skip_dialog           = 8.0f;
+      bool  disable_timing_hacks  = false;
     } ffx;
   } cheat;
 
