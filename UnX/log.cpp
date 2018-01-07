@@ -30,10 +30,12 @@ UNX_CreateLog (const wchar_t* const wszName)
 {
   extern HMODULE hInjectorDLL;
 
-  typedef iSK_Logger* (__stdcall *SK_CreateLog_pfn)(const wchar_t* const wszName);
-  static SK_CreateLog_pfn SK_CreateLog = nullptr;
+  using  SK_CreateLog_pfn = iSK_Logger* (__stdcall *)(const wchar_t* const wszName);
+  static SK_CreateLog_pfn
+         SK_CreateLog     = nullptr;
 
-  if (SK_CreateLog == nullptr) {
+  if (SK_CreateLog == nullptr)
+  {
     SK_CreateLog =
       (SK_CreateLog_pfn)
         GetProcAddress (

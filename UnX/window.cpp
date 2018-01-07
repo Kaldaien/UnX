@@ -29,22 +29,18 @@
 
 #include "cheat.h"
 
+#include <atlbase.h>
 #include <dxgi.h>
 #include <d3d11.h>
 
-typedef HWND (WINAPI *SK_GetGameWindow_pfn)(void);
-extern                SK_GetGameWindow_pfn SK_GetGameWindow;
 
-extern BOOL
-APIENTRY
-DllMain (HMODULE hModule,
-         DWORD   ul_reason_for_call,
-         LPVOID  /* lpReserved */);
+using  SK_GetGameWindow_pfn = HWND (WINAPI *)(void);
+extern SK_GetGameWindow_pfn SK_GetGameWindow;
 
-typedef HRESULT (__stdcall *SK_UpdateSoftware_pfn)           (const wchar_t* wszProduct);
-typedef bool    (__stdcall *SK_FetchVersionInfo_pfn)         (const wchar_t* wszProduct);
+using SK_UpdateSoftware_pfn   = HRESULT (__stdcall *)(const wchar_t* wszProduct);
+using SK_FetchVersionInfo_pfn = bool    (__stdcall *)(const wchar_t* wszProduct);
 
-#include <atlbase.h>
+
 
 bool
 UNX_IsRenderThread (void)
@@ -65,7 +61,7 @@ UNX_IsWindowThread (void)
 {
   // Plugin not fully initialized yet ... we have no choice but
   //   to report this as false.
-  if (unx::window.hwnd == 0)
+  if (unx::window.hwnd == nullptr)
     return false;
 
   if ( GetCurrentThreadId       (                           ) ==
@@ -75,7 +71,6 @@ UNX_IsWindowThread (void)
   return false;
 }
 
-unx::window_state_s unx::window;
 
 LRESULT
 CALLBACK
@@ -84,19 +79,21 @@ DetourWindowProc ( _In_  HWND   hWnd,
                    _In_  WPARAM wParam,
                    _In_  LPARAM lParam );
 
-
-bool windowed = false;
-
-typedef LRESULT (CALLBACK *DetourWindowProc_pfn)( _In_  HWND   hWnd,
+using DetourWindowProc_pfn      = LRESULT (CALLBACK *)
+                 ( _In_  HWND   hWnd,
                    _In_  UINT   uMsg,
                    _In_  WPARAM wParam,
                    _In_  LPARAM lParam
 );
+      DetourWindowProc_pfn
+      DetourWindowProc_Original = nullptr;
 
-DetourWindowProc_pfn DetourWindowProc_Original = nullptr;
 
 volatile ULONG schedule_load = FALSE;
 volatile ULONG queue_death   = FALSE;
+
+unx::window_state_s
+     unx::window   = { };
 
 bool shutting_down = false;
 bool last_active   = unx::window.active;
@@ -116,10 +113,10 @@ DetourWindowProc ( _In_  HWND   hWnd,
   {
     schedule_load = false;
 
-    typedef int (__stdcall *LoadSave_pfn)   (void);
-    typedef int (__cdecl   *LoadSave2_pfn)  (int);
-    typedef int (__stdcall *LoadSave3_pfn)  (void);
-    typedef int (__cdecl   *LoadSaveXXX_pfn)(int);
+    using LoadSave_pfn    = int (__stdcall *)(void);
+    using LoadSave2_pfn   = int (__cdecl   *)(int);
+    using LoadSave3_pfn   = int (__stdcall *)(void);
+    using LoadSaveXXX_pfn = int (__cdecl   *)(int);
 
     ///LoadSave_pfn LoadSave =
     ///  (LoadSave_pfn)
@@ -133,7 +130,7 @@ DetourWindowProc ( _In_  HWND   hWnd,
     ///  (LoadSave3_pfn)
     ///    ((intptr_t)__UNX_base_img_addr + 0x230DE0);
 
-    LoadSaveXXX_pfn LoadSaveXXX =
+    auto LoadSaveXXX =
       (LoadSaveXXX_pfn)
         ((intptr_t)__UNX_base_img_addr + 0x421870);
 
@@ -149,7 +146,7 @@ DetourWindowProc ( _In_  HWND   hWnd,
   }
 
 
-  if (GetForegroundWindow () == hWnd)
+  if (GetActiveWindow () == hWnd)
     unx::window.active = true;
   else
     unx::window.active = false;
@@ -159,9 +156,9 @@ DetourWindowProc ( _In_  HWND   hWnd,
   // Setup the Cheat Manager on the first message received
   //   while the render window is active
   //
-  static volatile ULONG init_cheats = FALSE;
+  static volatile ULONG              __init_cheats = FALSE;
   if ( unx::window.active &&
-     (! InterlockedCompareExchange (&init_cheats, TRUE, FALSE)) )
+     (! InterlockedCompareExchange (&__init_cheats, TRUE, FALSE)) )
   {
     unx::CheatManager::Init ();
   }
@@ -206,18 +203,26 @@ DetourWindowProc ( _In_  HWND   hWnd,
                                           L"INACTIVE" );
   }
 
+
   if (config.input.trap_alt_tab)
   {
     if ( uMsg == WM_NCACTIVATE )
       return 0;
   }
 
+
   if (uMsg == WM_TIMER)
   {
-    if (wParam == unx::CHEAT_TIMER_FFX)
-      unx::CheatTimer_FFX ();
-    else if (wParam == unx::CHEAT_TIMER_FFX2)
-      unx::CheatTimer_FFX2 ();
+    switch (wParam)
+    {
+      case unx::CHEAT_TIMER_FFX:
+        unx::CheatTimer_FFX ();
+        break;
+
+      case unx::CHEAT_TIMER_FFX2:
+        unx::CheatTimer_FFX2 ();
+        break;
+    }
   }
 
 
@@ -252,16 +257,24 @@ DetourWindowProc ( _In_  HWND   hWnd,
   return DetourWindowProc_Original (hWnd, uMsg, wParam, lParam);
 }
 
-typedef void (WINAPI *SK_BeginBufferSwap_pfn)(void);
-SK_BeginBufferSwap_pfn SK_BeginBufferSwap_Original = nullptr;
 
-typedef BOOL (WINAPI *SKX_DrawExternalOSD_pfn)(const char* szAppName, const char* szText);
-SKX_DrawExternalOSD_pfn SKX_DrawExternalOSD = nullptr;
+using SK_BeginBufferSwap_pfn      = void (WINAPI *)(void);
+      SK_BeginBufferSwap_pfn
+      SK_BeginBufferSwap_Original = nullptr;
 
-extern std::string UNX_SummarizeCheats (DWORD dwTime);
+using SKX_DrawExternalOSD_pfn = BOOL (WINAPI *)(const char* szAppName, const char* szText);
+      SKX_DrawExternalOSD_pfn
+      SKX_DrawExternalOSD     = nullptr;
+
+
+extern std::string 
+UNX_SummarizeCheats (DWORD dwTime);
 
 extern void
 UNX_PollInput (void);
+
+extern bool
+UNX_KillMeNow (void);
 
 void
 WINAPI
@@ -271,57 +284,33 @@ SK_BeginBufferSwap_Detour (void)
 
 
   if (unx::window.render_thread == 0)
-    unx::window.render_thread = GetCurrentThreadId ();
+      unx::window.render_thread = GetCurrentThreadId ();
 
   if (SK_BeginBufferSwap_Original != nullptr)
-    SK_BeginBufferSwap_Original ();
-  else {
-    dll_log->Log (L" !!! Unexpected Lack of SK_BufferSwap_Override in dxgi.dll !!! ");
-  }
+      SK_BeginBufferSwap_Original ();
+
 
   if (InterlockedCompareExchange (&queue_death, FALSE, TRUE))
   {
     SK_GetCommandProcessor ()->ProcessCommandLine ("mem b D2A8E2 2 ");
 
-    bool
-    UNX_KillMeNow (void);
     UNX_KillMeNow ();
   }
 
+
   if (SKX_DrawExternalOSD != nullptr)
   {
-    static bool  first_frame      = true;
-    static bool  draw_osd_toggle  = true;
-    static DWORD first_frame_time = timeGetTime ();
-
     DWORD now = timeGetTime ();
 
-    std::string osd_out = "";
-
-    if (draw_osd_toggle) {
-      if (now - first_frame_time < 5000) {
-        osd_out +=
-                   "  Press Ctrl + Shift + O         to toggle In-Game OSD\n"
-                   "  Press Ctrl + Shift + Backspace to access In-Game Config Menu\n"
-                   "    ( Press Start + Select on Gamepads )\n"
-                   "      [Titlebar will colorcycle in gamepad mode]\n\n";
-        //osd_out += "Press Ctrl + Shift + O to toggle OSD\n\n";
-      } else {
-        draw_osd_toggle = false;
-      }
-    }
-
-    osd_out += UNX_SummarizeCheats (now);
-
-    SKX_DrawExternalOSD ("UnX Status", osd_out.c_str ());
+    SKX_DrawExternalOSD ( "UnX Status",
+                            UNX_SummarizeCheats (now).c_str () );
   }
 
-  static volatile ULONG init = false;
 
-  if (! InterlockedCompareExchange (&init, 1, 0))
+  static volatile ULONG              __init = FALSE;
+  if (! InterlockedCompareExchange (&__init, 1, 0))
   {
-    extern HMODULE      hInjectorDLL;
-    extern std::wstring injector_name;
+    extern HMODULE hInjectorDLL;
 
     SK_UpdateSoftware_pfn SK_UpdateSoftware =
       (SK_UpdateSoftware_pfn)
@@ -333,7 +322,7 @@ SK_BeginBufferSwap_Detour (void)
         GetProcAddress ( hInjectorDLL,
                            "SK_FetchVersionInfo" );
 
-    if (! wcsstr (injector_name.c_str (), L"SpecialK"))
+    if (config.system.injector.find (L"SpecialK") == std::wstring::npos)
     {
       if ( SK_FetchVersionInfo != nullptr &&
            SK_UpdateSoftware   != nullptr )
@@ -347,9 +336,12 @@ SK_BeginBufferSwap_Detour (void)
   }
 }
 
+
 void
 UNX_InstallWindowHook (HWND hWnd)
 {
+  extern HMODULE hInjectorDLL;
+
   unx::window.hwnd = hWnd;
 
   UNX_CreateDLLHook2 ( config.system.injector.c_str (),
@@ -364,12 +356,9 @@ UNX_InstallWindowHook (HWND hWnd)
 
   UNX_ApplyQueuedHooks ();
 
-  HMODULE hModInject  =
-    GetModuleHandleW (config.system.injector.c_str ());
-
   SKX_DrawExternalOSD =
    (SKX_DrawExternalOSD_pfn)GetProcAddress (
-     hModInject,
+     GetModuleHandleW (config.system.injector.c_str ()),
        "SKX_DrawExternalOSD"
    );
 }
@@ -391,10 +380,9 @@ unx::WindowManager::Shutdown (void)
 }
 
 
-unx::WindowManager::
-  CommandProcessor::CommandProcessor (void)
-{
-}
+unx::WindowManager::CommandProcessor::CommandProcessor (void) = default;
+unx::WindowManager::CommandProcessor*
+   unx::WindowManager::CommandProcessor::pCommProc            = nullptr;
 
 bool
   unx::WindowManager::
@@ -405,7 +393,8 @@ bool
 
   bool known = false;
 
-  if (! known) {
+  if (! known)
+  {
     dll_log->Log ( L"[Window Mgr] UNKNOWN Variable Changed (%p --> %p)",
                      var,
                        val );
@@ -413,6 +402,3 @@ bool
 
   return false;
 }
-
-unx::WindowManager::CommandProcessor*
-   unx::WindowManager::CommandProcessor::pCommProc = nullptr;

@@ -19,40 +19,44 @@
  *
 **/
 #include <Windows.h>
+#include <process.h>
+#include <comdef.h>
 
 #include "config.h"
 #include "log.h"
-#include "command.h"
-
 #include "hook.h"
+#include "command.h"
 
 #include "language.h"
 #include "display.h"
 #include "input.h"
 #include "window.h"
 
-#include <process.h>
-#include <comdef.h>
 
-#pragma comment (lib, "kernel32.lib")
-
-HMODULE hDLLMod      = { 0 }; // Handle to SELF
-HMODULE hInjectorDLL = { 0 }; // Handle to Special K
-
-typedef void    (__stdcall *SKX_SetPluginName_pfn)           (const wchar_t* name);
-typedef void    (__stdcall *SK_PlugIn_ControlPanelWidget_pfn)(void);
-
-extern void __stdcall                         UNX_ControlPanelWidget (void);
-extern SK_PlugIn_ControlPanelWidget_pfn SK_PlugIn_ControlPanelWidget_Original;
-
-SKX_SetPluginName_pfn SKX_SetPluginName = nullptr;
-
+HMODULE      hDLLMod      = { nullptr }; // Handle to SELF
+HMODULE      hInjectorDLL = { nullptr }; // Handle to Special K
 std::wstring injector_name;
 
-DWORD
+typedef void (__stdcall *SKX_SetPluginName_pfn)           (const wchar_t* name);
+                         SKX_SetPluginName_pfn
+                         SKX_SetPluginName = nullptr;
+
+typedef void (__stdcall *SK_PlugIn_ControlPanelWidget_pfn)(void);
+extern                   SK_PlugIn_ControlPanelWidget_pfn
+                         SK_PlugIn_ControlPanelWidget_Original;
+
+extern void   __stdcall  UNX_ControlPanelWidget           (void);
+
+
+BOOL
 __stdcall
-DllThread (LPVOID)
+DeferredDllMain (       HMODULE  hModSpecialK,
+                  const wchar_t* wszFullInjectorPath )
 {
+  injector_name = wszFullInjectorPath;
+  hInjectorDLL  = hModSpecialK;
+
+
   std::wstring plugin_name = L"Untitled Project X v " + UNX_VER_STR;
 
   //
@@ -70,15 +74,19 @@ DllThread (LPVOID)
                           L"============",
                             UNX_VER_STR.c_str () );
 
+
+  config.system.injector = injector_name;
+
   if (! UNX_LoadConfig ())
   {
-    config.system.injector = injector_name;
-
     // Save a new config if none exists
     UNX_SaveConfig ();
   }
 
+  // This is not meant to be loaded from the INI; it is _STORED_ there
+  //   for debug purposes.
   config.system.injector = injector_name;
+
 
   SKX_SetPluginName = 
     (SKX_SetPluginName_pfn)
@@ -94,42 +102,41 @@ DllThread (LPVOID)
   if (SKX_SetPluginName != nullptr)
     SKX_SetPluginName (plugin_name.c_str ());
 
+
   // Plugin State
   if (UNX_Init_MinHook () == MH_OK)
   {
+    UNX_CreateDLLHook2 ( config.system.injector.c_str (),
+                         "SK_PlugIn_ControlPanelWidget",
+                                UNX_ControlPanelWidget,
+               (LPVOID *)&SK_PlugIn_ControlPanelWidget_Original );
+
     // Initialize memory addresses
     UNX_Scan ((const uint8_t *)"XYZ123", strlen ("XYZ123"), nullptr);
 
     unx::LanguageManager::Init ();
     unx::DisplayFix::Init      ();
-    //unx::RenderFix::Init       ();
     unx::InputManager::Init    ();
     unx::WindowManager::Init   ();
 
-    UNX_CreateDLLHook ( config.system.injector.c_str (),
-                        "SK_PlugIn_ControlPanelWidget",
-                         UNX_ControlPanelWidget,
-        (LPVOID *)&SK_PlugIn_ControlPanelWidget_Original );
+    if (MH_OK == UNX_ApplyQueuedHooks ())
+      return TRUE;
   }
 
-  return 0;
+  return FALSE;
 }
+
 
 __declspec (dllexport)
 BOOL
 WINAPI
 SKPlugIn_Init (HMODULE hModSpecialK)
 {
-                           wchar_t wszSKFileName [MAX_PATH + 2] = { };
-  GetModuleFileName (hModSpecialK, wszSKFileName, MAX_PATH);
-
-  injector_name = wszSKFileName;
-  hInjectorDLL  = hModSpecialK;
-
-  DllThread (nullptr);
-
-  return TRUE;
+                                  wchar_t wszSKFileName [MAX_PATH + 2] = { };
+         GetModuleFileName (hModSpecialK, wszSKFileName, MAX_PATH);
+  return DeferredDllMain   (hModSpecialK, wszSKFileName);
 }
+
 
 BOOL
 APIENTRY
@@ -141,13 +148,15 @@ DllMain (HMODULE hModule,
   {
     case DLL_PROCESS_ATTACH:
     {
+                       hDLLMod = hModule;
       DisableThreadLibraryCalls (hModule);
-      hDLLMod = hModule;
     } break;
+
 
     case DLL_THREAD_ATTACH:
     case DLL_THREAD_DETACH:
       break;
+
 
     case DLL_PROCESS_DETACH:
     {
@@ -155,7 +164,6 @@ DllMain (HMODULE hModule,
       {
         unx::LanguageManager::Shutdown ();
         unx::WindowManager::Shutdown   ();
-        //unx::RenderFix::Shutdown       ();
         unx::InputManager::Shutdown    ();
         unx::DisplayFix::Shutdown      ();
 
@@ -173,6 +181,7 @@ DllMain (HMODULE hModule,
       }
     } break;
   }
+
 
   return TRUE;
 }

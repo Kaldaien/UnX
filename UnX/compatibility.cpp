@@ -49,45 +49,16 @@ UNX_ScanAlignedEx (const void* pattern, size_t len, const void* mask, void* afte
   MEMORY_BASIC_INFORMATION minfo;
   VirtualQuery (base_addr, &minfo, sizeof minfo);
 
-  //
-  // VMProtect kills this, so let's do something else...
-  //
-#ifdef VMPROTECT_IS_NOT_A_FACTOR
-  IMAGE_DOS_HEADER* pDOS =
-    (IMAGE_DOS_HEADER *)minfo.AllocationBase;
-  IMAGE_NT_HEADERS* pNT  =
-    (IMAGE_NT_HEADERS *)((uintptr_t)(pDOS + pDOS->e_lfanew));
-
-  uint8_t* end_addr = base_addr + pNT->OptionalHeader.SizeOfImage;
-#else
            base_addr = static_cast <uint8_t *> (minfo.BaseAddress);//AllocationBase;
   uint8_t* end_addr  = static_cast <uint8_t *> (minfo.BaseAddress) + minfo.RegionSize;
 
-  ///if (base_addr != (uint8_t *)0x400000)
-  ///{
-  ///  static bool warned = false;
-  ///  if (! warned)
-  ///  {
-  ///    dll_log.Log ( L"[ Sig Scan ] Expected module base addr. 40000h, but got: %ph",
-  ///                    base_addr );
-  ///    warned = true;
-  ///  }
-  ///}
-
   size_t pages = 0;
 
-#ifndef _WIN64
   // Account for possible overflow in 32-bit address space in very rare (address randomization) cases
-uint8_t* const PAGE_WALK_LIMIT = 
-  base_addr + static_cast <uintptr_t>(1UL << 27) > base_addr ?
-                                                   base_addr + static_cast      <uintptr_t>( 1UL << 27) :
-                                                               reinterpret_cast <uint8_t *>(~0UL      );
-#else
-  // Dark Souls 3 needs this, its address space is completely random to the point
-  //   where it may be occupying a range well in excess of 36 bits. Probably a stupid
-  //     anti-cheat attempt.
-uint8_t* const PAGE_WALK_LIMIT = (base_addr + static_cast <uintptr_t>(1ULL << 36));
-#endif
+  uint8_t* const PAGE_WALK_LIMIT = 
+    base_addr + static_cast <uintptr_t>(1UL << 27) > base_addr ?
+                                                     base_addr + static_cast      <uintptr_t>( 1UL << 27) :
+                                                                 reinterpret_cast <uint8_t *>(~0UL      );
 
   //
   // For practical purposes, let's just assume that all valid games have less than 256 MiB of
@@ -120,14 +91,6 @@ uint8_t* const PAGE_WALK_LIMIT = (base_addr + static_cast <uintptr_t>(1ULL << 36
     end_addr =
       static_cast <uint8_t *> (PAGE_WALK_LIMIT);
   }
-
-#if 0
-  dll_log->Log ( L"[ Sig Scan ] Module image consists of %zu pages, from %ph to %ph",
-                  pages,
-                    base_addr,
-                      end_addr );
-#endif
-#endif
 
   __UNX_base_img_addr = base_addr;
   __UNX_end_img_addr  = end_addr;

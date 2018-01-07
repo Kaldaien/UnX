@@ -23,12 +23,14 @@
 #define DIRECTINPUT_VERSION 0x0800
 
 #include <Windows.h>
-#include <cstdint>
 
 #include <comdef.h>
-
 #include <dinput.h>
 #pragma comment (lib, "dxguid.lib")
+
+#include <process.h>
+#include <mmsystem.h>
+#pragma comment (lib, "winmm.lib")
 
 #include "log.h"
 #include "config.h"
@@ -38,22 +40,21 @@
 
 #include "input.h"
 
-#include <mmsystem.h>
-#pragma comment (lib, "winmm.lib")
-
-#include <process.h>
-
-typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)(const wchar_t*, uint32_t, uint32_t);
-extern SK_D3D11_AddTexHash_pfn SK_D3D11_AddTexHash;
-
-using SK_GetGameWindow_pfn = HWND (WINAPI *)(void);
-SK_GetGameWindow_pfn SK_GetGameWindow;
-
-unx_gamepad_s gamepad;
+#include <cstdint>
+#include <queue>
+#include <unordered_map>
 
 extern void UNX_InstallWindowHook (HWND hWnd);
 
-  unx::ParameterStringW* texture_set;
+typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)(const wchar_t*, uint32_t, uint32_t);
+               extern SK_D3D11_AddTexHash_pfn
+                      SK_D3D11_AddTexHash;
+
+using SK_GetGameWindow_pfn = HWND (WINAPI *)(void);
+      SK_GetGameWindow_pfn SK_GetGameWindow;
+
+unx_gamepad_s          gamepad;
+unx::ParameterStringW* texture_set;
 
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -107,7 +108,7 @@ IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE8W      This,
       auto* out = (DIJOYSTATE2 *)lpvData;
 
       // Fix Wonky Input Behavior When Window is Not In Foreground
-      if (! unx::window.active/*GetForegroundWindow () != SK_GetGameWindow ()*/)
+      if (! unx::window.active)
       {
         memset (out, 0, sizeof DIJOYSTATE2);
 
@@ -195,6 +196,7 @@ using XInputGetState_pfn = DWORD (WINAPI *)(
 XInputGetState_pfn XInputGetState_Original = nullptr;
 
 
+
 DWORD
 WINAPI
 XInputGetState_Detour ( _In_  DWORD         dwUserIndex,
@@ -211,35 +213,29 @@ XInputGetState_Detour ( _In_  DWORD         dwUserIndex,
   //if (dwRet == ERROR_NOT_CONNECTED)
     //dwRet = 0;
 
+  //
+  // Once upon a time, I used to translate DInput to XInput on the game's behalf,
+  //   but would prefer to leave this task up to the Steam overlay (0.9.x+)
+  //
+
   return dwRet;
 }
 
+
+
+
+
 using SK_XInput_PollController_pfn = bool (WINAPI *)( INT           iJoyID,
                                                       XINPUT_STATE* pState );
-SK_XInput_PollController_pfn SK_XInput_PollController = nullptr;
-
-///////////////////////////////////////////////////////////////////////////////
-//
-// User32 Input APIs
-//
-///////////////////////////////////////////////////////////////////////////////
-void
-WINAPI
-SpinOrSleep (DWORD dwMilliseconds)
-{
-  DWORD dwEnd  = timeGetTime () + dwMilliseconds;
-
-  while (timeGetTime () < dwEnd) {
-    YieldProcessor ();
-    Sleep (dwMilliseconds);
-  }
-}
+      SK_XInput_PollController_pfn
+          SK_XInput_PollController = nullptr;
 
 using SK_PluginKeyPress_pfn = void (CALLBACK *)( BOOL Control,
                         BOOL Shift,
                         BOOL Alt,
                         BYTE vkCode );
-SK_PluginKeyPress_pfn SK_PluginKeyPress_Original = nullptr;
+      SK_PluginKeyPress_pfn
+  SK_PluginKeyPress_Original = nullptr;
 
 
 void
@@ -277,12 +273,8 @@ UNX_KickStart (void)
 UNX_Keybindings keybinds;
 
 
-#include <unordered_map>
-
 std::unordered_map <std::wstring, BYTE> humanKeyNameToVirtKeyCode;
 std::unordered_map <BYTE, std::wstring> virtKeyCodeToHumanKeyName;
-
-#include <queue>
 
 #define SK_MakeKeyMask(vKey,ctrl,shift,alt) \
   (UINT)((vKey) | (((ctrl) != 0) <<  9) |   \
@@ -559,7 +551,8 @@ SK_UNX_PluginKeyPress ( BOOL Control,
 }
 
 using  SK_GetConfigPath_pfn = const wchar_t* (__stdcall *)(void);
-extern SK_GetConfigPath_pfn SK_GetConfigPath;
+extern SK_GetConfigPath_pfn
+       SK_GetConfigPath;
 
 iSK_INI* pad_cfg = nullptr;
 
@@ -726,26 +719,18 @@ unx::InputManager::Init (void)
   }
 
 
-  gamepad.f1.combo_name         = "F1";
-  gamepad.f2.combo_name         = "F2";
-  gamepad.f3.combo_name         = "F3";
-  gamepad.f4.combo_name         = "F4";
-  gamepad.f5.combo_name         = "F5";
-  gamepad.screenshot.combo_name = "Steam Screenshot";
-  gamepad.fullscreen.combo_name = "Fullscreen Toggle";
-  gamepad.esc.combo_name        = "PC Game Menu";
-  gamepad.speedboost.combo_name = "Speed Hack";
-  gamepad.kickstart.combo_name  = "Kickstart";
-  gamepad.softreset.combo_name  = "Soft Game Reset";
-
-
   auto* supports_XInput = 
     (unx::ParameterBool *)factory.create_parameter <bool> (L"Disable XInput?");
   supports_XInput->register_to_ini (pad_cfg, L"Gamepad.Type", L"UsesXInput");
 
   if (((unx::iParameter *)supports_XInput)->load ())
   {
-    gamepad.legacy = (! supports_XInput->get_value ());
+    // v 0.9.2:
+    //
+    //   * DirectInput -> XInput is currently broken, so just disable this.
+    //
+    gamepad.legacy = false;
+    //gamepad.legacy = (! supports_XInput->get_value ());
   } else {
     supports_XInput->store (true);
   }
@@ -1103,33 +1088,14 @@ unx::InputManager::Init (void)
 
   UNX_ApplyQueuedHooks ();
 
-  unx::InputManager::Hooker* pHook =
-    unx::InputManager::Hooker::getInstance ();
-
   UNX_InstallWindowHook (SK_GetGameWindow ());
-
-  pHook->Start ();
 }
 
 void
 unx::InputManager::Shutdown (void)
 {
-  unx::InputManager::Hooker* pHook =
-    unx::InputManager::Hooker::getInstance ();
-
-  pHook->End ();
 }
 
-
-void
-unx::InputManager::Hooker::Start (void)
-{
-}
-
-void
-unx::InputManager::Hooker::End (void)
-{
-}
 
 #define XINPUT_GAMEPAD_DPAD_UP        0x0001
 #define XINPUT_GAMEPAD_DPAD_DOWN      0x0002
@@ -1378,7 +1344,8 @@ struct combo_button_s {
 
 
   bool poll ( DWORD          xi_ret,
-              XINPUT_GAMEPAD xi_gamepad )
+              XINPUT_GAMEPAD xi_gamepad,
+              DWORD          dwTimeNow = timeGetTime () )
   {
     last_state = state;
 
@@ -1390,9 +1357,9 @@ struct combo_button_s {
        xi_gamepad.wButtons == (WORD)combo->buttons);
 
     if (wasJustPressed ())
-      time_activated = timeGetTime ();
+      time_activated = dwTimeNow;
     else if (wasJustReleased ())
-      time_released  = timeGetTime ();
+      time_released  = dwTimeNow;
 
     return state;
   }
@@ -1448,11 +1415,24 @@ UNX_PollAxis (int axis, const JOYINFOEX& joy_ex, const JOYCAPSW& caps)
 #pragma warning (pop)
 }
 
-__declspec (dllimport)
-bool SK_ImGui_Visible;
 
+#define UNX_SendScancodeMake(vk,x)   { keybd_event ((vk), (x), KEYEVENTF_SCANCODE,                   0); }
+#define UNX_SendScancodeBreak(vk, y) { keybd_event ((vk), (y), KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, 0); }
 
-std::deque <WORD> pressed_scancodes;
+//
+// Make and break
+//
+//  Due to input quirks in FFX, we have to issue the key release (break) event from a separate thread.
+//
+//    A simple FIFO queue amortized across multiple frames is insufficient and this kludge must stay.
+//
+#define UNX_SendScancode(vk,x,y) {                         UNX_SendScancodeMake  ((vk), (x));                          \
+          CreateThread (nullptr, 0, [](LPVOID) -> DWORD {             SleepEx (66, TRUE);                              \
+                                                           UNX_SendScancodeBreak ((vk), (x));                          \
+                                                           CloseHandle (GetCurrentThread ());                          \
+                                                                                  return 0; }, nullptr, 0x0, nullptr); \
+};
+
 
 void
 UNX_PollInput (void)
@@ -1462,9 +1442,8 @@ UNX_PollInput (void)
     return;
   }
 
-  static bool init  = false;
-
-  if (! init)
+  static volatile LONG               __init      = FALSE;
+  if (! InterlockedCompareExchange (&__init, TRUE, FALSE))
   {
     UNX_SetupSpecialButtons ();
   }
@@ -1483,40 +1462,19 @@ UNX_PollInput (void)
 
 #define XI_POLL_INTERVAL 500UL
 
-  static DWORD  xi_ret       = ERROR_DEVICE_NOT_CONNECTED;
-  static DWORD  last_xi_poll = timeGetTime ();// - (XI_POLL_INTERVAL + 1UL);
-
-  static INPUT keys [5];
-
-  if (! init)
-  {
-    keys [0].type           = INPUT_KEYBOARD;
-    keys [0].ki.wVk         = 0;
-    keys [0].ki.dwFlags     = KEYEVENTF_SCANCODE;
-    keys [0].ki.time        = 0;
-    keys [0].ki.dwExtraInfo = 0;
-
-    for (int i = 1; i < 5; i++) {
-      keys [i].type           = INPUT_KEYBOARD;
-      keys [i].ki.wVk         = 0;
-      keys [i].ki.dwFlags     = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
-      keys [i].ki.time        = 0;
-      keys [i].ki.dwExtraInfo = 0;
-    }
-
-    init = true;
-  }
-
+         DWORD dwTimeNow    = timeGetTime ();
+  static DWORD xi_ret       = ERROR_DEVICE_NOT_CONNECTED;
+  static DWORD last_xi_poll = dwTimeNow;// - (XI_POLL_INTERVAL + 1UL);
 
   int slot = config.input.gamepad_slot;
   if (slot == -1)
       slot = 0;
 
-//  // Do Not Handle Input While We Do Not Have Focus
-//  if (GetForegroundWindow () != SK_GetGameWindow ())
-//  {
-//    return;
-//  }
+  // Do Not Handle Input While We Do Not Have Focus
+  if (! unx::window.active)
+  {
+    return;
+  }
 
 
   XINPUT_STATE xi_state = {   };
@@ -1527,10 +1485,10 @@ UNX_PollInput (void)
     // This function is actually a performance hazard when no controllers
     //   are plugged in, so ... throttle the sucker.
     if (  xi_ret == 0 ||
-         (last_xi_poll < timeGetTime () - XI_POLL_INTERVAL) )
+         (last_xi_poll < dwTimeNow - XI_POLL_INTERVAL) )
     {
            success = SK_XInput_PollController (slot, &xi_state);
-      last_xi_poll = timeGetTime    ();
+      last_xi_poll = dwTimeNow;
 
       if (! success)
       {
@@ -1544,7 +1502,7 @@ UNX_PollInput (void)
   else
   {
     if (  xi_ret == 0 ||
-         (last_xi_poll < timeGetTime () - XI_POLL_INTERVAL) )
+         (last_xi_poll < dwTimeNow - XI_POLL_INTERVAL) )
     {
       if (! joyGetNumDevs ())
       {
@@ -1612,7 +1570,7 @@ UNX_PollInput (void)
           xi_state.Gamepad.wButtons |= XINPUT_GAMEPAD_DPAD_RIGHT;
       }
 
-      last_xi_poll = timeGetTime    ();
+      last_xi_poll = dwTimeNow;
     }
   }
 
@@ -1635,9 +1593,7 @@ UNX_PollInput (void)
  if (xi_state.Gamepad.bRightTrigger < 130)
    xi_state.Gamepad.bRightTrigger = 0;
 
-  //SetFocus (SK_GetGameWindow ());
-
- softreset.poll (xi_ret, xi_state.Gamepad);
+ softreset.poll (xi_ret, xi_state.Gamepad, dwTimeNow);
 
  bool four_finger = softreset.wasJustPressed ();
   //bool four_finger = (
@@ -1651,28 +1607,17 @@ UNX_PollInput (void)
   //    xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_BACK)
   //);
 
-  f1.poll         (xi_ret, xi_state.Gamepad);
-  f2.poll         (xi_ret, xi_state.Gamepad);
-  f3.poll         (xi_ret, xi_state.Gamepad);
-  f4.poll         (xi_ret, xi_state.Gamepad);
-  f5.poll         (xi_ret, xi_state.Gamepad);
-  esc.poll        (xi_ret, xi_state.Gamepad);
-  full.poll       (xi_ret, xi_state.Gamepad);
-  sshot.poll      (xi_ret, xi_state.Gamepad);
-  speedboost.poll (xi_ret, xi_state.Gamepad);
-  kickstart.poll  (xi_ret, xi_state.Gamepad);
+  f1.poll         (xi_ret, xi_state.Gamepad, dwTimeNow);
+  f2.poll         (xi_ret, xi_state.Gamepad, dwTimeNow);
+  f3.poll         (xi_ret, xi_state.Gamepad, dwTimeNow);
+  f4.poll         (xi_ret, xi_state.Gamepad, dwTimeNow);
+  f5.poll         (xi_ret, xi_state.Gamepad, dwTimeNow);
+  esc.poll        (xi_ret, xi_state.Gamepad, dwTimeNow);
+  full.poll       (xi_ret, xi_state.Gamepad, dwTimeNow);
+  sshot.poll      (xi_ret, xi_state.Gamepad, dwTimeNow);
+  speedboost.poll (xi_ret, xi_state.Gamepad, dwTimeNow);
+  kickstart.poll  (xi_ret, xi_state.Gamepad, dwTimeNow);
 
-  WORD scancode = 0;
-
-#define UNX_SendScancodeMake(vk,x)   { keybd_event ((vk), (x), KEYEVENTF_SCANCODE,                   0); }
-#define UNX_SendScancodeBreak(vk, y) { keybd_event ((vk), (y), KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, 0); }
-
-#define UNX_SendScancode(vk,x,y) {                         UNX_SendScancodeMake  ((vk), (x));                          \
-          CreateThread (nullptr, 0, [](LPVOID) -> DWORD {             SleepEx (66, TRUE);                              \
-                                                           UNX_SendScancodeBreak ((vk), (x));                          \
-                                                           CloseHandle (GetCurrentThread ());                          \
-                                                                                  return 0; }, nullptr, 0x0, nullptr); \
-};
 
   if (four_finger)
   {
@@ -1690,14 +1635,14 @@ UNX_PollInput (void)
 
   // Filter out what appears to be the beginning of a "four finger salute"
   //   so that menus and various other things are not activated.
-  if ( xi_state.Gamepad.bRightTrigger && xi_state.Gamepad.bLeftTrigger &&
-       xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_LEFT_SHOULDER)      &&
-       xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_RIGHT_SHOULDER) )
-  {
-    return;
-  }
+  ///if ( xi_state.Gamepad.bRightTrigger && xi_state.Gamepad.bLeftTrigger &&
+  ///     xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_LEFT_SHOULDER)      &&
+  ///     xi_state.Gamepad.wButtons & (XINPUT_GAMEPAD_RIGHT_SHOULDER) )
+  ///{
+  ///  return;
+  ///}
 
-  bool        full_sleep = true;
+
   static bool long_press = false;
 
   if (esc.wasJustPressed ())
@@ -1731,8 +1676,6 @@ UNX_PollInput (void)
   {
     UNX_SendScancode (VK_MENU,   0x38, 0xb8);
     UNX_SendScancode (VK_RETURN, 0x1c, 0x9c);
-
-    full_sleep = false;
   }
 
   else if (kickstart.wasJustPressed ())
@@ -1756,41 +1699,3 @@ UNX_PollInput (void)
       SK_SteamAPI_TakeScreenshot ();
   }
 }
-
-unsigned int
-__stdcall
-unx::InputManager::Hooker::MessagePump (LPVOID)
-{
-  return 0;
-}
-
-void
-UNX_ReleaseESCKey (void)
-{
-return;
-
-  ///INPUT keys [2];
-  ///
-  ///keys [0].type           = INPUT_KEYBOARD;
-  ///keys [0].ki.wVk         = 0;
-  ///keys [0].ki.wScan       = 0x01;
-  ///keys [0].ki.dwFlags     = KEYEVENTF_SCANCODE;
-  ///keys [0].ki.time        = 0;
-  ///keys [0].ki.dwExtraInfo = 0;
-  ///
-  ///SendInput (1, &keys [0], sizeof INPUT);
-  ///Sleep     (66);
-  ///
-  ///keys [1].type           = INPUT_KEYBOARD;
-  ///keys [1].ki.wVk         = 0;
-  ///keys [1].ki.wScan       = 0x01;
-  ///keys [1].ki.dwFlags     = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP;
-  ///keys [1].ki.time        = 0;
-  ///keys [1].ki.dwExtraInfo = 0;
-  ///
-  ///SendInput (1, &keys [1], sizeof INPUT);
-  ///Sleep     (66);
-}
-
-unx::InputManager::Hooker*
-  unx::InputManager::Hooker::pInputHook = nullptr;

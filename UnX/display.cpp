@@ -30,7 +30,7 @@ void
 UNX_DisableDPIScaling (void)
 {
   DWORD   dwProcessSize = MAX_PATH;
-  wchar_t wszProcessName [MAX_PATH];
+  wchar_t wszProcessName [MAX_PATH + 2] = { };
 
   HANDLE hProc =
    GetCurrentProcess ();

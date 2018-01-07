@@ -25,15 +25,15 @@
 #include "cheat.h"
 #include "window.h"
 #include "hook.h"
+#include "log.h"
 
 #include <Windows.h>
 #include <cstdint>
 
 extern wchar_t* UNX_GetExecutableName (void);
+       void     UNX_SetSensor         (bool state);
 
 unx_gametype_t game_type = GAME_INVALID;
-
-void UNX_SetSensor (bool state);
 
 
 struct unx_ffx2_memory_s {
@@ -341,9 +341,9 @@ UNX_SuspendAllOtherThreads (void)
             HANDLE hThread =
               OpenThread (THREAD_ALL_ACCESS, FALSE, tent.th32ThreadID);
 
-            if (hThread != NULL)
+            if (hThread != nullptr)
             {
-              threads.push (tent.th32ThreadID);
+              threads.push  (tent.th32ThreadID);
               SuspendThread (hThread);
               CloseHandle   (hThread);
             }
@@ -370,7 +370,7 @@ UNX_ResumeThreads (std::queue <DWORD> threads)
     HANDLE hThread =
       OpenThread (THREAD_ALL_ACCESS, FALSE, tid);
 
-    if (hThread != NULL)
+    if (hThread != nullptr)
     {
       ResumeThread (hThread);
       CloseHandle  (hThread);
@@ -393,11 +393,9 @@ UNX_FFX_AudioSkip (bool bSkip)
   static intptr_t pFMODSyncAddr = (intptr_t)((uint8_t *)__UNX_base_img_addr + 0x30AEC0);
   static uint8_t  orig_inst []  = { 0x55, 0x00, 0x00, 0x00 };
 
-  static bool init = false;
-
-  if (! init)
+  static volatile ULONG              __init      = FALSE;
+  if (! InterlockedCompareExchange (&__init, TRUE, FALSE))
   {
-    init = true;
     memcpy (orig_inst, (char *)pFMODSyncAddr, 3);
   }
 
@@ -425,8 +423,9 @@ UNX_FFX_AudioSkip (bool bSkip)
   UNX_ResumeThreads (tids);
 }
 
-typedef void (__cdecl *FFX_GameTick_pfn)(float);
-FFX_GameTick_pfn UNX_FFX_GameTick_Original = nullptr;
+using FFX_GameTick_pfn          = void (__cdecl *)(float);
+      FFX_GameTick_pfn
+      UNX_FFX_GameTick_Original = nullptr;
 
 void
 UNX_SpeedStep (void)
@@ -439,30 +438,27 @@ UNX_SpeedStep (void)
     __UNX_speed_mod = 1.0f;
 
 
-  if (TRUE)
+  static volatile ULONG enabled = FALSE;
+
+  if (__UNX_speed_mod != 1.0f && (! config.cheat.ffx.disable_timing_hacks))
   {
-    static bool enabled = false;
-
-    if (__UNX_speed_mod != 1.0f && (! config.cheat.ffx.disable_timing_hacks))
+    if (! InterlockedCompareExchange (&enabled, TRUE, FALSE))
     {
-      if (! enabled)
-      {
-        enabled = true;
-        UNX_EnableHook  ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x420C00));
-      }
-    }
-
-    else
-    {
-      if (enabled)
-      {
-        enabled = false;
-        UNX_DisableHook ((LPVOID)( (intptr_t)__UNX_base_img_addr + 0x420C00 ));
-      }
+      UNX_EnableHook  ((LPVOID)((intptr_t)__UNX_base_img_addr + 0x420C00));
     }
   }
 
-  if (__UNX_speed_mod >= config.cheat.ffx.skip_dialog) {
+  else
+  {
+    if (InterlockedCompareExchange (&enabled, FALSE, TRUE))
+    {
+      UNX_DisableHook ((LPVOID)( (intptr_t)__UNX_base_img_addr + 0x420C00 ));
+    }
+  }
+  
+
+  if (__UNX_speed_mod >= config.cheat.ffx.skip_dialog)
+  {
     UNX_FFX_AudioSkip (true);
   } else {
     UNX_FFX_AudioSkip (false);
@@ -592,7 +588,6 @@ unx::CheatManager::Shutdown (void)
 {
 }
 
-#include "log.h"
 
 void
 UNX_SetPartyAP (bool state)
@@ -692,7 +687,7 @@ UNX_Quickie (void)
   if (game_type != GAME_FFX)
     return;
 
-  typedef int (__cdecl *sub_7C8650_pfn)(int);
+  using sub_7C8650_pfn = int (__cdecl *)(int);
   sub_7C8650_pfn Menu =
     (sub_7C8650_pfn)((intptr_t)__UNX_base_img_addr + 0x3C8650);
   Menu (0x6);

@@ -200,35 +200,6 @@ namespace unx
   {
     void Init     ();
     void Shutdown ();
-
-    class Hooker {
-    private:
-      HANDLE          hMsgPump;
-
-      static Hooker*  pInputHook;
-    protected:
-      Hooker (void) { }
-
-    public:
-      static Hooker* getInstance (void)
-      {
-        if (pInputHook == nullptr)
-          pInputHook = new Hooker ();
-
-        return pInputHook;
-      }
-
-      void Start (void);
-      void End   (void);
-
-      HANDLE GetThread (void) {
-        return hMsgPump;
-      }
-
-      static unsigned int
-        __stdcall
-        MessagePump (LPVOID hook_ptr);
-    };
   }
 }
 
