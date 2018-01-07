@@ -1,7 +1,7 @@
 ﻿/**
  * This file is part of UnX.
  *
- * UnX is free software : you can redistribute it
+ * UnX is free software : you can red3d11istribute it
  * and/or modify it under the terms of the GNU General Public License
  * as published by The Free Software Foundation, either version 3 of
  * the License, or (at your option) any later version.
@@ -39,8 +39,6 @@
 HMODULE hDLLMod      = { 0 }; // Handle to SELF
 HMODULE hInjectorDLL = { 0 }; // Handle to Special K
 
-typedef HRESULT (__stdcall *SK_UpdateSoftware_pfn)           (const wchar_t* wszProduct);
-typedef bool    (__stdcall *SK_FetchVersionInfo_pfn)         (const wchar_t* wszProduct);
 typedef void    (__stdcall *SKX_SetPluginName_pfn)           (const wchar_t* name);
 typedef void    (__stdcall *SK_PlugIn_ControlPanelWidget_pfn)(void);
 
@@ -102,8 +100,6 @@ DllThread (LPVOID)
     // Initialize memory addresses
     UNX_Scan ((const uint8_t *)"XYZ123", strlen ("XYZ123"), nullptr);
 
-    CoInitializeEx (nullptr, COINIT_MULTITHREADED);
-
     unx::LanguageManager::Init ();
     unx::DisplayFix::Init      ();
     //unx::RenderFix::Init       ();
@@ -114,40 +110,6 @@ DllThread (LPVOID)
                         "SK_PlugIn_ControlPanelWidget",
                          UNX_ControlPanelWidget,
         (LPVOID *)&SK_PlugIn_ControlPanelWidget_Original );
-
-    CreateThread (
-      nullptr, 0,
-        [](LPVOID)->
-          DWORD
-            {
-              SK_UpdateSoftware_pfn SK_UpdateSoftware =
-                (SK_UpdateSoftware_pfn)
-                  GetProcAddress ( hInjectorDLL,
-                                     "SK_UpdateSoftware" );
-
-              SK_FetchVersionInfo_pfn SK_FetchVersionInfo =
-                (SK_FetchVersionInfo_pfn)
-                  GetProcAddress ( hInjectorDLL,
-                                     "SK_FetchVersionInfo" );
-
-              if (! wcsstr (injector_name.c_str (), L"SpecialK")) {
-                if ( SK_FetchVersionInfo != nullptr &&
-                     SK_UpdateSoftware   != nullptr ) {
-                  if (SK_FetchVersionInfo (L"UnX")) {
-                    SK_UpdateSoftware (L"UnX");
-                  }
-                }
-              }
-
-              CloseHandle (GetCurrentThread ());
-
-              return 0;
-            },
-
-          nullptr,
-        0x00,
-      nullptr
-    );
   }
 
   return 0;
@@ -179,7 +141,7 @@ DllMain (HMODULE hModule,
   {
     case DLL_PROCESS_ATTACH:
     {
-      //DisableThreadLibraryCalls (hModule);
+      DisableThreadLibraryCalls (hModule);
       hDLLMod = hModule;
     } break;
 

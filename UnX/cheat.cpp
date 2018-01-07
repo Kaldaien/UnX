@@ -894,7 +894,7 @@ UNX_SummarizeCheats (DWORD dwTime)
         if (*skip)
           summary += "(Timestop) ";
 
-        if (__UNX_skip_cutscenes && (! config.cheat.ffx.disable_timing_hacks))
+        if (__UNX_skip_cutscenes)
           summary += "(Cutscene Skip) ";
 
         summary += "\n";

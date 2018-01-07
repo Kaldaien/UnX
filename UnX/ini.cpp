@@ -29,7 +29,7 @@ UNX_CreateINI (const wchar_t* const wszName)
 {
   extern HMODULE hInjectorDLL;
 
-  typedef iSK_INI* (__stdcall *SK_CreateINI_pfn)(const wchar_t* const wszName);
+  using  SK_CreateINI_pfn = iSK_INI* (__stdcall *)(const wchar_t* const wszName);
   static SK_CreateINI_pfn SK_CreateINI = nullptr;
 
   if (SK_CreateINI == nullptr)

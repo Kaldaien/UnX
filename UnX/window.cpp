@@ -33,13 +33,16 @@
 #include <d3d11.h>
 
 typedef HWND (WINAPI *SK_GetGameWindow_pfn)(void);
-extern SK_GetGameWindow_pfn SK_GetGameWindow;
+extern                SK_GetGameWindow_pfn SK_GetGameWindow;
 
 extern BOOL
 APIENTRY
 DllMain (HMODULE hModule,
          DWORD   ul_reason_for_call,
          LPVOID  /* lpReserved */);
+
+typedef HRESULT (__stdcall *SK_UpdateSoftware_pfn)           (const wchar_t* wszProduct);
+typedef bool    (__stdcall *SK_FetchVersionInfo_pfn)         (const wchar_t* wszProduct);
 
 #include <atlbase.h>
 
@@ -311,6 +314,36 @@ SK_BeginBufferSwap_Detour (void)
     osd_out += UNX_SummarizeCheats (now);
 
     SKX_DrawExternalOSD ("UnX Status", osd_out.c_str ());
+  }
+
+  static volatile ULONG init = false;
+
+  if (! InterlockedCompareExchange (&init, 1, 0))
+  {
+    extern HMODULE      hInjectorDLL;
+    extern std::wstring injector_name;
+
+    SK_UpdateSoftware_pfn SK_UpdateSoftware =
+      (SK_UpdateSoftware_pfn)
+        GetProcAddress ( hInjectorDLL,
+                           "SK_UpdateSoftware" );
+
+    SK_FetchVersionInfo_pfn SK_FetchVersionInfo =
+      (SK_FetchVersionInfo_pfn)
+        GetProcAddress ( hInjectorDLL,
+                           "SK_FetchVersionInfo" );
+
+    if (! wcsstr (injector_name.c_str (), L"SpecialK"))
+    {
+      if ( SK_FetchVersionInfo != nullptr &&
+           SK_UpdateSoftware   != nullptr )
+      {
+        if (SK_FetchVersionInfo (L"UnX"))
+        {
+          SK_UpdateSoftware (L"UnX");
+        }
+      }
+    }
   }
 }
 

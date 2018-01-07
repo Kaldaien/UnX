@@ -724,6 +724,7 @@ UNX_LoadConfig (std::wstring name)
 
     if (config.textures.inject)
       SK_D3D11_AddTexHash (L"Title.dds", 0xA4FFC068, 0x00);
+    //SK_D3D11_AddTexHash (L"Title.dds", 0xC3D43759, 0x00);
 
     if (config.textures.inject || config.textures.dump)
       SK_D3D11_PopulateResourceList ();
@@ -1141,35 +1142,31 @@ UNX_ControlPanelWidget (void)
         bool ps_map = StrStrIW (gamepad.tex_set.c_str (), L"PlayStation") ||
                       StrStrIW (gamepad.tex_set.c_str (), L"PS");
 
-        auto GamepadCombo = [&](UNX_GamepadCombo* combo) ->
+        auto GamepadCombo = [&](UNX_GamepadCombo& combo) ->
         auto
         {
-          std::string label  = "###";
-                      label += combo->combo_name;
+          ImGui::PushID (combo.combo_name.c_str ());
 
-          ImGui::PushID   ((int)&combo);
           bool selected =
-            ImGui::Selectable (label.c_str (), false);
-          ImGui::PopID    ();
-          ImGui::SameLine ();
+            ImGui::Selectable (UNX_WideCharToUTF8 (combo.unparsed).c_str (), false);
 
-          ImGui::Text     (UNX_WideCharToUTF8 (combo->unparsed).c_str ());
+          ImGui::PopID ();
 
           if (selected)
           {
-            combo->button_names =
+            combo.button_names =
               ps_map ? gamepad.names.PlayStation :
                        gamepad.names.Xbox;
           
-            ImGui::OpenPopup (combo->combo_name.c_str ());
+            ImGui::OpenPopup (combo.combo_name.c_str ());
           }
 
-          if (SK_ImGui_GamepadComboDialog0 (combo))
+          if (SK_ImGui_GamepadComboDialog0 (&combo))
           {
             extern void UNX_SetupSpecialButtons (void);
-            UNX_SetupSpecialButtons ();
+                        UNX_SetupSpecialButtons ();
 
-            ((unx::ParameterStringW *)combo->config_parameter)->store (combo->unparsed);
+            ((unx::ParameterStringW *)combo.config_parameter)->store (combo.unparsed);
 
             extern iSK_INI* pad_cfg;
             
@@ -1202,20 +1199,20 @@ UNX_ControlPanelWidget (void)
         ImGui::SameLine   (  );
 
         ImGui::BeginGroup (  );
-        GamepadCombo (&gamepad.f1);
-        GamepadCombo (&gamepad.f2);
-        GamepadCombo (&gamepad.f3);
-        GamepadCombo (&gamepad.f4);
-        GamepadCombo (&gamepad.f5);
-        GamepadCombo (&gamepad.screenshot);
-        GamepadCombo (&gamepad.fullscreen);
-        GamepadCombo (&gamepad.esc);
-        GamepadCombo (&gamepad.kickstart);
+        GamepadCombo (gamepad.f1);
+        GamepadCombo (gamepad.f2);
+        GamepadCombo (gamepad.f3);
+        GamepadCombo (gamepad.f4);
+        GamepadCombo (gamepad.f5);
+        GamepadCombo (gamepad.screenshot);
+        GamepadCombo (gamepad.fullscreen);
+        GamepadCombo (gamepad.esc);
+        GamepadCombo (gamepad.kickstart);
 
         if (game_type & GAME_FFX)
         {
-          GamepadCombo (&gamepad.speedboost);
-          GamepadCombo (&gamepad.softreset);
+          GamepadCombo (gamepad.speedboost);
+          GamepadCombo (gamepad.softreset);
           if (ImGui::IsItemHovered () || ImGui::IsItemFocused ())
             ImGui::SetTooltip ("It is STRONGLY recommended that you do not change this gamepad combo!");
         }

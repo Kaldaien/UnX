@@ -46,7 +46,7 @@
 typedef void (WINAPI *SK_D3D11_AddTexHash_pfn)(const wchar_t*, uint32_t, uint32_t);
 extern SK_D3D11_AddTexHash_pfn SK_D3D11_AddTexHash;
 
-typedef HWND (WINAPI *SK_GetGameWindow_pfn)(void);
+using SK_GetGameWindow_pfn = HWND (WINAPI *)(void);
 SK_GetGameWindow_pfn SK_GetGameWindow;
 
 unx_gamepad_s gamepad;
@@ -60,24 +60,24 @@ extern void UNX_InstallWindowHook (HWND hWnd);
 // DirectInput 8
 //
 ///////////////////////////////////////////////////////////////////////////////
-typedef HRESULT (WINAPI *IDirectInputDevice8_GetDeviceState_pfn)(
-  LPDIRECTINPUTDEVICE  This,
-  DWORD                cbData,
-  LPVOID               lpvData
+using IDirectInputDevice8_GetDeviceState_pfn = HRESULT (WINAPI *)(
+  LPDIRECTINPUTDEVICE8W  This,
+  DWORD                  cbData,
+  LPVOID                 lpvData
 );
 
 struct SK_DI8_Keyboard {
-  LPDIRECTINPUTDEVICE pDev = nullptr;
-  uint8_t             state [512];
+  LPDIRECTINPUTDEVICE8W pDev = nullptr;
+  uint8_t               state [512];
 } *_dik;
 
 typedef struct SK_DI8_Mouse {
-  LPDIRECTINPUTDEVICE pDev = nullptr;
-  DIMOUSESTATE2       state;
+  LPDIRECTINPUTDEVICE8W pDev = nullptr;
+  DIMOUSESTATE2         state;
 } *_dim;
 
-typedef SK_DI8_Mouse*    (WINAPI *SK_Input_GetDI8Mouse_pfn)   (void);
-typedef SK_DI8_Keyboard* (WINAPI *SK_Input_GetDI8Keyboard_pfn)(void);
+using SK_Input_GetDI8Mouse_pfn = SK_DI8_Mouse*    (WINAPI *)   (void);
+using SK_Input_GetDI8Keyboard_pfn = SK_DI8_Keyboard* (WINAPI *)(void);
 
 SK_Input_GetDI8Mouse_pfn    SK_Input_GetDI8Mouse      = nullptr;
 SK_Input_GetDI8Keyboard_pfn SK_Input_GetDI8Keyboard   = nullptr;
@@ -91,7 +91,7 @@ IDirectInputDevice8_GetDeviceState_pfn
 
 HRESULT
 WINAPI
-IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE        This,
+IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE8W      This,
                                             DWORD                      cbData,
                                             LPVOID                     lpvData )
 {
@@ -104,7 +104,7 @@ IDirectInputDevice8_GetDeviceState_Detour ( LPDIRECTINPUTDEVICE        This,
   {
     if (cbData == sizeof DIJOYSTATE2)
     {
-      DIJOYSTATE2* out = (DIJOYSTATE2 *)lpvData;
+      auto* out = (DIJOYSTATE2 *)lpvData;
 
       // Fix Wonky Input Behavior When Window is Not In Foreground
       if (! unx::window.active/*GetForegroundWindow () != SK_GetGameWindow ()*/)
@@ -187,7 +187,7 @@ typedef struct _XINPUT_STATE {
   XINPUT_GAMEPAD Gamepad;
 } XINPUT_STATE, *PXINPUT_STATE;
 
-typedef DWORD (WINAPI *XInputGetState_pfn)(
+using XInputGetState_pfn = DWORD (WINAPI *)(
   _In_  DWORD        dwUserIndex,
   _Out_ XINPUT_STATE *pState
 );
@@ -214,8 +214,8 @@ XInputGetState_Detour ( _In_  DWORD         dwUserIndex,
   return dwRet;
 }
 
-typedef bool (WINAPI *SK_XInput_PollController_pfn)( INT           iJoyID,
-                                                     XINPUT_STATE* pState );
+using SK_XInput_PollController_pfn = bool (WINAPI *)( INT           iJoyID,
+                                                      XINPUT_STATE* pState );
 SK_XInput_PollController_pfn SK_XInput_PollController = nullptr;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -235,7 +235,7 @@ SpinOrSleep (DWORD dwMilliseconds)
   }
 }
 
-typedef void (CALLBACK *SK_PluginKeyPress_pfn)( BOOL Control,
+using SK_PluginKeyPress_pfn = void (CALLBACK *)( BOOL Control,
                         BOOL Shift,
                         BOOL Alt,
                         BYTE vkCode );
@@ -483,7 +483,7 @@ SK_UNX_PluginKeyPress ( BOOL Control,
     return;
 
 
-  UINT masked_key =
+  auto masked_key =
     SK_MakeKeyMask (vkCode & 0xFF, Control, Shift, Alt);
 
   if (masked_key == keybinds.SpeedStep.masked_code)
@@ -558,7 +558,7 @@ SK_UNX_PluginKeyPress ( BOOL Control,
   SK_PluginKeyPress_Original (Control, Shift, Alt, vkCode);
 }
 
-typedef const wchar_t* (__stdcall *SK_GetConfigPath_pfn)(void);
+using  SK_GetConfigPath_pfn = const wchar_t* (__stdcall *)(void);
 extern SK_GetConfigPath_pfn SK_GetConfigPath;
 
 iSK_INI* pad_cfg = nullptr;
@@ -739,7 +739,7 @@ unx::InputManager::Init (void)
   gamepad.softreset.combo_name  = "Soft Game Reset";
 
 
-  unx::ParameterBool* supports_XInput = 
+  auto* supports_XInput = 
     (unx::ParameterBool *)factory.create_parameter <bool> (L"Disable XInput?");
   supports_XInput->register_to_ini (pad_cfg, L"Gamepad.Type", L"UsesXInput");
 
@@ -752,7 +752,7 @@ unx::InputManager::Init (void)
 
   //if (gamepad.legacy)
   {
-    unx::ParameterInt* A     = (unx::ParameterInt *)factory.create_parameter <int> (L"A");
+    auto* A     = (unx::ParameterInt *)factory.create_parameter <int> (L"A");
     A->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_A");
 
     if (((unx::iParameter *)A)->load ())
@@ -762,7 +762,7 @@ unx::InputManager::Init (void)
       A->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.A));
     }
 
-    unx::ParameterInt* B     = (unx::ParameterInt *)factory.create_parameter <int> (L"B");
+    auto* B     = (unx::ParameterInt *)factory.create_parameter <int> (L"B");
     B->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_B");
 
     if (((unx::iParameter *)B)->load ())
@@ -772,7 +772,7 @@ unx::InputManager::Init (void)
       B->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.B));
     }
 
-    unx::ParameterInt* X     = (unx::ParameterInt *)factory.create_parameter <int> (L"X");
+    auto* X     = (unx::ParameterInt *)factory.create_parameter <int> (L"X");
     X->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_X");
 
     if (((unx::iParameter *)X)->load ())
@@ -782,7 +782,7 @@ unx::InputManager::Init (void)
       X->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.X));
     }
 
-    unx::ParameterInt* Y     = (unx::ParameterInt *)factory.create_parameter <int> (L"Y");
+    auto* Y     = (unx::ParameterInt *)factory.create_parameter <int> (L"Y");
     Y->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_Y");
 
     if (((unx::iParameter *)Y)->load ())
@@ -792,7 +792,7 @@ unx::InputManager::Init (void)
       Y->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.Y));
     }
 
-    unx::ParameterInt* START = (unx::ParameterInt *)factory.create_parameter <int> (L"START");
+    auto* START = (unx::ParameterInt *)factory.create_parameter <int> (L"START");
     START->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_Start");
 
     if (((unx::iParameter *)START)->load ())
@@ -802,7 +802,7 @@ unx::InputManager::Init (void)
       START->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.START));
     }
 
-    unx::ParameterInt* BACK  = (unx::ParameterInt *)factory.create_parameter <int> (L"BACK");
+    auto* BACK  = (unx::ParameterInt *)factory.create_parameter <int> (L"BACK");
     BACK->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_Back");
 
     if (((unx::iParameter *)BACK)->load ())
@@ -812,7 +812,7 @@ unx::InputManager::Init (void)
       BACK->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.BACK));
     }
 
-    unx::ParameterInt* LB    = (unx::ParameterInt *)factory.create_parameter <int> (L"LB");
+    auto* LB    = (unx::ParameterInt *)factory.create_parameter <int> (L"LB");
     LB->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_LB");
 
     if (((unx::iParameter *)LB)->load ())
@@ -822,7 +822,7 @@ unx::InputManager::Init (void)
       LB->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.LB));
     }
 
-    unx::ParameterInt* RB    = (unx::ParameterInt *)factory.create_parameter <int> (L"RB");
+    auto* RB    = (unx::ParameterInt *)factory.create_parameter <int> (L"RB");
     RB->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_RB");
 
     if (((unx::iParameter *)RB)->load ())
@@ -832,7 +832,7 @@ unx::InputManager::Init (void)
       RB->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.RB));
     }
 
-    unx::ParameterInt* LT    = (unx::ParameterInt *)factory.create_parameter <int> (L"LT");
+    auto* LT    = (unx::ParameterInt *)factory.create_parameter <int> (L"LT");
     LT->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_LT");
 
     if (((unx::iParameter *)LT)->load ())
@@ -842,7 +842,7 @@ unx::InputManager::Init (void)
       LT->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.LT));
     }
 
-    unx::ParameterInt* RT    = (unx::ParameterInt *)factory.create_parameter <int> (L"RT");
+    auto* RT    = (unx::ParameterInt *)factory.create_parameter <int> (L"RT");
     RT->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_RT");
 
     if (((unx::iParameter *)RT)->load ())
@@ -852,7 +852,7 @@ unx::InputManager::Init (void)
       RT->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.RT));
     }
 
-    unx::ParameterInt* LS    = (unx::ParameterInt *)factory.create_parameter <int> (L"LS");
+    auto* LS    = (unx::ParameterInt *)factory.create_parameter <int> (L"LS");
     LS->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_LS");
 
     if (((unx::iParameter *)LS)->load ())
@@ -862,7 +862,7 @@ unx::InputManager::Init (void)
       LS->store (gamepad.remap.enumToIndex (gamepad.remap.buttons.LS));
     }
 
-    unx::ParameterInt* RS    = (unx::ParameterInt *)factory.create_parameter <int> (L"RS");
+    auto* RS    = (unx::ParameterInt *)factory.create_parameter <int> (L"RS");
     RS->register_to_ini (pad_cfg, L"Gamepad.Remap", L"XInput_RS");
 
     if (((unx::iParameter *)RS)->load ())
@@ -1512,16 +1512,11 @@ UNX_PollInput (void)
   if (slot == -1)
       slot = 0;
 
-  // Do Not Handle Input While We Do Not Have Focus
-  if (GetForegroundWindow () != SK_GetGameWindow ())
-  {
-    return;
-  }
-
-  if (SK_ImGui_Visible)
-  {
-    return;
-  }
+//  // Do Not Handle Input While We Do Not Have Focus
+//  if (GetForegroundWindow () != SK_GetGameWindow ())
+//  {
+//    return;
+//  }
 
 
   XINPUT_STATE xi_state = {   };
@@ -1669,12 +1664,15 @@ UNX_PollInput (void)
 
   WORD scancode = 0;
 
-#define UNX_SendScancode(x) { scancode          = (x);                \
-                            keys [0].ki.wScan = scancode;           \
-                                                                    \
-                            SendInput (1, &keys [0], sizeof INPUT); \
-                                                                    \
-                            pressed_scancodes.push_back (scancode); }
+#define UNX_SendScancodeMake(vk,x)   { keybd_event ((vk), (x), KEYEVENTF_SCANCODE,                   0); }
+#define UNX_SendScancodeBreak(vk, y) { keybd_event ((vk), (y), KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP, 0); }
+
+#define UNX_SendScancode(vk,x,y) {                         UNX_SendScancodeMake  ((vk), (x));                          \
+          CreateThread (nullptr, 0, [](LPVOID) -> DWORD {             SleepEx (66, TRUE);                              \
+                                                           UNX_SendScancodeBreak ((vk), (x));                          \
+                                                           CloseHandle (GetCurrentThread ());                          \
+                                                                                  return 0; }, nullptr, 0x0, nullptr); \
+};
 
   if (four_finger)
   {
@@ -1702,9 +1700,9 @@ UNX_PollInput (void)
   bool        full_sleep = true;
   static bool long_press = false;
 
-  if (esc.state)
+  if (esc.wasJustPressed ())
   {
-    UNX_SendScancode (0x01);
+    UNX_SendScancode (VK_ESCAPE, 0x01, 0x81);
   }
 
   else if (esc.wasJustReleased ())
@@ -1723,16 +1721,16 @@ UNX_PollInput (void)
     }
   }
 
-  else if (f1.state) { UNX_SendScancode (0x3b); }
-  else if (f2.state) { UNX_SendScancode (0x3c); }
-  else if (f3.state) { UNX_SendScancode (0x3d); }
-  else if (f4.state) { UNX_SendScancode (0x3e); }
-  else if (f5.state) { UNX_SendScancode (0x3f); }
+  else if (f1.wasJustPressed ()) { UNX_SendScancode (VK_F1, 0x3b, 0xbb); }
+  else if (f2.wasJustPressed ()) { UNX_SendScancode (VK_F2, 0x3c, 0xbc); }
+  else if (f3.wasJustPressed ()) { UNX_SendScancode (VK_F3, 0x3d, 0xbd); }
+  else if (f4.wasJustPressed ()) { UNX_SendScancode (VK_F4, 0x3e, 0xbe); }
+  else if (f5.wasJustPressed ()) { UNX_SendScancode (VK_F5, 0x3f, 0xbf); }
 
   else if (full.wasJustPressed ())
   {
-    UNX_SendScancode (0x38);
-    UNX_SendScancode (0x1c);
+    UNX_SendScancode (VK_MENU,   0x38, 0xb8);
+    UNX_SendScancode (VK_RETURN, 0x1c, 0x9c);
 
     full_sleep = false;
   }
@@ -1744,7 +1742,7 @@ UNX_PollInput (void)
 
   else if (sshot.wasJustPressed ())
   {
-    typedef bool (__stdcall *SK_SteamAPI_TakeScreenshot_pfn)(void);
+    using SK_SteamAPI_TakeScreenshot_pfn = bool (__stdcall *)(void);
 
     static SK_SteamAPI_TakeScreenshot_pfn
       SK_SteamAPI_TakeScreenshot =
@@ -1757,27 +1755,6 @@ UNX_PollInput (void)
     if (SK_SteamAPI_TakeScreenshot != nullptr)
       SK_SteamAPI_TakeScreenshot ();
   }
-
-  int i = 1;
-
-  //SetFocus (SK_GetGameWindow ());
-
-  while (pressed_scancodes.size ())
-  {
-    keys [i++].ki.wScan = pressed_scancodes.front     ();
-                          pressed_scancodes.pop_front ();
-
-    if (i > 4)
-    {
-      SendInput (4, &keys [1], sizeof INPUT);
-      i = 1;
-    }
-  }
-
-  if (i > 1)
-    SendInput (i-1, &keys [1], sizeof INPUT);
-
-  //SetFocus (SK_GetGameWindow ());
 }
 
 unsigned int

@@ -93,6 +93,8 @@ struct SK_GamepadCombo_V0 {
 
 struct UNX_GamepadCombo : SK_GamepadCombo_V0
 {
+  UNX_GamepadCombo (const char* shorthand) { combo_name = shorthand; }
+
   unx::ParameterStringW* config_parameter;
 };
 
@@ -100,17 +102,17 @@ struct unx_gamepad_s {
   std::wstring tex_set = L"PlayStation_Glossy";
   bool         legacy  = false;
 
-  UNX_GamepadCombo f1;
-  UNX_GamepadCombo f2;
-  UNX_GamepadCombo f3;
-  UNX_GamepadCombo f4;
-  UNX_GamepadCombo f5;
-  UNX_GamepadCombo screenshot;
-  UNX_GamepadCombo fullscreen; 
-  UNX_GamepadCombo esc;
-  UNX_GamepadCombo speedboost;
-  UNX_GamepadCombo kickstart;
-  UNX_GamepadCombo softreset;
+  UNX_GamepadCombo f1         { "F1"                };
+  UNX_GamepadCombo f2         { "F2"                };
+  UNX_GamepadCombo f3         { "F3"                };
+  UNX_GamepadCombo f4         { "F4"                };
+  UNX_GamepadCombo f5         { "F5"                };
+  UNX_GamepadCombo screenshot { "Steam Screenshot"  };
+  UNX_GamepadCombo fullscreen { "Fullscreen Toggle" }; 
+  UNX_GamepadCombo esc        { "Escape"            };
+  UNX_GamepadCombo speedboost { "Speedboost"        };
+  UNX_GamepadCombo kickstart  { "Kickstart"         };
+  UNX_GamepadCombo softreset  { "Soft Reset"        };
 
   struct names_s
   {
